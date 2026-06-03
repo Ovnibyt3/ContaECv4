@@ -1,0 +1,60 @@
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
+import { Providers } from "@/components/providers";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "ContaEC - Contabilidad y Facturacion Electronica Ecuador",
+  description:
+    "Sistema de contabilidad y facturacion electronica para Ecuador. Cumpla con las normativas del SRI de manera simple y eficiente.",
+  keywords: [
+    "ContaEC",
+    "contabilidad Ecuador",
+    "facturacion electronica",
+    "SRI",
+    "comprobantes electronicos",
+    "Ecuador",
+    "contabilidad",
+    "facturacion",
+  ],
+  authors: [{ name: "T&M Technology Ec" }],
+  icons: {
+    icon: "/favicon.ico",
+  },
+  openGraph: {
+    title: "ContaEC - Contabilidad y Facturacion Electronica",
+    description:
+      "Sistema de contabilidad y facturacion electronica para Ecuador",
+    type: "website",
+  },
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="es" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+      >
+        <Providers>
+          {children}
+          <Toaster />
+        </Providers>
+      </body>
+    </html>
+  );
+}

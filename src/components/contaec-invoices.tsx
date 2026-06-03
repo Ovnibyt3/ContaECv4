@@ -1,0 +1,3981 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Receipt,
+  Plus,
+  Loader2,
+  RefreshCw,
+  Trash2,
+  Pencil,
+  Search,
+  Package,
+  Users,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Send,
+  Eye,
+  FileDown,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  DollarSign,
+  Shield,
+  X,
+  Info,
+  Mail,
+  Zap,
+  Download,
+  Calendar,
+  ArrowRightLeft,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  getComprobantes,
+  getComprobante,
+  createComprobante,
+  firmarComprobante,
+  enviarComprobanteSRI,
+  consultarComprobanteSRI,
+  getComprobanteXML,
+  deleteComprobante,
+  getComprobanteStats,
+  downloadRIDE,
+  enviarComprobanteEmail,
+  procesarComprobante,
+  validarComprobante,
+  corregirComprobante,
+  getProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  getClients,
+  createClient,
+  updateClient,
+  deleteClient,
+  getSRICatalogs,
+  getProformas,
+  getProforma,
+  createProforma,
+  deleteProforma,
+  getProformaStats,
+  enviarProforma,
+  convertirProforma,
+  downloadProformaPDF,
+  type ComprobanteDetalleCreate,
+  type ComprobanteCreate,
+  type ComprobanteListResponse,
+  type ComprobanteStatsResponse,
+  type ComprobanteResponse,
+  type ProductResponse,
+  type ProductCreate,
+  type ClientResponse,
+  type ClientCreate,
+  type Company,
+  type SRICatalog,
+  type ValidationResult,
+  type ProformaDetalleCreate,
+  type ProformaCreate,
+  type ProformaResponse,
+  type ProformaListResponse,
+  type ProformaStatsResponse,
+} from '@/lib/api';
+
+// ─── SRI Reference Data ─────────────────────────────────────────
+
+const TIPOS_COMPROBANTE: { codigo: string; descripcion: string }[] = [
+  { codigo: '01', descripcion: 'Factura' },
+  { codigo: '03', descripcion: 'Liquidacion de Compra' },
+  { codigo: '04', descripcion: 'Nota de Credito' },
+  { codigo: '05', descripcion: 'Nota de Debito' },
+  { codigo: '06', descripcion: 'Guia de Remision' },
+  { codigo: '07', descripcion: 'Comprobante de Retencion' },
+];
+
+const TIPOS_IDENTIFICACION: { codigo: string; descripcion: string }[] = [
+  { codigo: '04', descripcion: 'RUC' },
+  { codigo: '05', descripcion: 'Cedula' },
+  { codigo: '06', descripcion: 'Pasaporte' },
+  { codigo: '07', descripcion: 'Consumidor Final' },
+  { codigo: '08', descripcion: 'Identificacion Exterior' },
+];
+
+const FORMAS_PAGO: { codigo: string; descripcion: string }[] = [
+  { codigo: '01', descripcion: 'Sin utilizacion del sistema financiero' },
+  { codigo: '15', descripcion: 'Compensacion de deudas' },
+  { codigo: '16', descripcion: 'Tarjeta de debito' },
+  { codigo: '17', descripcion: 'Dinero electronico' },
+  { codigo: '18', descripcion: 'Tarjeta prepago' },
+  { codigo: '19', descripcion: 'Tarjeta de credito' },
+  { codigo: '20', descripcion: 'Otros con utilizacion del sistema financiero' },
+  { codigo: '21', descripcion: 'Endoso de titulos' },
+];
+
+const IVA_RATES: { codigo: string; porcentaje: number; descripcion: string }[] = [
+  { codigo: '0', porcentaje: 0, descripcion: '0%' },
+  { codigo: '5', porcentaje: 5, descripcion: '5%' },
+  { codigo: '8', porcentaje: 8, descripcion: '8%' },
+  { codigo: '2', porcentaje: 12, descripcion: '12%' },
+  { codigo: '10', porcentaje: 13, descripcion: '13%' },
+  { codigo: '3', porcentaje: 14, descripcion: '14%' },
+  { codigo: '4', porcentaje: 15, descripcion: '15%' },
+  { codigo: '6', porcentaje: 0, descripcion: 'No objeto de IVA' },
+  { codigo: '7', porcentaje: 0, descripcion: 'Exento de IVA' },
+];
+
+function getTipoComprobanteLabel(codigo: string): string {
+  return TIPOS_COMPROBANTE.find((t) => t.codigo === codigo)?.descripcion || codigo;
+}
+
+function getEstadoBadge(estado: string) {
+  switch (estado.toUpperCase()) {
+    case 'BORRADOR':
+      return <Badge variant="secondary">Borrador</Badge>;
+    case 'FIRMADO':
+      return <Badge className="bg-sky-600 hover:bg-sky-700">Firmado</Badge>;
+    case 'ENVIADO':
+      return <Badge className="bg-amber-500 hover:bg-amber-600">Enviado</Badge>;
+    case 'AUTORIZADO':
+      return <Badge className="bg-emerald-600 hover:bg-emerald-700">Autorizado</Badge>;
+    case 'RECHAZADO':
+      return <Badge variant="destructive">Rechazado</Badge>;
+    case 'CONTINGENCIA':
+      return <Badge className="bg-orange-500 hover:bg-orange-600">Contingencia</Badge>;
+    default:
+      return <Badge variant="outline">{estado}</Badge>;
+  }
+}
+
+function formatCurrency(amount: number): string {
+  return amount.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ─── Main Component ─────────────────────────────────────────────
+
+interface ContaECInvoicesProps {
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    is_active: boolean;
+    is_admin: boolean;
+    phone?: string | null;
+    language?: string;
+    theme?: string;
+    license_type?: string;
+  };
+  companies: Company[];
+  initialTab?: InvoiceTab;
+}
+
+type InvoiceTab = 'listado' | 'nueva' | 'proformas' | 'nueva-proforma' | 'productos' | 'clientes';
+
+export function ContaECInvoices({ user, companies, initialTab }: ContaECInvoicesProps) {
+  const [activeTab, setActiveTab] = useState<InvoiceTab>(initialTab || 'listado');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() =>
+    companies.length > 0 ? companies[0].id : ''
+  );
+
+  if (companies.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Comprobantes Electronicos</h2>
+          <p className="text-muted-foreground">
+            Gestione sus comprobantes, productos y clientes
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Building2Icon className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium">Sin empresas registradas</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Registre una empresa en el panel de Empresas antes de emitir comprobantes electronicos.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Comprobantes Electronicos</h2>
+          <p className="text-muted-foreground">
+            Gestione sus comprobantes, productos y clientes
+          </p>
+        </div>
+        {companies.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Label htmlFor="company-select" className="text-sm whitespace-nowrap">Empresa:</Label>
+            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+              <SelectTrigger id="company-select" className="w-[220px]">
+                <SelectValue placeholder="Seleccione empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.razon_social}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InvoiceTab)} className="space-y-4">
+        <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="listado" className="gap-1.5">
+            <Receipt className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Listado</span>
+          </TabsTrigger>
+          <TabsTrigger value="nueva" className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Nueva Factura</span>
+          </TabsTrigger>
+          <TabsTrigger value="proformas" className="gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Proformas</span>
+          </TabsTrigger>
+          <TabsTrigger value="productos" className="gap-1.5">
+            <Package className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Productos</span>
+          </TabsTrigger>
+          <TabsTrigger value="clientes" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Clientes</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="listado">
+          <ComprobanteListado companyId={selectedCompanyId} />
+        </TabsContent>
+
+        <TabsContent value="nueva">
+          <NuevaFacturaWizard
+            companyId={selectedCompanyId}
+            onCreated={() => setActiveTab('listado')}
+            companies={companies}
+          />
+        </TabsContent>
+
+        <TabsContent value="proformas">
+          <ProformasTab
+            companyId={selectedCompanyId}
+            onNewProforma={() => setActiveTab('nueva-proforma')}
+          />
+        </TabsContent>
+
+        <TabsContent value="nueva-proforma">
+          <NuevaProformaWizard
+            companyId={selectedCompanyId}
+            onCreated={() => setActiveTab('proformas')}
+          />
+        </TabsContent>
+
+        <TabsContent value="productos">
+          <ProductosTab companyId={selectedCompanyId} />
+        </TabsContent>
+
+        <TabsContent value="clientes">
+          <ClientesTab companyId={selectedCompanyId} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function Building2Icon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+      <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+      <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      <path d="M10 6h4" />
+      <path d="M10 10h4" />
+      <path d="M10 14h4" />
+      <path d="M10 18h4" />
+    </svg>
+  );
+}
+
+// ─── Comprobante Listado ────────────────────────────────────────
+
+function ComprobanteListado({ companyId }: { companyId: string }) {
+  const [comprobantes, setComprobantes] = useState<ComprobanteListResponse[]>([]);
+  const [stats, setStats] = useState<ComprobanteStatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filterTipo, setFilterTipo] = useState<string>('all');
+  const [filterEstado, setFilterEstado] = useState<string>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [xmlDialog, setXmlDialog] = useState<{ open: boolean; xml: string }>({ open: false, xml: '' });
+  const [detailDialog, setDetailDialog] = useState<{ open: boolean; data: ComprobanteResponse | null }>({ open: false, data: null });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [validationDialog, setValidationDialog] = useState<{ open: boolean; result: ValidationResult | null; comprobanteId: string }>({ open: false, result: null, comprobanteId: '' });
+  const [rechazadoDialog, setRechazadoDialog] = useState<{ open: boolean; comprobanteId: string; sriMensaje: string; sriMensajeDetallado: string }>({ open: false, comprobanteId: '', sriMensaje: '', sriMensajeDetallado: '' });
+
+  const loadData = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      const [comps, st] = await Promise.all([
+        getComprobantes({
+          company_id: companyId,
+          tipo_comprobante: filterTipo !== 'all' ? filterTipo : undefined,
+          estado: filterEstado !== 'all' ? filterEstado : undefined,
+        }),
+        getComprobanteStats(companyId),
+      ]);
+      setComprobantes(comps);
+      setStats(st);
+    } catch {
+      toast.error('Error al cargar comprobantes');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, filterTipo, filterEstado]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  async function handleAction(action: string, id: string) {
+    setActionLoading(id + action);
+    try {
+      switch (action) {
+        case 'firmar':
+          await firmarComprobante(id);
+          toast.success('Comprobante firmado exitosamente');
+          break;
+        case 'enviar':
+          await enviarComprobanteSRI(id);
+          toast.success('Comprobante enviado al SRI');
+          break;
+        case 'consultar':
+          await consultarComprobanteSRI(id);
+          toast.success('Consulta al SRI realizada');
+          break;
+        case 'procesar': {
+          toast.info('Procesando comprobante... Esto puede tardar unos segundos.');
+          const result = await procesarComprobante(id);
+          if (result.estado === 'AUTORIZADO') {
+            toast.success('Comprobante autorizado por el SRI');
+          } else if (result.estado === 'RECHAZADO') {
+            toast.error(`Comprobante rechazado: ${result.sri_mensaje || 'Verifique los datos'}`);
+          } else {
+            toast.info(result.sri_mensaje || result.message);
+          }
+          break;
+        }
+        case 'xml': {
+          const result = await getComprobanteXML(id);
+          setXmlDialog({ open: true, xml: result.xml_content || result.message || 'Sin contenido XML' });
+          setActionLoading(null);
+          return;
+        }
+        case 'download-ride': {
+          const blob = await downloadRIDE(id);
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `RIDE_${id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          toast.success('RIDE PDF descargado');
+          break;
+        }
+        case 'download-xml': {
+          const xmlResult = await getComprobanteXML(id);
+          if (xmlResult.xml_content) {
+            const xmlBlob = new Blob([xmlResult.xml_content], { type: 'application/xml' });
+            const xmlUrl = window.URL.createObjectURL(xmlBlob);
+            const xmlA = document.createElement('a');
+            xmlA.href = xmlUrl;
+            xmlA.download = `comprobante_${xmlResult.secuencial || id}.xml`;
+            document.body.appendChild(xmlA);
+            xmlA.click();
+            document.body.removeChild(xmlA);
+            window.URL.revokeObjectURL(xmlUrl);
+            toast.success('XML descargado');
+          } else {
+            toast.error('No hay XML disponible para este comprobante');
+          }
+          break;
+        }
+        case 'enviar-email': {
+          const emailResult = await enviarComprobanteEmail(id);
+          toast.success(emailResult.message || 'Comprobante enviado por correo');
+          break;
+        }
+        case 'validar': {
+          const valResult = await validarComprobante(id);
+          setValidationDialog({ open: true, result: valResult, comprobanteId: id });
+          setActionLoading(null);
+          return;
+        }
+        case 'corregir': {
+          const comp = await getComprobante(id);
+          setRechazadoDialog({
+            open: true,
+            comprobanteId: id,
+            sriMensaje: comp.sri_mensaje || 'Sin mensaje del SRI',
+            sriMensajeDetallado: '',
+          });
+          setActionLoading(null);
+          return;
+        }
+        case 'detalle': {
+          setDetailLoading(true);
+          const comp = await getComprobante(id);
+          setDetailDialog({ open: true, data: comp });
+          setActionLoading(null);
+          setDetailLoading(false);
+          return;
+        }
+      }
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error en la operacion');
+    } finally {
+      setActionLoading(null);
+      setDetailLoading(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteComprobante(id);
+      toast.success('Comprobante eliminado');
+      setDeleteConfirm(null);
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground">Total</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold">{stats.borrador}</div>
+              <p className="text-xs text-muted-foreground">Borradores</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-sky-600">{stats.firmado}</div>
+              <p className="text-xs text-muted-foreground">Firmados</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-amber-500">{stats.enviado}</div>
+              <p className="text-xs text-muted-foreground">Enviados</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-emerald-600">{stats.autorizado}</div>
+              <p className="text-xs text-muted-foreground">Autorizados</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-destructive">{stats.rechazado}</div>
+              <p className="text-xs text-muted-foreground">Rechazados</p>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Tipo comprobante" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {TIPOS_COMPROBANTE.map((t) => (
+              <SelectItem key={t.codigo} value={t.codigo}>
+                {t.codigo} - {t.descripcion}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterEstado} onValueChange={setFilterEstado}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="BORRADOR">Borrador</SelectItem>
+            <SelectItem value="FIRMADO">Firmado</SelectItem>
+            <SelectItem value="ENVIADO">Enviado</SelectItem>
+            <SelectItem value="AUTORIZADO">Autorizado</SelectItem>
+            <SelectItem value="RECHAZADO">Rechazado</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button variant="outline" size="icon" onClick={loadData}>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Table */}
+      {comprobantes.length > 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Secuencial</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {comprobantes.map((comp) => (
+                    <TableRow key={comp.id}>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs font-mono">
+                          {comp.tipo_comprobante}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{comp.secuencial}</TableCell>
+                      <TableCell className="max-w-[150px] truncate">{comp.cliente_razon_social}</TableCell>
+                      <TableCell className="text-xs">
+                        {new Date(comp.fecha_emision).toLocaleDateString('es-EC')}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${formatCurrency(comp.total_con_impuestos)}
+                      </TableCell>
+                      <TableCell>{getEstadoBadge(comp.estado)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleAction('detalle', comp.id)}
+                            disabled={!!actionLoading || detailLoading}
+                            title="Ver detalle"
+                          >
+                            {detailLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                          </Button>
+                          {comp.estado.toUpperCase() === 'BORRADOR' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-emerald-600"
+                                onClick={() => handleAction('validar', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Validar"
+                              >
+                                {actionLoading === comp.id + 'validar' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-sky-600"
+                                onClick={() => handleAction('firmar', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Firmar"
+                              >
+                                {actionLoading === comp.id + 'firmar' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Shield className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive"
+                                onClick={() => setDeleteConfirm(comp.id)}
+                                disabled={!!actionLoading}
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                          {comp.estado.toUpperCase() === 'RECHAZADO' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-amber-500"
+                              onClick={() => handleAction('corregir', comp.id)}
+                              disabled={!!actionLoading}
+                              title="Corregir y Reenviar"
+                            >
+                              {actionLoading === comp.id + 'corregir' ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Pencil className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
+                          {comp.estado.toUpperCase() === 'FIRMADO' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-amber-500"
+                                onClick={() => handleAction('enviar', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Enviar al SRI"
+                              >
+                                {actionLoading === comp.id + 'enviar' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Send className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-emerald-600"
+                                onClick={() => handleAction('procesar', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Procesar (1 clic: Enviar + Consultar)"
+                              >
+                                {actionLoading === comp.id + 'procesar' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Zap className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </>
+                          )}
+                          {comp.estado.toUpperCase() === 'ENVIADO' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-amber-500"
+                              onClick={() => handleAction('consultar', comp.id)}
+                              disabled={!!actionLoading}
+                              title="Consultar SRI"
+                            >
+                              {actionLoading === comp.id + 'consultar' ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
+                          {comp.estado.toUpperCase() === 'AUTORIZADO' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-emerald-600"
+                                onClick={() => handleAction('download-ride', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Descargar RIDE PDF"
+                              >
+                                {actionLoading === comp.id + 'download-ride' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-emerald-600"
+                                onClick={() => handleAction('download-xml', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Descargar XML"
+                              >
+                                {actionLoading === comp.id + 'download-xml' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <FileDown className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-emerald-600"
+                                onClick={() => handleAction('enviar-email', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Enviar por correo"
+                              >
+                                {actionLoading === comp.id + 'enviar-email' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Mail className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-emerald-600"
+                                onClick={() => handleAction('xml', comp.id)}
+                                disabled={!!actionLoading}
+                                title="Ver XML"
+                              >
+                                {actionLoading === comp.id + 'xml' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <FileText className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium">Sin comprobantes</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Cree su primera factura para comenzar
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* XML Dialog */}
+      <Dialog open={xmlDialog.open} onOpenChange={(o) => setXmlDialog({ ...xmlDialog, open: o })}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>XML del Comprobante</DialogTitle>
+            <DialogDescription>Contenido XML firmado del comprobante</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <pre className="text-xs bg-muted p-4 rounded-md overflow-x-auto whitespace-pre-wrap break-all">
+              {xmlDialog.xml || 'Sin contenido XML'}
+            </pre>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Dialog */}
+      <Dialog open={detailDialog.open} onOpenChange={(o) => setDetailDialog({ ...detailDialog, open: o })}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle>Detalle del Comprobante</DialogTitle>
+            <DialogDescription>
+              {detailDialog.data ? `${getTipoComprobanteLabel(detailDialog.data.tipo_comprobante)} #${detailDialog.data.secuencial}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {detailDialog.data && <ComprobanteDetailView comp={detailDialog.data} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar comprobante</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta seguro de que desea eliminar este comprobante? Solo se pueden eliminar comprobantes en estado Borrador.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Validation Results Dialog */}
+      <Dialog open={validationDialog.open} onOpenChange={(o) => setValidationDialog({ ...validationDialog, open: o })}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Resultado de Validación SRI</DialogTitle>
+            <DialogDescription>
+              Resultado de la pre-validación del comprobante antes de enviar al SRI
+            </DialogDescription>
+          </DialogHeader>
+          {validationDialog.result && (
+            <div className="space-y-4">
+              {validationDialog.result.valid ? (
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-200">Comprobante válido para envío al SRI</p>
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">No se encontraron errores que impidan el envío</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+                    <XCircle className="h-8 w-8 text-red-600 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-red-800 dark:text-red-200">Comprobante con errores</p>
+                      <p className="text-sm text-red-600 dark:text-red-400">{validationDialog.result.errors.length} error(es) encontrado(s)</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {validationDialog.result.errors.map((err, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded border bg-red-50/50 dark:bg-red-950/20 text-sm">
+                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-mono text-xs text-red-600 dark:text-red-400">{err.field}</span>
+                          <p className="text-red-700 dark:text-red-300">{err.message}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {validationDialog.result.warnings.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="font-medium text-sm">Advertencias ({validationDialog.result.warnings.length})</span>
+                  </div>
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                    {validationDialog.result.warnings.map((warn, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded border bg-amber-50/50 dark:bg-amber-950/20 text-sm">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-mono text-xs text-amber-600 dark:text-amber-400">{warn.field}</span>
+                          <p className="text-amber-700 dark:text-amber-300">{warn.message}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                {!validationDialog.result.valid && validationDialog.result.warnings.length > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setValidationDialog({ ...validationDialog, open: false });
+                      handleAction('firmar', validationDialog.comprobanteId);
+                    }}
+                  >
+                    Firmar de todas formas
+                  </Button>
+                )}
+                {validationDialog.result.valid && (
+                  <Button
+                    onClick={() => {
+                      setValidationDialog({ ...validationDialog, open: false });
+                      handleAction('firmar', validationDialog.comprobanteId);
+                    }}
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Firmar comprobante
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setValidationDialog({ ...validationDialog, open: false })}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Rechazado Dialog - Show SRI message and option to corregir */}
+      <Dialog open={rechazadoDialog.open} onOpenChange={(o) => setRechazadoDialog({ ...rechazadoDialog, open: o })}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Comprobante Rechazado por el SRI</DialogTitle>
+            <DialogDescription>
+              El SRI ha rechazado este comprobante. Revise los motivos antes de corregir.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+              <XCircle className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-medium text-red-800 dark:text-red-200">Motivo del rechazo:</p>
+                <p className="text-sm text-red-700 dark:text-red-300">{rechazadoDialog.sriMensaje}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Al corregir, el comprobante se reiniciará a estado Borrador, permitiéndole modificar los datos y reenviarlo al SRI.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRechazadoDialog({ ...rechazadoDialog, open: false })}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await corregirComprobante(rechazadoDialog.comprobanteId, {});
+                  toast.success('Comprobante corregido. Ahora puede editarlo y reenviarlo.');
+                  setRechazadoDialog({ ...rechazadoDialog, open: false });
+                  loadData();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Error al corregir comprobante');
+                }
+              }}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Corregir y Reenviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Comprobante Detail ──────────────────────────────────────────
+
+function ComprobanteDetailView({ comp }: { comp: ComprobanteResponse }) {
+  return (
+    <ScrollArea className="max-h-[65vh]">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-muted-foreground">Estado</span>
+            <div className="mt-1">{getEstadoBadge(comp.estado)}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Ambiente</span>
+            <div className="mt-1">
+              <Badge variant="outline">{comp.ambiente === '1' ? 'Pruebas' : 'Produccion'}</Badge>
+            </div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Cliente</span>
+            <div className="font-medium mt-1">{comp.cliente_razon_social}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Identificacion</span>
+            <div className="font-mono text-xs mt-1">{comp.cliente_identificacion}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Clave de Acceso</span>
+            <div className="font-mono text-xs mt-1 break-all">{comp.clave_acceso || '-'}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Fecha Emision</span>
+            <div className="mt-1">{new Date(comp.fecha_emision).toLocaleString('es-EC')}</div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Totals */}
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Subtotal sin impuestos</span>
+            <span className="font-medium">${formatCurrency(comp.subtotal_sin_impuestos)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">IVA</span>
+            <span className="font-medium">${formatCurrency(comp.total_iva)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">ICE</span>
+            <span className="font-medium">${formatCurrency(comp.total_ice)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Descuento</span>
+            <span className="font-medium">${formatCurrency(comp.total_descuento)}</span>
+          </div>
+          <div className="col-span-2 flex justify-between border-t pt-2">
+            <span className="font-semibold">Total con Impuestos</span>
+            <span className="font-bold text-lg">${formatCurrency(comp.total_con_impuestos)}</span>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Detalles */}
+        <div>
+          <h4 className="text-sm font-medium mb-2">Detalles</h4>
+          <div className="space-y-2">
+            {comp.detalles.map((det, i) => (
+              <div key={det.id || i} className="rounded-md border p-3 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="font-medium">{det.descripcion}</span>
+                  <span className="font-medium">${formatCurrency(det.precio_total_sin_impuestos)}</span>
+                </div>
+                <div className="flex gap-4 text-muted-foreground">
+                  <span>Cod: {det.codigo_principal}</span>
+                  <span>Cant: {det.cantidad}</span>
+                  <span>P.Unit: ${formatCurrency(det.precio_unitario)}</span>
+                  <span>IVA: {det.iva_porcentaje}%</span>
+                  {det.ice_porcentaje && <span>ICE: {det.ice_porcentaje}%</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {comp.sri_mensaje && (
+          <>
+            <Separator />
+            <div className="text-xs">
+              <span className="text-muted-foreground">Mensaje SRI: </span>
+              <span className="text-amber-600">{comp.sri_mensaje}</span>
+            </div>
+          </>
+        )}
+      </div>
+    </ScrollArea>
+  );
+}
+
+// ─── Nueva Factura Wizard ────────────────────────────────────────
+
+type WizardStep = 1 | 2 | 3 | 4 | 5;
+
+function NuevaFacturaWizard({ companyId, onCreated, companies }: { companyId: string; onCreated: () => void; companies: Company[] }) {
+  const [step, setStep] = useState<WizardStep>(1);
+  const [creating, setCreating] = useState(false);
+
+  // Step 1: Company already selected via companyId
+  // Step 2: Client
+  const [clientId, setClientId] = useState<string>('');
+  const [clients, setClients] = useState<ClientResponse[]>([]);
+
+  // Step 3: Items
+  const [items, setItems] = useState<ComprobanteDetalleCreate[]>([]);
+  const [products, setProducts] = useState<ProductResponse[]>([]);
+
+  // Step 4: Additional info
+  const [formaPago, setFormaPago] = useState<string>('01');
+  const [tipoComprobante, setTipoComprobante] = useState<string>('01');
+  const [infoAdicional, setInfoAdicional] = useState<Record<string, string>>({});
+  const [newInfoKey, setNewInfoKey] = useState('');
+  const [newInfoValue, setNewInfoValue] = useState('');
+
+  // Nota de Crédito/Débito fields
+  const [comprobanteModificadoId, setComprobanteModificadoId] = useState<string>('');
+  const [motivoModificacion, setMotivoModificacion] = useState<string>('');
+  const [autorizados, setAutorizados] = useState<ComprobanteListResponse[]>([]);
+
+  // Retención fields (tipo 07)
+  const [periodoFiscal, setPeriodoFiscal] = useState<string>('');
+  const [retencionIvaCodigo, setRetencionIvaCodigo] = useState<string>('');
+  const [retencionIvaPorcentaje, setRetencionIvaPorcentaje] = useState<number>(0);
+  const [retencionRentaCodigo, setRetencionRentaCodigo] = useState<string>('');
+  const [retencionRentaPorcentaje, setRetencionRentaPorcentaje] = useState<number>(0);
+  const [baseImponible, setBaseImponible] = useState<number>(0);
+  const [sriCatalogs, setSriCatalogs] = useState<{ retencion_iva: SRICatalog[]; retencion_renta: SRICatalog[] } | null>(null);
+
+  // Load clients and products
+  useEffect(() => {
+    if (!companyId) return;
+    async function load() {
+      try {
+        const [cls, prods] = await Promise.all([
+          getClients(companyId),
+          getProducts(companyId),
+        ]);
+        setClients(cls);
+        setProducts(prods);
+      } catch {
+        toast.error('Error al cargar datos');
+      }
+    }
+    load();
+  }, [companyId]);
+
+  // Load autorizados for NC/ND when tipo changes to 04 or 05
+  useEffect(() => {
+    if ((tipoComprobante === '04' || tipoComprobante === '05') && companyId) {
+      getComprobantes({ company_id: companyId, estado: 'AUTORIZADO' })
+        .then(setAutorizados)
+        .catch(() => toast.error('Error al cargar comprobantes autorizados'));
+    }
+  }, [tipoComprobante, companyId]);
+
+  // Load SRI catalogs for retención
+  useEffect(() => {
+    if (tipoComprobante === '07') {
+      getSRICatalogs()
+        .then((catalogs) => setSriCatalogs({ retencion_iva: catalogs.retencion_iva, retencion_renta: catalogs.retencion_renta }))
+        .catch(() => toast.error('Error al cargar catálogos SRI'));
+    }
+  }, [tipoComprobante]);
+
+  // Add info adicional
+  function addInfoAdicional() {
+    if (newInfoKey.trim() && newInfoValue.trim()) {
+      setInfoAdicional({ ...infoAdicional, [newInfoKey.trim()]: newInfoValue.trim() });
+      setNewInfoKey('');
+      setNewInfoValue('');
+    }
+  }
+
+  function removeInfoAdicional(key: string) {
+    const copy = { ...infoAdicional };
+    delete copy[key];
+    setInfoAdicional(copy);
+  }
+
+  // Calculate totals
+  const subtotal = items.reduce((sum, item) => {
+    const totalSinImp = item.cantidad * item.precio_unitario - (item.descuento || 0);
+    return sum + totalSinImp;
+  }, 0);
+  const totalIva = items.reduce((sum, item) => {
+    const totalSinImp = item.cantidad * item.precio_unitario - (item.descuento || 0);
+    return sum + totalSinImp * (item.iva_porcentaje / 100);
+  }, 0);
+  const totalDescuento = items.reduce((sum, item) => sum + (item.descuento || 0), 0);
+  const total = subtotal + totalIva;
+
+  // Validate step
+  function canProceed(): boolean {
+    switch (step) {
+      case 1: return !!companyId;
+      case 2: return !!clientId;
+      case 3: {
+        if (tipoComprobante === '07') return baseImponible > 0;
+        return items.length > 0;
+      }
+      case 4: {
+        if (tipoComprobante === '04' || tipoComprobante === '05') {
+          return !!formaPago && !!comprobanteModificadoId && !!motivoModificacion.trim();
+        }
+        return !!formaPago;
+      }
+      case 5: return true;
+    }
+  }
+
+  async function handleCreate() {
+    setCreating(true);
+    try {
+      const comprobanteData: ComprobanteCreate = {
+        company_id: companyId,
+        client_id: clientId,
+        tipo_comprobante: tipoComprobante,
+        forma_pago: formaPago,
+        detalles: tipoComprobante === '07' ? [{
+          codigo_principal: 'RET',
+          descripcion: 'Comprobante de Retención',
+          cantidad: 1,
+          precio_unitario: baseImponible,
+          iva_codigo: '0',
+          iva_porcentaje: 0,
+        }] : items,
+        info_adicional: Object.keys(infoAdicional).length > 0 ? infoAdicional : undefined,
+      };
+
+      // NC/ND fields
+      if (tipoComprobante === '04' || tipoComprobante === '05') {
+        comprobanteData.comprobante_modificado_id = comprobanteModificadoId;
+        comprobanteData.motivo_modificacion = motivoModificacion;
+      }
+
+      // Retención fields
+      if (tipoComprobante === '07') {
+        if (retencionIvaCodigo) {
+          comprobanteData.retencion_iva_codigo = retencionIvaCodigo;
+          comprobanteData.retencion_iva_porcentaje = retencionIvaPorcentaje;
+        }
+        if (retencionRentaCodigo) {
+          comprobanteData.retencion_renta_codigo = retencionRentaCodigo;
+          comprobanteData.retencion_renta_porcentaje = retencionRentaPorcentaje;
+        }
+      }
+
+      await createComprobante(comprobanteData);
+      toast.success('Comprobante creado exitosamente');
+      onCreated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al crear comprobante');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const steps = [
+    { num: 1, label: 'Empresa' },
+    { num: 2, label: 'Cliente' },
+    { num: 3, label: 'Items' },
+    { num: 4, label: 'Adicional' },
+    { num: 5, label: 'Revisar' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Step indicator */}
+      <div className="flex items-center gap-2">
+        {steps.map((s, i) => (
+          <div key={s.num} className="flex items-center">
+            <button
+              onClick={() => s.num <= step && setStep(s.num as WizardStep)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                step === s.num
+                  ? 'bg-primary text-primary-foreground'
+                  : step > s.num
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              <span className="h-5 w-5 rounded-full flex items-center justify-center border text-[10px]">
+                {step > s.num ? <CheckCircle2 className="h-3 w-3" /> : s.num}
+              </span>
+              <span className="hidden sm:inline">{s.label}</span>
+            </button>
+            {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground mx-1" />}
+          </div>
+        ))}
+      </div>
+
+      {/* Step Content */}
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-primary" />
+              Seleccionar Empresa y Tipo
+            </CardTitle>
+            <CardDescription>Seleccione la empresa emisora y el tipo de comprobante</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Empresa</Label>
+                <div className="rounded-md border px-3 py-2 bg-muted text-sm">
+                  {companies.find((c) => c.id === companyId)?.razon_social || 'Sin empresa'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tipo-comp">Tipo de Comprobante</Label>
+                <Select value={tipoComprobante} onValueChange={setTipoComprobante}>
+                  <SelectTrigger id="tipo-comp">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_COMPROBANTE.map((t) => (
+                      <SelectItem key={t.codigo} value={t.codigo}>
+                        {t.codigo} - {t.descripcion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 2 && (
+        <ClientSelector
+          companyId={companyId}
+          clients={clients}
+          selectedClientId={clientId}
+          onSelect={setClientId}
+          onClientsUpdate={setClients}
+        />
+      )}
+
+      {step === 3 && tipoComprobante === '07' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-primary" />
+              Datos de Retención
+            </CardTitle>
+            <CardDescription>Configure las retenciones y el período fiscal</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="periodo-fiscal">Período Fiscal (MM/YYYY)</Label>
+                <Input
+                  id="periodo-fiscal"
+                  placeholder="01/2025"
+                  value={periodoFiscal}
+                  onChange={(e) => setPeriodoFiscal(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="base-imponible">Base Imponible</Label>
+                <Input
+                  id="base-imponible"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={baseImponible || ''}
+                  onChange={(e) => setBaseImponible(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="text-sm font-medium mb-3">Retención de IVA</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Código Retención IVA</Label>
+                  <Select value={retencionIvaCodigo} onValueChange={(v) => { setRetencionIvaCodigo(v); const cat = sriCatalogs?.retencion_iva?.find(c => c.codigo === v); if (cat) { /* try to extract porcentaje from description */ const match = cat.descripcion.match(/(\d+)[%.]/); if (match) setRetencionIvaPorcentaje(parseFloat(match[1])); } }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione código" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sriCatalogs?.retencion_iva?.map((cat) => (
+                        <SelectItem key={cat.codigo} value={cat.codigo}>
+                          {cat.codigo} - {cat.descripcion}
+                        </SelectItem>
+                      )) || <SelectItem value="" disabled>Cargando...</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ret-iva-porc">Porcentaje IVA (%)</Label>
+                  <Input
+                    id="ret-iva-porc"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={retencionIvaPorcentaje || ''}
+                    onChange={(e) => setRetencionIvaPorcentaje(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h4 className="text-sm font-medium mb-3">Retención de Renta</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Código Retención Renta</Label>
+                  <Select value={retencionRentaCodigo} onValueChange={(v) => { setRetencionRentaCodigo(v); const cat = sriCatalogs?.retencion_renta?.find(c => c.codigo === v); if (cat) { const match = cat.descripcion.match(/(\d+)[%.]/); if (match) setRetencionRentaPorcentaje(parseFloat(match[1])); } }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione código" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sriCatalogs?.retencion_renta?.map((cat) => (
+                        <SelectItem key={cat.codigo} value={cat.codigo}>
+                          {cat.codigo} - {cat.descripcion}
+                        </SelectItem>
+                      )) || <SelectItem value="" disabled>Cargando...</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ret-renta-porc">Porcentaje Renta (%)</Label>
+                  <Input
+                    id="ret-renta-porc"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={retencionRentaPorcentaje || ''}
+                    onChange={(e) => setRetencionRentaPorcentaje(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {baseImponible > 0 && (retencionIvaPorcentaje > 0 || retencionRentaPorcentaje > 0) && (
+              <>
+                <Separator />
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Base Imponible</span>
+                    <span>${formatCurrency(baseImponible)}</span>
+                  </div>
+                  {retencionIvaPorcentaje > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Retención IVA ({retencionIvaPorcentaje}%)</span>
+                      <span>-${formatCurrency(baseImponible * retencionIvaPorcentaje / 100)}</span>
+                    </div>
+                  )}
+                  {retencionRentaPorcentaje > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Retención Renta ({retencionRentaPorcentaje}%)</span>
+                      <span>-${formatCurrency(baseImponible * retencionRentaPorcentaje / 100)}</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 3 && tipoComprobante !== '07' && (
+        <ItemsEditor
+          items={items}
+          onChange={setItems}
+          products={products}
+        />
+      )}
+
+      {step === 4 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Info className="h-4 w-4 text-primary" />
+              Informacion Adicional
+            </CardTitle>
+            <CardDescription>Forma de pago e informacion adicional</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="forma-pago">Forma de Pago</Label>
+              <Select value={formaPago} onValueChange={setFormaPago}>
+                <SelectTrigger id="forma-pago">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORMAS_PAGO.map((fp) => (
+                    <SelectItem key={fp.codigo} value={fp.codigo}>
+                      {fp.codigo} - {fp.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Nota de Crédito/Débito additional fields */}
+            {(tipoComprobante === '04' || tipoComprobante === '05') && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-medium mb-3">
+                    {tipoComprobante === '04' ? 'Nota de Crédito' : 'Nota de Débito'} - Comprobante a Modificar
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="comp-modificado">Comprobante a Modificar</Label>
+                      <Select value={comprobanteModificadoId} onValueChange={setComprobanteModificadoId}>
+                        <SelectTrigger id="comp-modificado">
+                          <SelectValue placeholder="Seleccione comprobante autorizado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {autorizados.length > 0 ? (
+                            autorizados.map((aut) => (
+                              <SelectItem key={aut.id} value={aut.id}>
+                                {getTipoComprobanteLabel(aut.tipo_comprobante)} #{aut.secuencial} - {aut.cliente_razon_social} (${formatCurrency(aut.total_con_impuestos)})
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="" disabled>No hay comprobantes autorizados</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="motivo-mod">Motivo de Modificación *</Label>
+                      <Textarea
+                        id="motivo-mod"
+                        placeholder="Describa el motivo de la nota de crédito/débito..."
+                        value={motivoModificacion}
+                        onChange={(e) => setMotivoModificacion(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <Separator />
+
+            <div>
+              <Label>Informacion Adicional (opcional)</Label>
+              <div className="mt-2 space-y-2">
+                {Object.entries(infoAdicional).map(([key, value]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <Input value={key} disabled className="w-1/3" />
+                    <Input value={value} disabled className="flex-1" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeInfoAdicional(key)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Campo"
+                    value={newInfoKey}
+                    onChange={(e) => setNewInfoKey(e.target.value)}
+                    className="w-1/3"
+                  />
+                  <Input
+                    placeholder="Valor"
+                    value={newInfoValue}
+                    onChange={(e) => setNewInfoValue(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={addInfoAdicional}>
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 5 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              Revisar y Crear
+            </CardTitle>
+            <CardDescription>Verifique los datos antes de crear el comprobante</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Tipo</span>
+                <div className="font-medium">{getTipoComprobanteLabel(tipoComprobante)}</div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Forma de Pago</span>
+                <div className="font-medium">{FORMAS_PAGO.find((f) => f.codigo === formaPago)?.descripcion || formaPago}</div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Cliente</span>
+                <div className="font-medium">{clients.find((c) => c.id === clientId)?.razon_social || '-'}</div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Identificacion</span>
+                <div className="font-mono text-xs">{clients.find((c) => c.id === clientId)?.identificacion || '-'}</div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Items summary */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">Items ({items.length})</h4>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Codigo</TableHead>
+                      <TableHead>Descripcion</TableHead>
+                      <TableHead className="text-right">Cant.</TableHead>
+                      <TableHead className="text-right">P.Unit.</TableHead>
+                      <TableHead className="text-right">IVA</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-xs">{item.codigo_principal}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{item.descripcion}</TableCell>
+                        <TableCell className="text-right">{item.cantidad}</TableCell>
+                        <TableCell className="text-right">${formatCurrency(item.precio_unitario)}</TableCell>
+                        <TableCell className="text-right">{item.iva_porcentaje}%</TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${formatCurrency(item.cantidad * item.precio_unitario - (item.descuento || 0))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Totals */}
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal sin impuestos</span>
+                <span>${formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">IVA</span>
+                <span>${formatCurrency(totalIva)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Descuento</span>
+                <span>${formatCurrency(totalDescuento)}</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between font-bold text-base">
+                <span>Total</span>
+                <span>${formatCurrency(total)}</span>
+              </div>
+            </div>
+
+            {Object.keys(infoAdicional).length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Info Adicional</h4>
+                  {Object.entries(infoAdicional).map(([k, v]) => (
+                    <div key={k} className="text-xs flex gap-2">
+                      <span className="text-muted-foreground">{k}:</span>
+                      <span>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Navigation */}
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => setStep((step - 1) as WizardStep)}
+          disabled={step === 1}
+        >
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Anterior
+        </Button>
+        {step < 5 ? (
+          <Button
+            onClick={() => setStep((step + 1) as WizardStep)}
+            disabled={!canProceed()}
+          >
+            Siguiente
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={handleCreate}
+            disabled={creating || items.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            {creating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creando...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Crear Comprobante
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Client Selector ────────────────────────────────────────────
+
+function ClientSelector({
+  companyId,
+  clients,
+  selectedClientId,
+  onSelect,
+  onClientsUpdate,
+}: {
+  companyId: string;
+  clients: ClientResponse[];
+  selectedClientId: string;
+  onSelect: (id: string) => void;
+  onClientsUpdate: (clients: ClientResponse[]) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClient, setNewClient] = useState({
+    tipo_identificacion: '05',
+    identificacion: '',
+    razon_social: '',
+    direccion: '',
+    email: '',
+    telefono: '',
+  });
+  const [creatingClient, setCreatingClient] = useState(false);
+
+  const filtered = clients.filter(
+    (c) =>
+      c.razon_social.toLowerCase().includes(search.toLowerCase()) ||
+      c.identificacion.includes(search)
+  );
+
+  async function handleCreateClient() {
+    setCreatingClient(true);
+    try {
+      const created = await createClient({
+        company_id: companyId,
+        ...newClient,
+      });
+      onClientsUpdate([...clients, created]);
+      onSelect(created.id);
+      setShowNewClient(false);
+      setNewClient({
+        tipo_identificacion: '05',
+        identificacion: '',
+        razon_social: '',
+        direccion: '',
+        email: '',
+        telefono: '',
+      });
+      toast.success('Cliente creado exitosamente');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al crear cliente');
+    } finally {
+      setCreatingClient(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" />
+          Seleccionar Cliente
+        </CardTitle>
+        <CardDescription>Busque un cliente existente o cree uno nuevo</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre o identificacion..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button variant="outline" onClick={() => setShowNewClient(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo
+          </Button>
+        </div>
+
+        <ScrollArea className="max-h-[300px]">
+          <div className="space-y-2">
+            {filtered.length > 0 ? (
+              filtered.map((client) => (
+                <button
+                  key={client.id}
+                  onClick={() => onSelect(client.id)}
+                  className={`w-full text-left rounded-md border p-3 transition-colors ${
+                    selectedClientId === client.id
+                      ? 'border-primary bg-primary/5'
+                      : 'hover:bg-accent/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-sm">{client.razon_social}</span>
+                      <span className="text-xs text-muted-foreground ml-2 font-mono">
+                        {client.identificacion}
+                      </span>
+                    </div>
+                    {selectedClientId === client.id && (
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                    )}
+                  </div>
+                  {client.email && (
+                    <p className="text-xs text-muted-foreground mt-1">{client.email}</p>
+                  )}
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No se encontraron clientes
+              </p>
+            )}
+          </div>
+        </ScrollArea>
+      </CardContent>
+
+      {/* New Client Dialog */}
+      <Dialog open={showNewClient} onOpenChange={setShowNewClient}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo Cliente</DialogTitle>
+            <DialogDescription>Registre un nuevo cliente</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo Identificacion</Label>
+                <Select
+                  value={newClient.tipo_identificacion}
+                  onValueChange={(v) => setNewClient({ ...newClient, tipo_identificacion: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_IDENTIFICACION.filter((t) => t.codigo !== '07').map((t) => (
+                      <SelectItem key={t.codigo} value={t.codigo}>
+                        {t.descripcion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Identificacion</Label>
+                <Input
+                  value={newClient.identificacion}
+                  onChange={(e) => setNewClient({ ...newClient, identificacion: e.target.value })}
+                  placeholder="1712345678"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Razon Social / Nombre</Label>
+              <Input
+                value={newClient.razon_social}
+                onChange={(e) => setNewClient({ ...newClient, razon_social: e.target.value })}
+                placeholder="Juan Perez"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Direccion</Label>
+              <Input
+                value={newClient.direccion}
+                onChange={(e) => setNewClient({ ...newClient, direccion: e.target.value })}
+                placeholder="Av. Amazonas 123"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={newClient.email}
+                  onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                  placeholder="cliente@correo.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefono</Label>
+                <Input
+                  value={newClient.telefono}
+                  onChange={(e) => setNewClient({ ...newClient, telefono: e.target.value })}
+                  placeholder="0991234567"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewClient(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateClient}
+              disabled={creatingClient || !newClient.identificacion || !newClient.razon_social}
+            >
+              {creatingClient ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                'Crear Cliente'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+// ─── Items Editor ────────────────────────────────────────────────
+
+function ItemsEditor({
+  items,
+  onChange,
+  products,
+}: {
+  items: ComprobanteDetalleCreate[];
+  onChange: (items: ComprobanteDetalleCreate[]) => void;
+  products: ProductResponse[];
+}) {
+  const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+
+  const filteredProducts = products.filter(
+    (p) =>
+      p.descripcion.toLowerCase().includes(search.toLowerCase()) ||
+      p.codigo_principal.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function addFromProduct(product: ProductResponse) {
+    const newItem: ComprobanteDetalleCreate = {
+      product_id: product.id,
+      codigo_principal: product.codigo_principal,
+      codigo_auxiliar: product.codigo_auxiliar || undefined,
+      descripcion: product.descripcion,
+      cantidad: 1,
+      unidad_medida: product.unidad_medida,
+      precio_unitario: product.precio_unitario,
+      descuento: product.descuento || undefined,
+      iva_codigo: product.iva_codigo,
+      iva_porcentaje: product.iva_porcentaje,
+    };
+    onChange([...items, newItem]);
+    setShowSearch(false);
+    setSearch('');
+  }
+
+  function addEmptyItem() {
+    const newItem: ComprobanteDetalleCreate = {
+      codigo_principal: '',
+      descripcion: '',
+      cantidad: 1,
+      unidad_medida: 'Unidad',
+      precio_unitario: 0,
+      iva_codigo: '2',
+      iva_porcentaje: 12,
+    };
+    onChange([...items, newItem]);
+  }
+
+  function updateItem(index: number, updates: Partial<ComprobanteDetalleCreate>) {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], ...updates };
+    onChange(newItems);
+  }
+
+  function removeItem(index: number) {
+    onChange(items.filter((_, i) => i !== index));
+  }
+
+  const subtotal = items.reduce((sum, item) => sum + item.cantidad * item.precio_unitario - (item.descuento || 0), 0);
+  const totalIva = items.reduce((sum, item) => {
+    const totalSinImp = item.cantidad * item.precio_unitario - (item.descuento || 0);
+    return sum + totalSinImp * (item.iva_porcentaje / 100);
+  }, 0);
+  const totalDesc = items.reduce((sum, item) => sum + (item.descuento || 0), 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Package className="h-4 w-4 text-primary" />
+          Agregar Items
+        </CardTitle>
+        <CardDescription>Agregue productos o servicios al comprobante</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowSearch(!showSearch)}>
+            <Search className="mr-2 h-4 w-4" />
+            Buscar Producto
+          </Button>
+          <Button variant="outline" onClick={addEmptyItem}>
+            <Plus className="mr-2 h-4 w-4" />
+            Ingreso Manual
+          </Button>
+        </div>
+
+        {/* Product Search */}
+        {showSearch && (
+          <div className="space-y-2">
+            <Input
+              placeholder="Buscar por nombre o codigo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {filteredProducts.length > 0 ? (
+              <ScrollArea className="max-h-[200px]">
+                <div className="space-y-1">
+                  {filteredProducts.slice(0, 20).map((product) => (
+                    <button
+                      key={product.id}
+                      onClick={() => addFromProduct(product)}
+                      className="w-full text-left rounded-md border p-2 hover:bg-accent/50 transition-colors text-sm"
+                    >
+                      <div className="flex justify-between">
+                        <span className="font-medium">{product.descripcion}</span>
+                        <span className="text-muted-foreground">${formatCurrency(product.precio_unitario)}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {product.codigo_principal} | IVA {product.iva_porcentaje}%
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No se encontraron productos. Intente ingreso manual.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Items List */}
+        {items.length > 0 ? (
+          <div className="space-y-3">
+            {items.map((item, i) => (
+              <div key={i} className="rounded-md border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Item {i + 1}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(i)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Codigo Principal</Label>
+                    <Input
+                      value={item.codigo_principal}
+                      onChange={(e) => updateItem(i, { codigo_principal: e.target.value })}
+                      placeholder="COD001"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-2">
+                    <Label className="text-xs">Descripcion</Label>
+                    <Input
+                      value={item.descripcion}
+                      onChange={(e) => updateItem(i, { descripcion: e.target.value })}
+                      placeholder="Descripcion del producto o servicio"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cantidad</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.cantidad}
+                      onChange={(e) => updateItem(i, { cantidad: parseFloat(e.target.value) || 0 })}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Precio Unitario</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.precio_unitario}
+                      onChange={(e) => updateItem(i, { precio_unitario: parseFloat(e.target.value) || 0 })}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Descuento</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.descuento || ''}
+                      onChange={(e) => updateItem(i, { descuento: parseFloat(e.target.value) || undefined })}
+                      placeholder="0.00"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tasa IVA</Label>
+                    <Select
+                      value={item.iva_codigo}
+                      onValueChange={(v) => {
+                        const rate = IVA_RATES.find((r) => r.codigo === v);
+                        if (rate) {
+                          updateItem(i, { iva_codigo: v, iva_porcentaje: rate.porcentaje });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {IVA_RATES.map((r) => (
+                          <SelectItem key={r.codigo} value={r.codigo}>
+                            {r.descripcion} (cod. {r.codigo})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Unidad</Label>
+                    <Input
+                      value={item.unidad_medida || ''}
+                      onChange={(e) => updateItem(i, { unidad_medida: e.target.value })}
+                      placeholder="Unidad"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                {/* Item subtotal */}
+                <div className="text-right text-xs text-muted-foreground">
+                  Subtotal: ${formatCurrency(item.cantidad * item.precio_unitario - (item.descuento || 0))}
+                  {item.iva_porcentaje > 0 && (
+                    <span> + IVA ${formatCurrency((item.cantidad * item.precio_unitario - (item.descuento || 0)) * item.iva_porcentaje / 100)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Package className="h-8 w-8 mx-auto mb-2" />
+            <p className="text-sm">Agregue items al comprobante</p>
+          </div>
+        )}
+
+        {/* Running Totals */}
+        {items.length > 0 && (
+          <div className="rounded-md border bg-muted/50 p-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal sin impuestos</span>
+              <span>${formatCurrency(subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">IVA</span>
+              <span>${formatCurrency(totalIva)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Descuento</span>
+              <span>-${formatCurrency(totalDesc)}</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between font-bold">
+              <span>Total</span>
+              <span>${formatCurrency(subtotal + totalIva)}</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Productos Tab ───────────────────────────────────────────────
+
+function ProductosTab({ companyId }: { companyId: string }) {
+  const [products, setProducts] = useState<ProductResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showDialog, setShowDialog] = useState(false);
+  const [editProduct, setEditProduct] = useState<ProductResponse | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const [form, setForm] = useState<ProductCreate>({
+    company_id: companyId,
+    codigo_principal: '',
+    codigo_auxiliar: '',
+    descripcion: '',
+    tipo: 'B',
+    precio_unitario: 0,
+    iva_codigo: '2',
+    iva_porcentaje: 12,
+    unidad_medida: 'Unidad',
+    descuento: 0,
+  });
+
+  const loadProducts = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      const data = await getProducts(companyId);
+      setProducts(data);
+    } catch {
+      toast.error('Error al cargar productos');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  function openNewProduct() {
+    setEditProduct(null);
+    setForm({
+      company_id: companyId,
+      codigo_principal: '',
+      codigo_auxiliar: '',
+      descripcion: '',
+      tipo: 'B',
+      precio_unitario: 0,
+      iva_codigo: '2',
+      iva_porcentaje: 12,
+      unidad_medida: 'Unidad',
+      descuento: 0,
+    });
+    setShowDialog(true);
+  }
+
+  function openEditProduct(product: ProductResponse) {
+    setEditProduct(product);
+    setForm({
+      company_id: product.company_id,
+      codigo_principal: product.codigo_principal,
+      codigo_auxiliar: product.codigo_auxiliar || '',
+      descripcion: product.descripcion,
+      tipo: product.tipo,
+      precio_unitario: product.precio_unitario,
+      iva_codigo: product.iva_codigo,
+      iva_porcentaje: product.iva_porcentaje,
+      unidad_medida: product.unidad_medida,
+      descuento: product.descuento,
+    });
+    setShowDialog(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (editProduct) {
+        await updateProduct(editProduct.id, form);
+        toast.success('Producto actualizado');
+      } else {
+        await createProduct(form);
+        toast.success('Producto creado');
+      }
+      setShowDialog(false);
+      loadProducts();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar producto');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteProduct(id);
+      toast.success('Producto eliminado');
+      setDeleteConfirm(null);
+      loadProducts();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  }
+
+  const filtered = products.filter(
+    (p) =>
+      p.descripcion.toLowerCase().includes(search.toLowerCase()) ||
+      p.codigo_principal.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar productos..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={openNewProduct}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nuevo Producto
+        </Button>
+      </div>
+
+      {filtered.length > 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Codigo</TableHead>
+                    <TableHead>Descripcion</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Precio</TableHead>
+                    <TableHead>IVA</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell className="font-mono text-xs">{product.codigo_principal}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{product.descripcion}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {product.tipo === 'B' ? 'Bien' : 'Servicio'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${formatCurrency(product.precio_unitario)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">
+                          {product.iva_porcentaje}%
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditProduct(product)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteConfirm(product.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium">Sin productos</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Registre productos para agilizar la creacion de comprobantes
+            </p>
+            <Button className="mt-4" onClick={openNewProduct}>
+              <Plus className="mr-2 h-4 w-4" />
+              Registrar Producto
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Product Create/Edit Dialog */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editProduct ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
+            <DialogDescription>
+              {editProduct ? 'Modifique los datos del producto' : 'Registre un nuevo producto o servicio'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Codigo Principal</Label>
+                <Input
+                  value={form.codigo_principal}
+                  onChange={(e) => setForm({ ...form, codigo_principal: e.target.value })}
+                  placeholder="COD001"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Codigo Auxiliar</Label>
+                <Input
+                  value={form.codigo_auxiliar || ''}
+                  onChange={(e) => setForm({ ...form, codigo_auxiliar: e.target.value })}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Descripcion</Label>
+              <Input
+                value={form.descripcion}
+                onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                placeholder="Descripcion del producto o servicio"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="B">Bien</SelectItem>
+                    <SelectItem value="S">Servicio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Precio Unitario</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.precio_unitario}
+                  onChange={(e) => setForm({ ...form, precio_unitario: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tasa IVA</Label>
+                <Select
+                  value={form.iva_codigo}
+                  onValueChange={(v) => {
+                    const rate = IVA_RATES.find((r) => r.codigo === v);
+                    if (rate) setForm({ ...form, iva_codigo: v, iva_porcentaje: rate.porcentaje });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IVA_RATES.map((r) => (
+                      <SelectItem key={r.codigo} value={r.codigo}>
+                        {r.descripcion} (cod. {r.codigo})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Unidad de Medida</Label>
+                <Input
+                  value={form.unidad_medida || ''}
+                  onChange={(e) => setForm({ ...form, unidad_medida: e.target.value })}
+                  placeholder="Unidad"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !form.codigo_principal || !form.descripcion}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar producto</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta seguro de que desea eliminar este producto? El producto sera desactivado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ─── Clientes Tab ────────────────────────────────────────────────
+
+function ClientesTab({ companyId }: { companyId: string }) {
+  const [clients, setClients] = useState<ClientResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showDialog, setShowDialog] = useState(false);
+  const [editClient, setEditClient] = useState<ClientResponse | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const [form, setForm] = useState<ClientCreate>({
+    company_id: companyId,
+    tipo_identificacion: '05',
+    identificacion: '',
+    razon_social: '',
+    direccion: '',
+    email: '',
+    telefono: '',
+  });
+
+  const loadClients = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      const data = await getClients(companyId);
+      setClients(data);
+    } catch {
+      toast.error('Error al cargar clientes');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    loadClients();
+  }, [loadClients]);
+
+  function openNewClient() {
+    setEditClient(null);
+    setForm({
+      company_id: companyId,
+      tipo_identificacion: '05',
+      identificacion: '',
+      razon_social: '',
+      direccion: '',
+      email: '',
+      telefono: '',
+    });
+    setShowDialog(true);
+  }
+
+  function openEditClient(client: ClientResponse) {
+    setEditClient(client);
+    setForm({
+      company_id: client.company_id,
+      tipo_identificacion: client.tipo_identificacion,
+      identificacion: client.identificacion,
+      razon_social: client.razon_social,
+      direccion: client.direccion || '',
+      email: client.email || '',
+      telefono: client.telefono || '',
+    });
+    setShowDialog(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (editClient) {
+        await updateClient(editClient.id, form);
+        toast.success('Cliente actualizado');
+      } else {
+        await createClient(form);
+        toast.success('Cliente creado');
+      }
+      setShowDialog(false);
+      loadClients();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar cliente');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteClient(id);
+      toast.success('Cliente eliminado');
+      setDeleteConfirm(null);
+      loadClients();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  }
+
+  const filtered = clients.filter(
+    (c) =>
+      c.razon_social.toLowerCase().includes(search.toLowerCase()) ||
+      c.identificacion.includes(search)
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar clientes..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={openNewClient}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nuevo Cliente
+        </Button>
+      </div>
+
+      {filtered.length > 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Identificacion</TableHead>
+                    <TableHead>Razon Social</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Telefono</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((client) => (
+                    <TableRow key={client.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{client.identificacion}</span>
+                          {client.is_default_consumer && (
+                            <Badge variant="outline" className="text-[10px]">CF</Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{client.razon_social}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{client.email || '-'}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{client.telefono || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        {!client.is_default_consumer && (
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditClient(client)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteConfirm(client.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium">Sin clientes</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Registre clientes para emitir comprobantes
+            </p>
+            <Button className="mt-4" onClick={openNewClient}>
+              <Plus className="mr-2 h-4 w-4" />
+              Registrar Cliente
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Client Create/Edit Dialog */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+            <DialogDescription>
+              {editClient ? 'Modifique los datos del cliente' : 'Registre un nuevo cliente'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo Identificacion</Label>
+                <Select
+                  value={form.tipo_identificacion}
+                  onValueChange={(v) => setForm({ ...form, tipo_identificacion: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_IDENTIFICACION.filter((t) => t.codigo !== '07').map((t) => (
+                      <SelectItem key={t.codigo} value={t.codigo}>
+                        {t.descripcion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Identificacion</Label>
+                <Input
+                  value={form.identificacion}
+                  onChange={(e) => setForm({ ...form, identificacion: e.target.value })}
+                  placeholder="1712345678"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Razon Social / Nombre</Label>
+              <Input
+                value={form.razon_social}
+                onChange={(e) => setForm({ ...form, razon_social: e.target.value })}
+                placeholder="Juan Perez"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Direccion</Label>
+              <Input
+                value={form.direccion || ''}
+                onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                placeholder="Av. Amazonas 123"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={form.email || ''}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="cliente@correo.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefono</Label>
+                <Input
+                  value={form.telefono || ''}
+                  onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                  placeholder="0991234567"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !form.identificacion || !form.razon_social}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta seguro de que desea eliminar este cliente? El cliente sera desactivado.
+              No se puede eliminar el cliente Consumidor Final.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ─── Proforma Estado Badge ──────────────────────────────────────
+
+function getProformaEstadoBadge(estado: string) {
+  switch (estado.toUpperCase()) {
+    case 'BORRADOR':
+      return <Badge variant="secondary">Borrador</Badge>;
+    case 'ENVIADA':
+      return <Badge className="bg-sky-600 hover:bg-sky-700">Enviada</Badge>;
+    case 'ACEPTADA':
+      return <Badge className="bg-emerald-600 hover:bg-emerald-700">Aceptada</Badge>;
+    case 'RECHAZADA':
+      return <Badge variant="destructive">Rechazada</Badge>;
+    case 'CONVERTIDA':
+      return <Badge className="bg-primary hover:bg-primary/90">Convertida</Badge>;
+    default:
+      return <Badge variant="outline">{estado}</Badge>;
+  }
+}
+
+// ─── Proformas Tab ──────────────────────────────────────────────
+
+function ProformasTab({ companyId, onNewProforma }: { companyId: string; onNewProforma: () => void }) {
+  const [proformas, setProformas] = useState<ProformaListResponse[]>([]);
+  const [stats, setStats] = useState<ProformaStatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filterEstado, setFilterEstado] = useState<string>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [detailDialog, setDetailDialog] = useState<{ open: boolean; data: ProformaResponse | null }>({ open: false, data: null });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [convertirDialog, setConvertirDialog] = useState<{ open: boolean; proformaId: string; secuencial: string }>({ open: false, proformaId: '', secuencial: '' });
+
+  const loadData = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      const [profs, st] = await Promise.all([
+        getProformas({
+          company_id: companyId,
+          estado: filterEstado !== 'all' ? filterEstado : undefined,
+        }),
+        getProformaStats(companyId),
+      ]);
+      setProformas(profs);
+      setStats(st);
+    } catch {
+      toast.error('Error al cargar proformas');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, filterEstado]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  async function handleAction(action: string, id: string) {
+    setActionLoading(id + action);
+    try {
+      switch (action) {
+        case 'detalle': {
+          setDetailLoading(true);
+          const prof = await getProforma(id);
+          setDetailDialog({ open: true, data: prof });
+          setActionLoading(null);
+          setDetailLoading(false);
+          return;
+        }
+        case 'enviar': {
+          const result = await enviarProforma(id);
+          toast.success(result.message || 'Proforma enviada exitosamente');
+          break;
+        }
+        case 'convertir': {
+          const prof = proformas.find((p) => p.id === id);
+          setConvertirDialog({ open: true, proformaId: id, secuencial: prof?.secuencial || '' });
+          setActionLoading(null);
+          return;
+        }
+        case 'convertir-confirm': {
+          const result = await convertirProforma(id);
+          toast.success(`Proforma convertida a comprobante #${result.secuencial}`);
+          setConvertirDialog({ ...convertirDialog, open: false });
+          break;
+        }
+        case 'download-pdf': {
+          const blob = await downloadProformaPDF(id);
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Proforma_${id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          toast.success('PDF de proforma descargado');
+          break;
+        }
+      }
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error en la operacion');
+    } finally {
+      setActionLoading(null);
+      setDetailLoading(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteProforma(id);
+      toast.success('Proforma eliminada');
+      setDeleteConfirm(null);
+      loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">Proformas</h3>
+          <p className="text-sm text-muted-foreground">Gestione sus proformas y conviertalas a facturas</p>
+        </div>
+        <Button onClick={onNewProforma}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nueva Proforma
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground">Total</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold">{stats.borrador}</div>
+              <p className="text-xs text-muted-foreground">Borradores</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-sky-600">{stats.enviada}</div>
+              <p className="text-xs text-muted-foreground">Enviadas</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-emerald-600">{stats.aceptada}</div>
+              <p className="text-xs text-muted-foreground">Aceptadas</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-destructive">{stats.rechazada}</div>
+              <p className="text-xs text-muted-foreground">Rechazadas</p>
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-primary">{stats.convertida}</div>
+              <p className="text-xs text-muted-foreground">Convertidas</p>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <Select value={filterEstado} onValueChange={setFilterEstado}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="BORRADOR">Borrador</SelectItem>
+            <SelectItem value="ENVIADA">Enviada</SelectItem>
+            <SelectItem value="ACEPTADA">Aceptada</SelectItem>
+            <SelectItem value="RECHAZADA">Rechazada</SelectItem>
+            <SelectItem value="CONVERTIDA">Convertida</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="icon" onClick={loadData}>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Table */}
+      {proformas.length > 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Secuencial</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Fecha Emision</TableHead>
+                    <TableHead>Validez</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {proformas.map((prof) => (
+                    <TableRow key={prof.id}>
+                      <TableCell className="font-mono text-xs">{prof.secuencial}</TableCell>
+                      <TableCell className="max-w-[150px] truncate">{prof.cliente_razon_social}</TableCell>
+                      <TableCell className="text-xs">
+                        {new Date(prof.fecha_emision).toLocaleDateString('es-EC')}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {prof.fecha_validez ? new Date(prof.fecha_validez).toLocaleDateString('es-EC') : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${formatCurrency(prof.total_con_impuestos)}
+                      </TableCell>
+                      <TableCell>{getProformaEstadoBadge(prof.estado)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleAction('detalle', prof.id)}
+                            disabled={!!actionLoading || detailLoading}
+                            title="Ver detalle"
+                          >
+                            {detailLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                          </Button>
+                          {prof.estado.toUpperCase() === 'BORRADOR' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-sky-600"
+                                onClick={() => handleAction('enviar', prof.id)}
+                                disabled={!!actionLoading}
+                                title="Enviar proforma"
+                              >
+                                {actionLoading === prof.id + 'enviar' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Send className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive"
+                                onClick={() => setDeleteConfirm(prof.id)}
+                                disabled={!!actionLoading}
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                          {(prof.estado.toUpperCase() === 'ENVIADA' || prof.estado.toUpperCase() === 'ACEPTADA') && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-emerald-600"
+                              onClick={() => handleAction('convertir', prof.id)}
+                              disabled={!!actionLoading}
+                              title="Convertir a Factura"
+                            >
+                              {actionLoading === prof.id + 'convertir' ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
+                          {prof.estado.toUpperCase() === 'CONVERTIDA' && (
+                            <Badge variant="outline" className="text-xs">
+                              Factura
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-lg font-medium">Sin proformas</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Cree su primera proforma para comenzar
+            </p>
+            <Button className="mt-4" onClick={onNewProforma}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nueva Proforma
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Detail Dialog */}
+      <Dialog open={detailDialog.open} onOpenChange={(o) => setDetailDialog({ ...detailDialog, open: o })}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle>Detalle de Proforma</DialogTitle>
+            <DialogDescription>
+              {detailDialog.data ? `Proforma #${detailDialog.data.secuencial}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {detailDialog.data && <ProformaDetailView prof={detailDialog.data} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar proforma</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta seguro de que desea eliminar esta proforma? Solo se pueden eliminar proformas en estado Borrador.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Convert to Invoice Dialog */}
+      <Dialog open={convertirDialog.open} onOpenChange={(o) => setConvertirDialog({ ...convertirDialog, open: o })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Convertir Proforma a Factura</DialogTitle>
+            <DialogDescription>
+              La proforma #{convertirDialog.secuencial} sera convertida en un comprobante electronico (Factura).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+              <ArrowRightLeft className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-emerald-800 dark:text-emerald-200 text-sm">Conversion a Factura</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                  Se creara una nueva factura con los mismos datos de la proforma. La proforma cambiara a estado CONVERTIDA.
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConvertirDialog({ ...convertirDialog, open: false })}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => handleAction('convertir-confirm', convertirDialog.proformaId)}
+              disabled={!!actionLoading}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {actionLoading === convertirDialog.proformaId + 'convertir-confirm' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Convirtiendo...
+                </>
+              ) : (
+                <>
+                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                  Convertir a Factura
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Proforma Detail View ───────────────────────────────────────
+
+function ProformaDetailView({ prof }: { prof: ProformaResponse }) {
+  return (
+    <ScrollArea className="max-h-[65vh]">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-muted-foreground">Estado</span>
+            <div className="mt-1">{getProformaEstadoBadge(prof.estado)}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Fecha Emision</span>
+            <div className="mt-1">{new Date(prof.fecha_emision).toLocaleString('es-EC')}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Cliente</span>
+            <div className="font-medium mt-1">{prof.cliente_razon_social}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Identificacion</span>
+            <div className="font-mono text-xs mt-1">{prof.cliente_identificacion}</div>
+          </div>
+          {prof.fecha_validez && (
+            <div>
+              <span className="text-muted-foreground">Fecha Validez</span>
+              <div className="mt-1">{new Date(prof.fecha_validez).toLocaleDateString('es-EC')}</div>
+            </div>
+          )}
+          {prof.forma_pago && (
+            <div>
+              <span className="text-muted-foreground">Forma de Pago</span>
+              <div className="mt-1">{prof.forma_pago}</div>
+            </div>
+          )}
+          {prof.cliente_direccion && (
+            <div className="col-span-2">
+              <span className="text-muted-foreground">Direccion</span>
+              <div className="text-sm mt-1">{prof.cliente_direccion}</div>
+            </div>
+          )}
+          {prof.cliente_email && (
+            <div>
+              <span className="text-muted-foreground">Email</span>
+              <div className="text-sm mt-1">{prof.cliente_email}</div>
+            </div>
+          )}
+          {prof.cliente_telefono && (
+            <div>
+              <span className="text-muted-foreground">Telefono</span>
+              <div className="text-sm mt-1">{prof.cliente_telefono}</div>
+            </div>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Totals */}
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Subtotal sin impuestos</span>
+            <span className="font-medium">${formatCurrency(prof.subtotal_sin_impuestos)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">IVA</span>
+            <span className="font-medium">${formatCurrency(prof.total_iva)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">ICE</span>
+            <span className="font-medium">${formatCurrency(prof.total_ice)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Descuento</span>
+            <span className="font-medium">${formatCurrency(prof.total_descuento)}</span>
+          </div>
+          <div className="col-span-2 flex justify-between border-t pt-2">
+            <span className="font-semibold">Total con Impuestos</span>
+            <span className="font-bold text-lg">${formatCurrency(prof.total_con_impuestos)}</span>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Detalles */}
+        <div>
+          <h4 className="text-sm font-medium mb-2">Detalles</h4>
+          <div className="space-y-2">
+            {prof.detalles.map((det, i) => (
+              <div key={det.id || i} className="rounded-md border p-3 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="font-medium">{det.descripcion}</span>
+                  <span className="font-medium">${formatCurrency(det.precio_total_sin_impuestos)}</span>
+                </div>
+                <div className="flex gap-4 text-muted-foreground">
+                  <span>Cod: {det.codigo_principal}</span>
+                  <span>Cant: {det.cantidad}</span>
+                  <span>P.Unit: ${formatCurrency(det.precio_unitario)}</span>
+                  <span>IVA: {det.iva_porcentaje}%</span>
+                  {det.ice_porcentaje && <span>ICE: {det.ice_porcentaje}%</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {prof.observaciones && (
+          <>
+            <Separator />
+            <div className="text-sm">
+              <span className="text-muted-foreground">Observaciones: </span>
+              <span>{prof.observaciones}</span>
+            </div>
+          </>
+        )}
+
+        {prof.comprobante_convertido_id && (
+          <>
+            <Separator />
+            <div className="flex items-center gap-2 p-3 rounded-md bg-primary/10 text-sm">
+              <ArrowRightLeft className="h-4 w-4 text-primary" />
+              <span className="text-muted-foreground">Convertida a comprobante:</span>
+              <span className="font-mono text-xs">{prof.comprobante_convertido_id}</span>
+            </div>
+          </>
+        )}
+      </div>
+    </ScrollArea>
+  );
+}
+
+// ─── Nueva Proforma Wizard ──────────────────────────────────────
+
+type ProformaWizardStep = 1 | 2 | 3;
+
+function NuevaProformaWizard({ companyId, onCreated }: { companyId: string; onCreated: () => void }) {
+  const [step, setStep] = useState<ProformaWizardStep>(1);
+  const [creating, setCreating] = useState(false);
+
+  // Step 1: Client (optional)
+  const [clientId, setClientId] = useState<string>('');
+  const [clients, setClients] = useState<ClientResponse[]>([]);
+
+  // Step 2: Items
+  const [items, setItems] = useState<ProformaDetalleCreate[]>([]);
+  const [products, setProducts] = useState<ProductResponse[]>([]);
+
+  // Step 3: Summary
+  const [observaciones, setObservaciones] = useState('');
+  const [fechaValidez, setFechaValidez] = useState('');
+  const [formaPago, setFormaPago] = useState<string>('01');
+
+  // Load clients and products
+  useEffect(() => {
+    if (!companyId) return;
+    async function load() {
+      try {
+        const [cls, prods] = await Promise.all([
+          getClients(companyId),
+          getProducts(companyId),
+        ]);
+        setClients(cls);
+        setProducts(prods);
+      } catch {
+        toast.error('Error al cargar datos');
+      }
+    }
+    load();
+  }, [companyId]);
+
+  // Calculate totals
+  const subtotal = items.reduce((sum, item) => {
+    const totalSinImp = item.cantidad * item.precio_unitario - (item.descuento || 0);
+    return sum + totalSinImp;
+  }, 0);
+  const totalIva = items.reduce((sum, item) => {
+    const totalSinImp = item.cantidad * item.precio_unitario - (item.descuento || 0);
+    return sum + totalSinImp * (item.iva_porcentaje / 100);
+  }, 0);
+  const totalDescuento = items.reduce((sum, item) => sum + (item.descuento || 0), 0);
+  const total = subtotal + totalIva;
+
+  // Validate step
+  function canProceed(): boolean {
+    switch (step) {
+      case 1: return true; // Client is optional
+      case 2: return items.length > 0;
+      case 3: return true;
+    }
+  }
+
+  async function handleCreate() {
+    setCreating(true);
+    try {
+      const proformaData: ProformaCreate = {
+        company_id: companyId,
+        client_id: clientId || undefined,
+        detalles: items,
+        observaciones: observaciones || undefined,
+        forma_pago: formaPago,
+        fecha_validez: fechaValidez || undefined,
+      };
+
+      await createProforma(proformaData);
+      toast.success('Proforma creada exitosamente');
+      onCreated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al crear proforma');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const defaultConsumer = clients.find((c) => c.is_default_consumer);
+
+  const steps = [
+    { num: 1, label: 'Cliente' },
+    { num: 2, label: 'Items' },
+    { num: 3, label: 'Resumen' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Step indicator */}
+      <div className="flex items-center gap-2">
+        {steps.map((s, i) => (
+          <div key={s.num} className="flex items-center">
+            <button
+              onClick={() => s.num <= step && setStep(s.num as ProformaWizardStep)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                step === s.num
+                  ? 'bg-primary text-primary-foreground'
+                  : step > s.num
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              <span className="h-5 w-5 rounded-full flex items-center justify-center border text-[10px]">
+                {step > s.num ? <CheckCircle2 className="h-3 w-3" /> : s.num}
+              </span>
+              <span className="hidden sm:inline">{s.label}</span>
+            </button>
+            {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground mx-1" />}
+          </div>
+        ))}
+      </div>
+
+      {/* Step Content */}
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Seleccionar Cliente
+            </CardTitle>
+            <CardDescription>
+              Seleccione un cliente o use Consumidor Final por defecto (opcional)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Consumidor Final (por defecto)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {defaultConsumer && (
+                    <SelectItem value={defaultConsumer.id}>
+                      Consumidor Final (por defecto)
+                    </SelectItem>
+                  )}
+                  {clients
+                    .filter((c) => !c.is_default_consumer)
+                    .map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.razon_social} - {client.identificacion}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {clientId && (
+              <div className="rounded-md border p-3 bg-muted/50 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-muted-foreground">Nombre: </span>
+                    <span className="font-medium">{clients.find((c) => c.id === clientId)?.razon_social}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Identificacion: </span>
+                    <span className="font-mono text-xs">{clients.find((c) => c.id === clientId)?.identificacion}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              El cliente es opcional. Si no selecciona uno, se usara Consumidor Final.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 2 && (
+        <ProformaItemsEditor
+          items={items}
+          onChange={setItems}
+          products={products}
+        />
+      )}
+
+      {step === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              Resumen de Proforma
+            </CardTitle>
+            <CardDescription>Verifique los datos y configure opciones adicionales</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Client info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Cliente</span>
+                <div className="font-medium">
+                  {clientId ? clients.find((c) => c.id === clientId)?.razon_social : 'Consumidor Final'}
+                </div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Identificacion</span>
+                <div className="font-mono text-xs">
+                  {clientId ? clients.find((c) => c.id === clientId)?.identificacion : '9999999999999'}
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Items summary */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">Items ({items.length})</h4>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Codigo</TableHead>
+                      <TableHead>Descripcion</TableHead>
+                      <TableHead className="text-right">Cant.</TableHead>
+                      <TableHead className="text-right">P.Unit.</TableHead>
+                      <TableHead className="text-right">IVA</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-xs">{item.codigo_principal}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{item.descripcion}</TableCell>
+                        <TableCell className="text-right">{item.cantidad}</TableCell>
+                        <TableCell className="text-right">${formatCurrency(item.precio_unitario)}</TableCell>
+                        <TableCell className="text-right">{item.iva_porcentaje}%</TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${formatCurrency(item.cantidad * item.precio_unitario - (item.descuento || 0))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Totals */}
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal sin impuestos</span>
+                <span>${formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">IVA</span>
+                <span>${formatCurrency(totalIva)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Descuento</span>
+                <span>${formatCurrency(totalDescuento)}</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between font-bold text-base">
+                <span>Total</span>
+                <span>${formatCurrency(total)}</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Additional fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="pf-forma-pago">Forma de Pago</Label>
+                <Select value={formaPago} onValueChange={setFormaPago}>
+                  <SelectTrigger id="pf-forma-pago">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FORMAS_PAGO.map((fp) => (
+                      <SelectItem key={fp.codigo} value={fp.codigo}>
+                        {fp.codigo} - {fp.descripcion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pf-fecha-validez">Fecha de Validez</Label>
+                <Input
+                  id="pf-fecha-validez"
+                  type="date"
+                  value={fechaValidez}
+                  onChange={(e) => setFechaValidez(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pf-observaciones">Observaciones</Label>
+              <Textarea
+                id="pf-observaciones"
+                placeholder="Observaciones adicionales para la proforma..."
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Navigation */}
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => setStep((step - 1) as ProformaWizardStep)}
+          disabled={step === 1}
+        >
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Anterior
+        </Button>
+        {step < 3 ? (
+          <Button
+            onClick={() => setStep((step + 1) as ProformaWizardStep)}
+            disabled={!canProceed()}
+          >
+            Siguiente
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={handleCreate}
+            disabled={creating || items.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            {creating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creando...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Crear Proforma
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Proforma Items Editor ──────────────────────────────────────
+
+function ProformaItemsEditor({
+  items,
+  onChange,
+  products,
+}: {
+  items: ProformaDetalleCreate[];
+  onChange: (items: ProformaDetalleCreate[]) => void;
+  products: ProductResponse[];
+}) {
+  const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+
+  const filteredProducts = products.filter(
+    (p) =>
+      p.descripcion.toLowerCase().includes(search.toLowerCase()) ||
+      p.codigo_principal.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function addFromProduct(product: ProductResponse) {
+    const newItem: ProformaDetalleCreate = {
+      product_id: product.id,
+      codigo_principal: product.codigo_principal,
+      codigo_auxiliar: product.codigo_auxiliar || undefined,
+      descripcion: product.descripcion,
+      cantidad: 1,
+      unidad_medida: product.unidad_medida,
+      precio_unitario: product.precio_unitario,
+      descuento: product.descuento || undefined,
+      iva_codigo: product.iva_codigo,
+      iva_porcentaje: product.iva_porcentaje,
+    };
+    onChange([...items, newItem]);
+    setShowSearch(false);
+    setSearch('');
+  }
+
+  function addEmptyItem() {
+    const newItem: ProformaDetalleCreate = {
+      codigo_principal: '',
+      descripcion: '',
+      cantidad: 1,
+      unidad_medida: 'Unidad',
+      precio_unitario: 0,
+      iva_codigo: '2',
+      iva_porcentaje: 12,
+    };
+    onChange([...items, newItem]);
+  }
+
+  function updateItem(index: number, updates: Partial<ProformaDetalleCreate>) {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], ...updates };
+    onChange(newItems);
+  }
+
+  function removeItem(index: number) {
+    onChange(items.filter((_, i) => i !== index));
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Package className="h-4 w-4 text-primary" />
+          Agregar Items
+        </CardTitle>
+        <CardDescription>Agregue productos o servicios a la proforma</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowSearch(!showSearch)}>
+            <Search className="mr-2 h-4 w-4" />
+            Buscar Producto
+          </Button>
+          <Button variant="outline" onClick={addEmptyItem}>
+            <Plus className="mr-2 h-4 w-4" />
+            Ingreso Manual
+          </Button>
+        </div>
+
+        {/* Product Search */}
+        {showSearch && (
+          <div className="space-y-2">
+            <Input
+              placeholder="Buscar por nombre o codigo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {filteredProducts.length > 0 ? (
+              <ScrollArea className="max-h-[200px]">
+                <div className="space-y-1">
+                  {filteredProducts.slice(0, 20).map((product) => (
+                    <button
+                      key={product.id}
+                      onClick={() => addFromProduct(product)}
+                      className="w-full text-left rounded-md border p-2 hover:bg-accent/50 transition-colors text-sm"
+                    >
+                      <div className="flex justify-between">
+                        <span className="font-medium">{product.descripcion}</span>
+                        <span className="text-muted-foreground">${formatCurrency(product.precio_unitario)}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {product.codigo_principal} | IVA {product.iva_porcentaje}%
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No se encontraron productos. Intente ingreso manual.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Items List */}
+        {items.length > 0 ? (
+          <div className="space-y-3">
+            {items.map((item, i) => (
+              <div key={i} className="rounded-md border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Item {i + 1}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(i)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Codigo Principal</Label>
+                    <Input
+                      value={item.codigo_principal}
+                      onChange={(e) => updateItem(i, { codigo_principal: e.target.value })}
+                      placeholder="COD001"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-2">
+                    <Label className="text-xs">Descripcion</Label>
+                    <Input
+                      value={item.descripcion}
+                      onChange={(e) => updateItem(i, { descripcion: e.target.value })}
+                      placeholder="Descripcion del producto o servicio"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cantidad</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.cantidad}
+                      onChange={(e) => updateItem(i, { cantidad: parseFloat(e.target.value) || 0 })}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Precio Unitario</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.precio_unitario}
+                      onChange={(e) => updateItem(i, { precio_unitario: parseFloat(e.target.value) || 0 })}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Descuento</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.descuento || ''}
+                      onChange={(e) => updateItem(i, { descuento: parseFloat(e.target.value) || undefined })}
+                      placeholder="0"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">IVA</Label>
+                    <Select
+                      value={item.iva_codigo}
+                      onValueChange={(v) => {
+                        const rate = IVA_RATES.find((r) => r.codigo === v);
+                        updateItem(i, { iva_codigo: v, iva_porcentaje: rate?.porcentaje ?? 0 });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {IVA_RATES.map((rate) => (
+                          <SelectItem key={rate.codigo} value={rate.codigo}>
+                            {rate.descripcion} ({rate.porcentaje}%)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6">
+            <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">Agregue items a la proforma</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

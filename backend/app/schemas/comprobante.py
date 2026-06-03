@@ -1,0 +1,292 @@
+"""
+ContaEC - Esquemas Pydantic de Comprobante Electrónico
+Schemas para creación, actualización y respuesta de comprobantes y detalles
+según la Ficha Técnica v2.32 del SRI (Ecuador)
+"""
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+
+# ==========================================
+# Esquemas de Detalle (líneas del comprobante)
+# ==========================================
+
+class ComprobanteDetalleCreate(BaseModel):
+    """Esquema para crear una línea de detalle del comprobante"""
+    product_id: Optional[str] = Field(
+        None,
+        description="ID del producto (FK opcional al catálogo de productos)",
+    )
+    codigo_principal: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Código principal del bien o servicio",
+        examples=["PROD001"],
+    )
+    codigo_auxiliar: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="Código auxiliar del bien o servicio",
+    )
+    descripcion: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Descripción del bien o servicio",
+        examples=["Servicio de consultoría"],
+    )
+    cantidad: Decimal = Field(
+        ...,
+        gt=0,
+        description="Cantidad del bien o servicio (hasta 6 decimales)",
+        examples=["1.000000"],
+    )
+    unidad_medida: str = Field(
+        default="Unidad",
+        max_length=50,
+        description="Unidad de medida (ej: Unidad, Kilogramo, Litro, Horas)",
+    )
+    precio_unitario: Decimal = Field(
+        ...,
+        gt=0,
+        description="Precio unitario sin impuestos",
+        examples=["100.00"],
+    )
+    descuento: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        description="Monto de descuento aplicado al detalle",
+    )
+    iva_codigo: str = Field(
+        ...,
+        min_length=1,
+        max_length=2,
+        description="Código de tarifa de IVA según Tabla 16 del SRI (ej: 10 para 13%)",
+        examples=["10"],
+    )
+    iva_porcentaje: Decimal = Field(
+        ...,
+        ge=0,
+        description="Porcentaje de IVA (0, 5, 8, 12, 13, 14, 15)",
+        examples=["13.00"],
+    )
+    ice_codigo: Optional[str] = Field(
+        None,
+        max_length=3,
+        description="Código de tarifa de ICE según Tabla 18 del SRI",
+    )
+    ice_porcentaje: Optional[Decimal] = Field(
+        None,
+        ge=0,
+        description="Porcentaje de ICE (si aplica)",
+    )
+
+
+class ComprobanteDetalleResponse(BaseModel):
+    """Esquema de respuesta para una línea de detalle del comprobante"""
+    id: str = Field(..., description="ID único del detalle")
+    product_id: Optional[str] = Field(None, description="ID del producto")
+    codigo_principal: str = Field(..., description="Código principal")
+    codigo_auxiliar: Optional[str] = Field(None, description="Código auxiliar")
+    descripcion: str = Field(..., description="Descripción del bien/servicio")
+    cantidad: Decimal = Field(..., description="Cantidad")
+    unidad_medida: str = Field(..., description="Unidad de medida")
+    precio_unitario: Decimal = Field(..., description="Precio unitario sin impuestos")
+    descuento: Decimal = Field(..., description="Monto de descuento")
+    precio_total_sin_impuestos: Decimal = Field(..., description="Total sin impuestos")
+    iva_codigo: str = Field(..., description="Código de tarifa IVA")
+    iva_porcentaje: Decimal = Field(..., description="Porcentaje de IVA")
+    iva_valor: Decimal = Field(..., description="Valor del IVA calculado")
+    ice_codigo: Optional[str] = Field(None, description="Código de tarifa ICE")
+    ice_porcentaje: Optional[Decimal] = Field(None, description="Porcentaje de ICE")
+    ice_valor: Optional[Decimal] = Field(None, description="Valor del ICE calculado")
+
+    model_config = {"from_attributes": True}
+
+
+# ==========================================
+# Esquemas de Comprobante
+# ==========================================
+
+class ComprobanteCreate(BaseModel):
+    """Esquema para crear un nuevo comprobante electrónico"""
+    company_id: str = Field(
+        ...,
+        description="ID de la empresa emisora del comprobante",
+    )
+    client_id: str = Field(
+        ...,
+        description="ID del cliente/comprador",
+    )
+    tipo_comprobante: str = Field(
+        ...,
+        description="Código de tipo de comprobante según Tabla 1 del SRI (01, 03, 04, 05, 06, 07)",
+        examples=["01"],
+    )
+    forma_pago: str = Field(
+        default="01",
+        max_length=2,
+        description="Código de forma de pago según Tabla 23 del SRI",
+        examples=["01"],
+    )
+    detalles: list[ComprobanteDetalleCreate] = Field(
+        ...,
+        min_length=1,
+        description="Lista de líneas de detalle del comprobante",
+    )
+    # Para Notas de Crédito/Débito
+    comprobante_modificado_id: Optional[str] = Field(
+        None,
+        description="ID del comprobante que se modifica (para NC/ND)",
+    )
+    motivo_modificacion: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Motivo de la modificación del comprobante",
+    )
+    # Para retenciones
+    retencion_iva_codigo: Optional[str] = Field(
+        None,
+        max_length=2,
+        description="Código de retención de IVA según Tabla 19 del SRI",
+    )
+    retencion_iva_porcentaje: Optional[Decimal] = Field(
+        None,
+        ge=0,
+        description="Porcentaje de retención de IVA",
+    )
+    retencion_renta_codigo: Optional[str] = Field(
+        None,
+        max_length=3,
+        description="Código de retención de Renta según Tabla 20 del SRI",
+    )
+    retencion_renta_porcentaje: Optional[Decimal] = Field(
+        None,
+        ge=0,
+        description="Porcentaje de retención de Renta",
+    )
+    # Info adicional
+    info_adicional: Optional[dict[str, str]] = Field(
+        None,
+        description="Información adicional como pares clave-valor para campoAdicional del SRI",
+        examples=[{"email": "cliente@email.com", "telefono": "0991234567"}],
+    )
+
+    @field_validator("tipo_comprobante")
+    @classmethod
+    def validate_tipo_comprobante(cls, v: str) -> str:
+        """Valida que el tipo de comprobante sea válido según Tabla 1 del SRI"""
+        validos = {"01", "03", "04", "05", "06", "07"}
+        if v not in validos:
+            raise ValueError(
+                f"Tipo de comprobante inválido: {v}. "
+                f"Válidos: 01 (Factura), 03 (Liquidación), 04 (NC), 05 (ND), 06 (Guía), 07 (Retención)"
+            )
+        return v
+
+    @field_validator("forma_pago")
+    @classmethod
+    def validate_forma_pago(cls, v: str) -> str:
+        """Valida que la forma de pago sea válida según Tabla 23 del SRI"""
+        validos = {"01", "15", "16", "17", "18", "19", "20", "21"}
+        if v not in validos:
+            raise ValueError(
+                f"Forma de pago inválida: {v}. "
+                f"Válidos: 01, 15, 16, 17, 18, 19, 20, 21"
+            )
+        return v
+
+    @field_validator("detalles")
+    @classmethod
+    def validate_detalles_not_empty(cls, v: list) -> list:
+        """Valida que haya al menos un detalle"""
+        if not v or len(v) == 0:
+            raise ValueError("El comprobante debe tener al menos un detalle")
+        return v
+
+
+class ComprobanteResponse(BaseModel):
+    """Esquema de respuesta para un comprobante electrónico completo"""
+    id: str = Field(..., description="ID único del comprobante")
+    company_id: str = Field(..., description="ID de la empresa emisora")
+    client_id: Optional[str] = Field(None, description="ID del cliente")
+    tipo_comprobante: str = Field(..., description="Código de tipo de comprobante")
+    secuencial: str = Field(..., description="Número secuencial (9 dígitos)")
+    clave_acceso: Optional[str] = Field(None, description="Clave de acceso SRI (49 dígitos)")
+    fecha_emision: datetime = Field(..., description="Fecha y hora de emisión")
+    estado: str = Field(..., description="Estado del comprobante")
+    ambiente: str = Field(..., description="Tipo de ambiente: 1=Pruebas, 2=Producción")
+    # Información del cliente (desnormalizada)
+    cliente_tipo_identificacion: Optional[str] = Field(None, description="Tipo de identificación del cliente")
+    cliente_identificacion: Optional[str] = Field(None, description="Número de identificación del cliente")
+    cliente_razon_social: Optional[str] = Field(None, description="Razón social del cliente")
+    # Totales
+    subtotal_sin_impuestos: Decimal = Field(..., description="Subtotal sin impuestos")
+    total_iva: Decimal = Field(..., description="Total del IVA")
+    total_ice: Decimal = Field(..., description="Total del ICE")
+    total_descuento: Decimal = Field(..., description="Total de descuentos")
+    total_con_impuestos: Decimal = Field(..., description="Total con impuestos (gran total)")
+    # SRI
+    numero_autorizacion: Optional[str] = Field(None, description="Número de autorización del SRI")
+    fecha_autorizacion: Optional[datetime] = Field(None, description="Fecha de autorización del SRI")
+    sri_mensaje: Optional[str] = Field(None, description="Mensaje de respuesta del SRI")
+    # Detalles
+    detalles: list[ComprobanteDetalleResponse] = Field(..., description="Líneas de detalle")
+    # Timestamps
+    created_at: datetime = Field(..., description="Fecha de creación")
+    updated_at: datetime = Field(..., description="Fecha de última actualización")
+
+    model_config = {"from_attributes": True}
+
+
+class ComprobanteListResponse(BaseModel):
+    """Esquema ligero para listar comprobantes"""
+    id: str = Field(..., description="ID único del comprobante")
+    tipo_comprobante: str = Field(..., description="Código de tipo de comprobante")
+    secuencial: str = Field(..., description="Número secuencial")
+    clave_acceso: Optional[str] = Field(None, description="Clave de acceso SRI")
+    fecha_emision: datetime = Field(..., description="Fecha de emisión")
+    estado: str = Field(..., description="Estado del comprobante")
+    cliente_razon_social: Optional[str] = Field(None, description="Razón social del cliente")
+    total_con_impuestos: Decimal = Field(..., description="Total con impuestos")
+    numero_autorizacion: Optional[str] = Field(None, description="Número de autorización SRI")
+    created_at: datetime = Field(..., description="Fecha de creación")
+
+    model_config = {"from_attributes": True}
+
+
+class ComprobanteStatsResponse(BaseModel):
+    """Estadísticas de comprobantes para el dashboard"""
+    total: int = Field(..., description="Total de comprobantes")
+    borrador: int = Field(..., description="Comprobantes en borrador")
+    firmado: int = Field(..., description="Comprobantes firmados")
+    enviado: int = Field(..., description="Comprobantes enviados al SRI")
+    autorizado: int = Field(..., description="Comprobantes autorizados por el SRI")
+    rechazado: int = Field(..., description="Comprobantes rechazados por el SRI")
+    total_amount: Decimal = Field(..., description="Monto total de comprobantes autorizados")
+
+
+class CorreccionRequest(BaseModel):
+    """Esquema para corregir un comprobante rechazado"""
+    detalles: Optional[list[ComprobanteDetalleCreate]] = Field(
+        None,
+        description="Nuevos detalles del comprobante (reemplaza los existentes)",
+    )
+    info_adicional: Optional[dict[str, str]] = Field(
+        None,
+        description="Información adicional actualizada",
+    )
+    forma_pago: Optional[str] = Field(
+        None,
+        max_length=2,
+        description="Código de forma de pago actualizado",
+    )
+    motivo_modificacion: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Motivo de la corrección",
+    )
