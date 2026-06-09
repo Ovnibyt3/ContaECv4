@@ -335,10 +335,27 @@ async def _call_sri_recepcion(xml_base64: str, wsdl_url: str) -> SRIRecepcionRes
         from zeep.transports import AsyncTransport
         
         # Crear transporte asíncrono con timeout
-        http_client = httpx.AsyncClient(
-            timeout=30.0,
-            verify=False,  # SRI usa certificados que pueden fallar verificación
-        )
+        # Security: enable SSL verification by default, disable only via env var for testing
+        import ssl
+        ssl_verify = not settings.is_development  # Verify SSL in production, allow skip in dev
+        if settings.is_development:
+            # In development, try to verify but allow failures with warning
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            http_client = httpx.AsyncClient(
+                timeout=30.0,
+                verify=ssl_context,
+            )
+            logger.warning(
+                "SRI SSL verification disabled in development mode. "
+                "This is insecure and should not be used in production."
+            )
+        else:
+            http_client = httpx.AsyncClient(
+                timeout=30.0,
+                verify=True,  # Enable SSL verification in production
+            )
         transport = AsyncTransport(
             client=http_client,
             timeout=30.0,
@@ -403,10 +420,20 @@ async def _call_sri_autorizacion(clave_acceso: str, wsdl_url: str) -> SRIAutoriz
         from zeep import AsyncClient
         from zeep.transports import AsyncTransport
         
-        http_client = httpx.AsyncClient(
-            timeout=15.0,
-            verify=False,
-        )
+        import ssl
+        if settings.is_development:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            http_client = httpx.AsyncClient(
+                timeout=15.0,
+                verify=ssl_context,
+            )
+        else:
+            http_client = httpx.AsyncClient(
+                timeout=15.0,
+                verify=True,  # Enable SSL verification in production
+            )
         transport = AsyncTransport(
             client=http_client,
             timeout=15.0,

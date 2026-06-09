@@ -9,6 +9,7 @@ NOTA: Todas las operaciones síncronas (smtplib) se ejecutan
 en un executor para no bloquear el event loop de asyncio.
 """
 import asyncio
+import html
 import logging
 import smtplib
 from datetime import datetime, timezone
@@ -296,48 +297,49 @@ async def send_comprobante_email(
     msg['Subject'] = f"{tipo_nombre} Electrónica #{secuencial_fmt} - {empresa_razon_social}"
     
     # Cuerpo del correo en HTML
+    # Security: escape all user-controlled variables to prevent XSS/HTML injection
     html_body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
         <div style="background-color: #1B5E20; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">{tipo_nombre} Electrónica</h2>
-            <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">{empresa_razon_social} - RUC: {empresa_ruc}</p>
+            <h2 style="margin: 0;">{html.escape(tipo_nombre)} Electrónica</h2>
+            <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">{html.escape(empresa_razon_social)} - RUC: {html.escape(empresa_ruc)}</p>
         </div>
         <div style="background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd;">
-            <p>Estimado/a <strong>{cliente_razon_social}</strong>,</p>
+            <p>Estimado/a <strong>{html.escape(cliente_razon_social)}</strong>,</p>
             <p>Se ha emitido y autorizado electrónicamente el siguiente comprobante:</p>
-            
+
             <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
                 <tr style="background-color: #E8F5E9;">
                     <td style="padding: 8px 12px; border: 1px solid #ddd; font-weight: bold; width: 40%;">Tipo de Comprobante:</td>
-                    <td style="padding: 8px 12px; border: 1px solid #ddd;">{tipo_nombre}</td>
+                    <td style="padding: 8px 12px; border: 1px solid #ddd;">{html.escape(tipo_nombre)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 8px 12px; border: 1px solid #ddd; font-weight: bold;">Número:</td>
-                    <td style="padding: 8px 12px; border: 1px solid #ddd;">{secuencial_fmt}</td>
+                    <td style="padding: 8px 12px; border: 1px solid #ddd;">{html.escape(secuencial_fmt)}</td>
                 </tr>
                 <tr style="background-color: #E8F5E9;">
                     <td style="padding: 8px 12px; border: 1px solid #ddd; font-weight: bold;">Total:</td>
-                    <td style="padding: 8px 12px; border: 1px solid #ddd;">USD {total_con_impuestos}</td>
+                    <td style="padding: 8px 12px; border: 1px solid #ddd;">USD {html.escape(total_con_impuestos)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 8px 12px; border: 1px solid #ddd; font-weight: bold;">Clave de Acceso:</td>
-                    <td style="padding: 8px 12px; border: 1px solid #ddd; font-size: 11px; word-break: break-all;">{clave_acceso}</td>
+                    <td style="padding: 8px 12px; border: 1px solid #ddd; font-size: 11px; word-break: break-all;">{html.escape(clave_acceso)}</td>
                 </tr>
                 <tr style="background-color: #E8F5E9;">
                     <td style="padding: 8px 12px; border: 1px solid #ddd; font-weight: bold;">Autorización SRI:</td>
-                    <td style="padding: 8px 12px; border: 1px solid #ddd; font-size: 11px; word-break: break-all;">{numero_autorizacion}</td>
+                    <td style="padding: 8px 12px; border: 1px solid #ddd; font-size: 11px; word-break: break-all;">{html.escape(numero_autorizacion)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 8px 12px; border: 1px solid #ddd; font-weight: bold;">Fecha Autorización:</td>
-                    <td style="padding: 8px 12px; border: 1px solid #ddd;">{fecha_autorizacion}</td>
+                    <td style="padding: 8px 12px; border: 1px solid #ddd;">{html.escape(fecha_autorizacion)}</td>
                 </tr>
             </table>
-            
+
             <p>Los archivos adjuntos contienen el comprobante electrónico en formato XML y su representación impresa (RIDE) en PDF.</p>
-            
+
             <div style="background-color: #FFF3E0; border-left: 4px solid #FF9800; padding: 10px 15px; margin: 15px 0;">
-                <p style="margin: 0; font-size: 13px;"><strong>Nota:</strong> Puede verificar la autenticidad de este comprobante en el portal del SRI: 
+                <p style="margin: 0; font-size: 13px;"><strong>Nota:</strong> Puede verificar la autenticidad de este comprobante en el portal del SRI:
                 <a href="https://consultas.sri.gob.ec" style="color: #1B5E20;">https://consultas.sri.gob.ec</a></p>
             </div>
         </div>

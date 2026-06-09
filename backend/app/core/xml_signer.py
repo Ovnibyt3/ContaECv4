@@ -128,9 +128,14 @@ def _parse_xml(xml_content: str) -> etree._Element:
     """
     try:
         # Remover declaración XML para parsear correctamente
+        # Security: disable external entities and network access to prevent XXE attacks
         parser = etree.XMLParser(
             remove_blank_text=True,
             encoding="UTF-8",
+            resolve_entities=False,
+            no_network=True,
+            dtd_validation=False,
+            load_dtd=False,
         )
         root = etree.fromstring(xml_content.encode("utf-8"), parser=parser)
         return root

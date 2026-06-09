@@ -13,6 +13,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
 from app.core.database import init_db, close_db
@@ -21,6 +23,7 @@ from app.middleware.security import (
     InputSanitizationMiddleware,
     SecurityHeadersMiddleware,
 )
+from app.core.rate_limiter import limiter
 from app.api.v1.router import api_router
 
 # Import all models so SQLAlchemy registers them in Base.metadata
@@ -120,19 +123,15 @@ async def _init_admin_user():
     from app.models.user import User, UserConfig, LicenseType
     from app.core.security import get_password_hash
     from datetime import datetime, timezone, timedelta
-    
-    # Password from env var; fallback for development only
+
+    # Password from env var
     admin_password = settings.ADMIN_PASSWORD
     if not admin_password:
-        if settings.is_production:
-            logger.error("🔴 ADMIN_PASSWORD no configurada. No se creará el usuario admin.")
-            return
-        # Solo en desarrollo: usar password por defecto y advertir
-        admin_password = "Admin123!"
-        logger.warning(
-            "⚠️  Usando contraseña de administrador por defecto (solo desarrollo). "
-            "Configure ADMIN_PASSWORD en las variables de entorno."
+        logger.error(
+            "🔴 ADMIN_PASSWORD no configurada. No se creará el usuario admin. "
+            "Configure la variable de entorno ADMIN_PASSWORD."
         )
+        return
     
     async with async_session_factory() as session:
         try:
@@ -191,12 +190,16 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
+# Rate limiting con slowapi
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # ==================== MIDDLEWARE ====================
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS.split(","),
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

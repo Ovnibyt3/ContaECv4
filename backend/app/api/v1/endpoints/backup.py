@@ -4,6 +4,7 @@ Exportación automática a medianoche, restauración, encriptación
 """
 import os
 import json
+import aiofiles
 import logging
 import asyncio
 import hashlib
@@ -175,11 +176,12 @@ async def create_backup(
     backup_dir = Path(settings.BACKUP_DIR) / str(current_user.id)
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    filename = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.contaec"
+    filename = f"backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.contaec"
     file_path = backup_dir / filename
 
-    with open(file_path, "wb") as f:
-        f.write(encrypted_data)
+    # Guardar archivo encriptado (async)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(encrypted_data)
 
     logger.info(f"Backup creado para usuario {current_user.email}: {filename}")
 
@@ -597,16 +599,22 @@ async def list_backups(
 # ---------------------------------------------------------------------------
 
 async def midnight_backup_task():
-    """Tarea programada para crear backups automáticos a medianoche"""
+    """Tarea programada para crear backups automáticos a medianoche (Ecuador time UTC-5)"""
+    from zoneinfo import ZoneInfo
+    
+    ecuador_tz = ZoneInfo("America/Guayaquil")  # UTC-5
+    
     while True:
-        now = datetime.now()
-        # Calcular segundos hasta la próxima medianoche (UTC-5 para Ecuador)
-        target = now.replace(hour=5, minute=0, second=0, microsecond=0)  # 00:00 Ecuador = 05:00 UTC
-        if now >= target:
-            # Usar timedelta para avanzar al día siguiente (evita error en fin de mes)
+        now_utc = datetime.now(timezone.utc)
+        now_ecuador = now_utc.astimezone(ecuador_tz)
+        
+        # Calcular segundos hasta la próxima medianoche (hora Ecuador)
+        target = now_ecuador.replace(hour=0, minute=0, second=0, microsecond=0)
+        if now_ecuador >= target:
+            # Usar timedelta para avanzar al día siguiente
             target = target + timedelta(days=1)
 
-        wait_seconds = (target - now).total_seconds()
+        wait_seconds = (target - now_ecuador).total_seconds()
         await asyncio.sleep(wait_seconds)
 
         # Ejecutar backup para todos los usuarios activos con clave configurada
@@ -627,20 +635,21 @@ async def midnight_backup_task():
                         backup_dir = Path(settings.BACKUP_DIR) / str(user.id)
                         backup_dir.mkdir(parents=True, exist_ok=True)
 
-                        filename = f"auto_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.contaec"
+                        filename = f"auto_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.contaec"
                         file_path = backup_dir / filename
 
                         # Encriptar con clave del usuario
                         fernet = _derive_fernet_from_user_key(user.backup_encryption_key)
                         encrypted_data = fernet.encrypt(json.dumps(backup_data).encode())
 
-                        with open(file_path, "wb") as f:
-                            f.write(encrypted_data)
+                        # Guardar backup automático (async)
+                        async with aiofiles.open(file_path, "wb") as f:
+                            await f.write(encrypted_data)
 
                         logger.info(f"Backup automático creado para {user.email}")
 
                         # Eliminar backups automáticos mayores a 30 días
-                        cutoff = datetime.now().timestamp() - (30 * 24 * 3600)
+                        cutoff = datetime.now(timezone.utc).timestamp() - (30 * 24 * 3600)
                         for old_file in backup_dir.glob("auto_backup_*.contaec"):
                             if old_file.stat().st_ctime < cutoff:
                                 old_file.unlink()

@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/z/my-project/backend
+cd "$(dirname "$0")"
 while true; do
     echo "Starting ContaEC backend..." >> /tmp/contaec-backend.log
     python3 -m uvicorn main:app --host 0.0.0.0 --port 8001 >> /tmp/contaec-backend.log 2>&1

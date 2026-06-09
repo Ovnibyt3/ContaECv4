@@ -80,7 +80,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependencia de FastAPI que proporciona una sesión de base de datos asíncrona.
     Utiliza el patrón `async with` para garantizar el cierre de la sesión.
+
+    NOTA ARQUITECTURAL: Este generador realiza un commit implícito al finalizar
+    exitosamente la petición. Esto es un acoplamiento que debe ser refactorizado
+    en el futuro: los endpoints deberían llamar a `await db.commit()` explícitamente.
     
+    Si se elimina el commit automático, todos los endpoints de escritura que solo
+    llaman a `await db.flush()` dejarán de persistir datos silenciosamente.
+
     Uso:
         @app.get("/items")
         async def get_items(db: AsyncSession = Depends(get_db)):
@@ -89,6 +96,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_factory() as session:
         try:
             yield session
+            # TODO: Remove implicit commit - endpoints should call commit() explicitly
             await session.commit()
         except Exception:
             await session.rollback()

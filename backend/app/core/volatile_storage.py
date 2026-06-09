@@ -9,6 +9,7 @@ en un archivo JSON sidecar (.meta.json) junto al archivo de datos.
 Una tarea en segundo plano limpia los archivos expirados periódicamente.
 """
 import asyncio
+import aiofiles
 import json
 import logging
 import os
@@ -49,14 +50,22 @@ def _write_meta(file_path: Path, meta: dict) -> None:
         json.dump(meta, f, indent=2, default=str)
 
 
-def _read_meta(file_path: Path) -> Optional[dict]:
-    """Lee los metadatos del archivo sidecar JSON."""
+async def _write_meta_async(file_path: Path, meta: dict) -> None:
+    """Escribe los metadatos en el archivo sidecar JSON (async)."""
+    meta_path = _get_meta_path(file_path)
+    async with aiofiles.open(meta_path, "w", encoding="utf-8") as f:
+        await f.write(json.dumps(meta, indent=2, default=str))
+
+
+async def _read_meta_async(file_path: Path) -> Optional[dict]:
+    """Lee los metadatos del archivo sidecar JSON (async)."""
     meta_path = _get_meta_path(file_path)
     if not meta_path.exists():
         return None
     try:
-        with open(meta_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        async with aiofiles.open(meta_path, "r", encoding="utf-8") as f:
+            content = await f.read()
+            return json.loads(content)
     except (json.JSONDecodeError, IOError) as e:
         logger.warning(f"Error al leer metadatos de {meta_path}: {e}")
         return None
@@ -109,11 +118,11 @@ async def save_temp_file(
 
     file_path = target_dir / filename
 
-    # Guardar contenido
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # Guardar contenido (async)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
 
-    # Guardar metadatos
+    # Guardar metadatos (async)
     now = datetime.now(timezone.utc)
     meta = {
         "file_id": file_id,
@@ -123,7 +132,7 @@ async def save_temp_file(
         "expiry_time": (now + timedelta(hours=ttl_hours)).isoformat(),
         "size_bytes": len(content),
     }
-    _write_meta(file_path, meta)
+    await _write_meta_async(file_path, meta)
 
     logger.info(
         f"Archivo temporal guardado: {filename}, "
@@ -177,9 +186,9 @@ async def get_temp_file(file_id: str) -> Optional[dict]:
                 logger.warning(f"Archivo de datos no encontrado: {data_path}")
                 return None
 
-            # Leer contenido
-            with open(data_path, "rb") as f:
-                content = f.read()
+            # Leer contenido (async)
+            async with aiofiles.open(data_path, "rb") as f:
+                content = await f.read()
 
             return {
                 "file_id": file_id,

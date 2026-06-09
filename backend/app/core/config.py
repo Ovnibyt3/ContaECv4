@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "development"
     DEBUG: bool = True
-    SECRET_KEY: str = "dev-only-change-in-production-USE-ENV-VAR"
-    ENCRYPTION_KEY: str = "dev-only-change-in-production-USE-ENV-VAR"
+    SECRET_KEY: str = ""
+    ENCRYPTION_KEY: str = ""
 
     # ==========================================
     # Base de datos
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # ==========================================
     # Autenticación JWT
     # ==========================================
-    JWT_SECRET_KEY: str = "dev-only-change-in-production-USE-ENV-VAR"
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -55,8 +55,7 @@ class Settings(BaseSettings):
     # Credenciales Admin (pre-configuradas)
     # ==========================================
     ADMIN_EMAIL: str = "steve.mejia@tymtechnology.shop"
-    # Admin password must be set via ADMIN_PASSWORD env var in production
-    ADMIN_PASSWORD: str = "Vitaestcum21.."
+    ADMIN_PASSWORD: str = ""  # Must be set via ADMIN_PASSWORD env var
 
     # ==========================================
     # Servicios Web del SRI - Pruebas (Testing)
@@ -250,36 +249,42 @@ class Settings(BaseSettings):
         Retorna una lista de advertencias (vacía si todo está bien).
         """
         warnings = []
-        
-        insecure_defaults = {
-            "SECRET_KEY": "dev-only-change-in-production-USE-ENV-VAR",
-            "ENCRYPTION_KEY": "dev-only-change-in-production-USE-ENV-VAR",
-            "JWT_SECRET_KEY": "dev-only-change-in-production-USE-ENV-VAR",
-        }
-        
-        for key, insecure_value in insecure_defaults.items():
-            if getattr(self, key) == insecure_value:
-                warnings.append(
-                    f"⚠️  {key} tiene valor por defecto inseguro. "
-                    f"Configure la variable de entorno {key} con un valor seguro."
-                )
-        
+
+        # Check for empty or missing secrets
+        if not self.SECRET_KEY:
+            warnings.append(
+                "⚠️  SECRET_KEY no configurada. Configure la variable de entorno SECRET_KEY "
+                "con un valor seguro (ej: python -c 'import secrets; print(secrets.token_urlsafe())')."
+            )
+
+        if not self.ENCRYPTION_KEY:
+            warnings.append(
+                "⚠️  ENCRYPTION_KEY no configurada. Configure la variable de entorno ENCRYPTION_KEY "
+                "con un valor seguro de 32 bytes."
+            )
+
+        if not self.JWT_SECRET_KEY:
+            warnings.append(
+                "⚠️  JWT_SECRET_KEY no configurada. Configure la variable de entorno JWT_SECRET_KEY "
+                "con un valor seguro."
+            )
+
         if not self.ADMIN_PASSWORD:
             warnings.append(
                 "⚠️  ADMIN_PASSWORD no configurada. Configure la variable de entorno "
                 "ADMIN_PASSWORD con la contraseña del administrador."
             )
-        
+
         if not self.BACKUP_ENCRYPTION_KEY:
             warnings.append(
                 "⚠️  BACKUP_ENCRYPTION_KEY no configurada. Los respaldos no estarán cifrados."
             )
-        
+
         if not self.POSTGRES_PASSWORD:
             warnings.append(
                 "⚠️  POSTGRES_PASSWORD no configurada. No se podrá conectar a PostgreSQL."
             )
-        
+
         return warnings
 
 

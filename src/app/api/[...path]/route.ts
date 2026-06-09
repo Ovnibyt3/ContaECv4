@@ -14,6 +14,10 @@ let isStarting = false;
 let startPromise: Promise<boolean> | null = null;
 let backendReady = false;
 
+// Resolve backend directory relative to project root
+const backendDir = path.resolve(process.cwd(), 'backend');
+const pythonPath = process.env.CONTAEC_PYTHON_PATH || 'python3';
+
 async function checkBackendHealth(): Promise<boolean> {
   try {
     const resp = await fetch(`${BACKEND_URL}/api/health`, {
@@ -34,9 +38,8 @@ async function startBackend(): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     try {
       console.log('[ContaEC Proxy] Starting backend...');
-
-      const backendDir = path.resolve('/home/z/my-project/backend');
-      const pythonPath = '/home/z/.venv/bin/python3';
+      console.log(`[ContaEC Proxy] Backend dir: ${backendDir}`);
+      console.log(`[ContaEC Proxy] Python: ${pythonPath}`);
 
       const proc = spawn(pythonPath, [
         '-m', 'uvicorn', 'main:app',
@@ -141,8 +144,8 @@ async function proxyRequest(request: NextRequest, method: string) {
 
   try {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/^\/api/, '');
-    const backendUrl = `${BACKEND_URL}/api${path}${url.search}`;
+    const reqPath = url.pathname.replace(/^\/api/, '');
+    const backendUrl = `${BACKEND_URL}/api${reqPath}${url.search}`;
 
     const headers: Record<string, string> = {};
     request.headers.forEach((value, key) => {

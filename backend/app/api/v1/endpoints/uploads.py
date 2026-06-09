@@ -3,6 +3,7 @@ ContaEC - Endpoints de Subida de Archivos
 Manejo seguro de uploads con escaneo de malware (ClamAV + VirusTotal)
 """
 import os
+import aiofiles
 import logging
 import hashlib
 from datetime import datetime, timezone
@@ -197,8 +198,9 @@ async def upload_file(
     safe_filename = f"{timestamp}_{file_hash[:8]}{ext}"
     file_path = os.path.join(upload_dir, safe_filename)
 
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # Guardar archivo (async)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
 
     # 5. Construir respuesta
     scan_summary = [

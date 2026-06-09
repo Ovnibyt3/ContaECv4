@@ -2,6 +2,7 @@
 ContaEC - Endpoints de Plantillas de Correo Electrónico
 CRUD de plantillas, previsualización y envío de correos con plantillas
 """
+import html
 import logging
 import re
 from typing import Optional
@@ -37,7 +38,9 @@ def _render_template(template_str: str, data: dict[str, str]) -> str:
     """Reemplaza variables {{variable}} en una cadena de texto"""
     def replace_var(match):
         var_name = match.group(1).strip()
-        return data.get(var_name, match.group(0))
+        value = data.get(var_name, match.group(0))
+        # Security: escape HTML in values to prevent XSS
+        return html.escape(str(value))
     return re.sub(r'\{\{(\w+)\}\}', replace_var, template_str)
 
 

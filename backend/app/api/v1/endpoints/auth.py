@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ from app.core.security import (
 )
 from app.core.config import get_settings
 from app.core.token_blacklist import get_token_blacklist
+from app.core.rate_limiter import limiter, AUTH_LOGIN_LIMIT, AUTH_REGISTER_LIMIT, AUTH_CHANGE_PASSWORD_LIMIT, AUTH_REFRESH_LIMIT
 from app.models.user import User, UserConfig, LicenseType
 from app.schemas.auth import (
     PasswordChange,
@@ -39,7 +40,8 @@ settings = get_settings()
 
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
+@limiter.limit(AUTH_REGISTER_LIMIT)
+async def register(request: Request, user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     """Registrar un nuevo usuario"""
     # Verificar si el email ya existe
     result = await db.execute(select(User).where(User.email == user_data.email))
@@ -88,7 +90,8 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
+@limiter.limit(AUTH_LOGIN_LIMIT)
+async def login(request: Request, login_data: UserLogin, db: AsyncSession = Depends(get_db)):
     """Iniciar sesión y obtener tokens JWT"""
     result = await db.execute(select(User).where(User.email == login_data.email))
     user = result.scalars().first()
@@ -137,8 +140,10 @@ async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=Token)
+@limiter.limit(AUTH_REFRESH_LIMIT)
 async def refresh_token(
-    request: RefreshTokenRequest,
+    refresh_request: RefreshTokenRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -147,7 +152,7 @@ async def refresh_token(
     como rotado y si se reutiliza, se detecta como ataque de replay.
     """
     try:
-        payload = verify_token(request.refresh_token, token_type="refresh")
+        payload = verify_token(refresh_request.refresh_token, token_type="refresh")
     except HTTPException:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -292,7 +297,9 @@ async def update_me(
 
 
 @router.put("/change-password")
+@limiter.limit(AUTH_CHANGE_PASSWORD_LIMIT)
 async def change_password(
+    request: Request,
     password_data: PasswordChange,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -1,18 +1,23 @@
 import { spawn } from 'child_process';
 import { createInterface } from 'readline';
+import path from 'path';
 
 const PORT = 8001;
 
 console.log(`[ContaEC Backend] Starting on port ${PORT}...`);
 
-const pythonPath = '/home/z/.venv/bin/python3';
+// Use the project's virtual environment or system python
+const pythonPath = process.env.CONTAEC_PYTHON_PATH || 'python3';
+
+// Resolve backend directory relative to this file
+const backendDir = path.resolve(__dirname, '../../backend');
 
 const proc = spawn(pythonPath, [
   '-m', 'uvicorn', 'main:app',
   '--host', '0.0.0.0',
   '--port', String(PORT),
 ], {
-  cwd: '/home/z/my-project/backend',
+  cwd: backendDir,
   stdio: ['ignore', 'pipe', 'pipe'],
   detached: false,
   env: { ...process.env, PYTHONUNBUFFERED: '1' },
