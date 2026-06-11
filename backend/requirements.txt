@@ -25,3 +25,4 @@ pillow==10.4.0
 aiofiles==24.1.0
 pyclamd==0.4.0
 vt-py==0.22.0
+email-validator==2.18.0

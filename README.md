@@ -1,6 +1,6 @@
 # ContaEC - Sistema Contable y Facturación Electrónica del Ecuador
 
-**Versión:** 1.0.0  
+**Versión:** 4.0.0  
 **Desarrollado por:** T&M Technology Ec  
 **Teléfono:** 0960068866  
 **Soporte:** info@tymtechnology.shop  
@@ -127,13 +127,19 @@ apt install -y ca-certificates
 ### 4.2 Instalación de PostgreSQL
 
 ```bash
+# Create Key Directory
+sudo install -d /usr/share/postgresql-common/pgdg
+
 # Agregar repositorio oficial de PostgreSQL
-sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+
+# Update the Repository List with the Key Path
+# Overwrite your existing list file to include the signed-by directive:
+sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'   
 
 # Instalar PostgreSQL 16
 apt update
-apt install -y postgresql-16 postgresql-contrib-16
+apt install -y postgresql-17 postgresql-contrib-17
 
 # Habilitar y arrancar el servicio
 systemctl enable postgresql
@@ -147,7 +153,7 @@ systemctl start postgresql
 sudo -u postgres psql
 
 # Ejecutar los siguientes comandos SQL:
-CREATE USER contaec_user WITH PASSWORD 'EvJcqP2z4zoryZ5';
+CREATE USER contaec_user WITH PASSWORD 'd';
 CREATE DATABASE contaec_db OWNER contaec_user;
 GRANT ALL PRIVILEGES ON DATABASE contaec_db TO contaec_user;
 
@@ -157,7 +163,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 \q
 ```
 
-**Configuración de PostgreSQL** (`/etc/postgresql/16/main/postgresql.conf`):
+**Configuración de PostgreSQL** (`/etc/postgresql/17/main/postgresql.conf`):
 
 ```ini
 # Memoria (ajustar según RAM disponible, 6GB libres → asignar ~2GB)
@@ -186,12 +192,13 @@ log_disconnections = on
 lc_messages = 'es_EC.UTF-8'
 lc_monetary = 'es_EC.UTF-8'
 lc_numeric = 'es_EC.UTF-8'
+lc_time = 'es_EC.UTF-8'
 ```
 
-**Configuración de acceso** (`/etc/postgresql/16/main/pg_hba.conf`):
+**Configuración de acceso** (`/etc/postgresql/17/main/pg_hba.conf`):
 
 ```
-# Añadir línea para el usuario de la app
+# Añadir línea para el usuario de la app (colocar antes de las configuraciones del sistema)
 local   contaec_db      contaec_user                    md5
 host    contaec_db      contaec_user    127.0.0.1/32    md5
 host    contaec_db      contaec_user    ::1/128         md5
@@ -209,8 +216,7 @@ psql -U contaec_user -d contaec_db -h localhost -c "SELECT version();"
 
 ```bash
 # Instalar Python 3.12 y herramientas de compilación
-apt install -y python3.12 python3.12-venv python3.12-dev python3-pip build-essential libpq-dev
-
+apt install -y python3 python3-venv python3-dev python3-pip build-essential libpq-dev
 # Crear entorno virtual
 cd /opt
 mkdir -p contaec
@@ -219,9 +225,12 @@ cd contaec
 # Clonar el repositorio (o copiar archivos del proyecto)
 # git clone <repositorio> .
 # O copiar vía scp/rsync
+# Para mover el repositorio clonado al directorio padre
+# sudo mv /opt/contaec/ContaECv4/* /opt/contaec/ 
+# sudo mv /opt/contaec/ContaECv4/.* /opt/contaec/ 2>/dev/null && sudo rmdir /opt/contaec/ContaECv4
 
 # Crear y activar entorno virtual
-python3.12 -m venv /opt/contaec/.venv
+python3 -m venv /opt/contaec/.venv
 source /opt/contaec/.venv/bin/activate
 
 # Instalar dependencias del backend
@@ -255,7 +264,7 @@ mkdir -p /opt/contaec/backend/temp
 mkdir -p /opt/contaec/backend/signatures
 
 # Configurar el archivo .env (ver sección 7)
-cp /opt/contaec/backend/.env.example /opt/contaec/backend/.env
+cp /opt/contaec/.env.example /opt/contaec/backend/.env
 nano /opt/contaec/backend/.env  # Editar con valores de producción
 
 # Crear servicio systemd para el backend
@@ -346,10 +355,9 @@ APP_ENV=production
 DEBUG=false
 
 # SECURITY: Generar claves únicas y seguras con:
-# python3 -c "import secrets; print(secrets.token_urlsafe(64))"
-SECRET_KEY=f74856f59061006331cacf72f40d75a2fb38330b408a68ef7714b9f19765dbf2
-ENCRYPTION_KEY=wUchl9MPp6ZCUrL2r9v2pNuiVFfMvblj73klhCenqj8=
-JWT_SECRET_KEY=e05ba81538d2540827f06d34933dacdd351e034ab473a7a3143247b0db179ad5
+SECRET_KEY=VGVqoqj0Z252UJR6xmrBCllbZIfmkwrYmlZatrD4cewVqSQc38ZZPyMar70hO6_OVKMfdmX6Eaap9V3dNTHZBA
+ENCRYPTION_KEY=Oa4w_01KGCLqV0G3PDusJOoPhMMfMcYTl20d2UjCyHXvHL7YiSsdh9Or3-zivGpd52xx7VM69khuZ1tZR0dmZA
+JWT_SECRET_KEY=kkcR9iveo-RfXWvtpBkbdkjc3P9ND2SUerA5uG_96wGjk7RDOIVUhSbxVSMnCWGwcbeLMYWwldv4WALdT2m9Lg
 
 # --- Base de Datos (PostgreSQL) ---
 DATABASE_URL=postgresql+asyncpg://contaec_user:EvJcqP2z4zoryZ5@localhost:5432/contaec_db
@@ -377,8 +385,7 @@ ADMIN_PASSWORD=Vitaestcum21..
 
 # --- Respaldos ---
 BACKUP_DIR=./backups
-# Generar con: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-BACKUP_ENCRYPTION_KEY=GENERAR_CLAVE_FERNET_AQUI
+BACKUP_ENCRYPTION_KEY=rXOHnntm1N6yDBvc2-Z2GogT20rpb0KtqiNuxN3VZGU=
 
 # --- ClamAV (Antivirus) ---
 CLAMAV_ENABLED=true
@@ -388,7 +395,7 @@ CLAMAV_PORT=3310
 
 # --- VirusTotal ---
 VIRUSTOTAL_ENABLED=false
-VIRUSTOTAL_API_KEY=
+VIRUSTOTAL_API_KEY=778b612188000a11cc6fd51f4aafb3e79ed72674524e82ff6320a9f0dbce9ec9
 
 # --- CORS ---
 CORS_ORIGINS=https://conta.tymtechnology.shop,http://10.0.1.20
