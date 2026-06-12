@@ -5,9 +5,8 @@ con cálculo automático de saldos
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class KardexCreate(BaseModel):
@@ -37,27 +36,27 @@ class KardexCreate(BaseModel):
         description="Costo unitario del producto",
         examples=["15.50"],
     )
-    referencia_tipo: Optional[str] = Field(
+    referencia_tipo: str | None = Field(
         None,
         max_length=50,
         description="Tipo de documento de referencia: comprobante, ajuste, compra",
     )
-    referencia_id: Optional[str] = Field(
+    referencia_id: str | None = Field(
         None,
         max_length=36,
         description="ID del documento de referencia",
     )
-    referencia_secuencial: Optional[str] = Field(
+    referencia_secuencial: str | None = Field(
         None,
         max_length=20,
         description="Número secuencial del documento de referencia",
     )
-    detalle: Optional[str] = Field(
+    detalle: str | None = Field(
         None,
         max_length=500,
         description="Descripción del movimiento",
     )
-    fecha_movimiento: Optional[datetime] = Field(
+    fecha_movimiento: datetime | None = Field(
         None,
         description="Fecha y hora del movimiento (default: ahora)",
     )
@@ -95,17 +94,17 @@ class KardexAjuste(BaseModel):
         ge=0,
         description="Costo unitario para el ajuste (0 para ajustes sin costo)",
     )
-    detalle: Optional[str] = Field(
+    detalle: str | None = Field(
         None,
         max_length=500,
         description="Motivo del ajuste",
     )
-    referencia_tipo: Optional[str] = Field(
+    referencia_tipo: str | None = Field(
         None,
         max_length=50,
         description="Tipo de referencia del ajuste",
     )
-    referencia_id: Optional[str] = Field(
+    referencia_id: str | None = Field(
         None,
         max_length=36,
         description="ID del documento de referencia",
@@ -125,24 +124,24 @@ class KardexResponse(BaseModel):
     id: str = Field(..., description="ID único del movimiento")
     company_id: str = Field(..., description="ID de la empresa")
     product_id: str = Field(..., description="ID del producto")
-    warehouse_id: Optional[str] = Field(None, description="ID del almacén asociado")
+    warehouse_id: str | None = Field(None, description="ID del almacén asociado")
     tipo_movimiento: str = Field(..., description="Tipo de movimiento")
     cantidad: Decimal = Field(..., description="Cantidad del movimiento")
     costo_unitario: Decimal = Field(..., description="Costo unitario")
     costo_total: Decimal = Field(..., description="Costo total del movimiento")
     saldo_cantidad: Decimal = Field(..., description="Saldo de cantidad acumulado")
     saldo_valor: Decimal = Field(..., description="Saldo de valor acumulado")
-    referencia_tipo: Optional[str] = Field(None, description="Tipo de referencia")
-    referencia_id: Optional[str] = Field(None, description="ID de referencia")
-    referencia_secuencial: Optional[str] = Field(None, description="Secuencial de referencia")
-    detalle: Optional[str] = Field(None, description="Detalle del movimiento")
+    referencia_tipo: str | None = Field(None, description="Tipo de referencia")
+    referencia_id: str | None = Field(None, description="ID de referencia")
+    referencia_secuencial: str | None = Field(None, description="Secuencial de referencia")
+    detalle: str | None = Field(None, description="Detalle del movimiento")
     fecha_movimiento: datetime = Field(..., description="Fecha del movimiento")
     user_id: str = Field(..., description="ID del usuario")
     is_active: bool = Field(..., description="Indica si está activo")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class KardexSaldoResponse(BaseModel):
@@ -152,7 +151,7 @@ class KardexSaldoResponse(BaseModel):
     saldo_valor: Decimal = Field(default=Decimal("0"), description="Valor actual en stock")
     costo_promedio: Decimal = Field(default=Decimal("0"), description="Costo promedio ponderado")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class KardexReporteResponse(BaseModel):

@@ -25,6 +25,11 @@ from app.models.budget import (
 from app.models.company import Company
 from app.models.user import User
 from app.schemas.budget import (
+    BudgetAlertItem,
+    BudgetAlertsResponse,
+    BudgetExecutionDetailResponse,
+    BudgetExecutionMonthDetail,
+    BudgetExportResponse,
     ComparativoGeneralResponse,
     ComparativoPresupuestario,
     EjecucionMensualCreate,
@@ -1372,3 +1377,411 @@ async def recalcular_presupuesto(
     )
 
     return PresupuestoAnualResponse.model_validate(presupuesto)
+
+
+# ==========================================
+# Feature 1: Budget Alerts (Fase 12)
+# ==========================================
+
+MESES_NOMBRES = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+]
+
+
+async def _get_ejecutado_from_asientos(
+    db: AsyncSession,
+    company_id: str,
+    cuenta_codigo: str,
+    anio: int,
+    mes: int | None = None,
+) -> Decimal:
+    """
+    Query actual spending from accounting entries (AsientoContable) for a budget account.
+    Sums debit amounts for expense/cost accounts and credit amounts for revenue accounts.
+    """
+    from app.models.accounting import AsientoContable, AsientoDetalle, AsientoEstado, CuentaContable
+
+    query = (
+        select(
+            func.coalesce(func.sum(AsientoDetalle.debito), Decimal("0"))
+        )
+        .join(AsientoContable, AsientoDetalle.asiento_id == AsientoContable.id)
+        .join(CuentaContable, AsientoDetalle.cuenta_contable_id == CuentaContable.id)
+        .where(
+            AsientoContable.company_id == company_id,
+            AsientoContable.estado == AsientoEstado.APROBADO.value,
+            CuentaContable.codigo == cuenta_codigo,
+            func.strftime("%Y", AsientoContable.fecha) == str(anio),
+        )
+    )
+
+    if mes is not None:
+        query = query.where(func.strftime("%m", AsientoContable.fecha) == f"{mes:02d}")
+
+    result = await db.execute(query)
+    return result.scalar() or Decimal("0")
+
+
+@router.get("/alertas/realtime", response_model=BudgetAlertsResponse)
+async def get_budget_alertas_realtime(
+    company_id: str = Query(..., description="ID de la empresa"),
+    anio: int | None = Query(None, description="Año fiscal"),
+    nivel: str | None = Query(None, description="Filtrar por nivel: WARNING, CRITICAL, OVER"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get real-time budget alerts by comparing actual spending from accounting entries
+    vs budgeted amounts. Alert levels:
+    - WARNING: ejecutado >= 80% of presupuesto
+    - CRITICAL: ejecutado >= 95% of presupuesto
+    - OVER: ejecutado > 100% of presupuesto (sobregiro)
+    """
+    await _get_company_for_user(db, company_id, current_user.id)
+
+    presupuesto_query = select(PresupuestoAnual).where(
+        PresupuestoAnual.company_id == company_id,
+        PresupuestoAnual.estado == PresupuestoEstado.APROBADO.value,
+        PresupuestoAnual.is_active == True,
+    )
+    if anio is not None:
+        presupuesto_query = presupuesto_query.where(PresupuestoAnual.anio == anio)
+
+    result = await db.execute(presupuesto_query)
+    presupuestos = result.scalars().all()
+
+    alertas: list[BudgetAlertItem] = []
+
+    for presupuesto in presupuestos:
+        for cuenta in presupuesto.cuentas:
+            if not cuenta.is_active or cuenta.cuenta_tipo != TipoCuenta.EGRESO.value:
+                continue
+            if cuenta.monto_anual <= 0:
+                continue
+
+            ejecutado = await _get_ejecutado_from_asientos(
+                db, company_id, cuenta.cuenta_codigo, presupuesto.anio
+            )
+
+            porcentaje = (ejecutado / cuenta.monto_anual * Decimal("100")).quantize(Decimal("0.01"))
+            diferencia = cuenta.monto_anual - ejecutado
+
+            nivel_alerta = None
+            if ejecutado > cuenta.monto_anual:
+                nivel_alerta = "OVER"
+            elif porcentaje >= Decimal("95"):
+                nivel_alerta = "CRITICAL"
+            elif porcentaje >= Decimal("80"):
+                nivel_alerta = "WARNING"
+
+            if nivel_alerta is None:
+                continue
+
+            if nivel is not None and nivel_alerta != nivel:
+                continue
+
+            alertas.append(BudgetAlertItem(
+                cuenta_codigo=cuenta.cuenta_codigo,
+                cuenta_nombre=cuenta.cuenta_nombre,
+                cuenta_tipo=cuenta.cuenta_tipo,
+                presupuesto=cuenta.monto_anual,
+                ejecutado=ejecutado,
+                porcentaje=porcentaje,
+                nivel_alerta=nivel_alerta,
+                diferencia=diferencia,
+            ))
+
+    severity_order = {"OVER": 0, "CRITICAL": 1, "WARNING": 2}
+    alertas.sort(key=lambda a: (severity_order.get(a.nivel_alerta, 3), -a.porcentaje))
+
+    return BudgetAlertsResponse(
+        company_id=company_id,
+        anio=anio,
+        total_alertas=len(alertas),
+        alertas=alertas,
+    )
+
+
+@router.get("/ejecucion/{presupuesto_id}", response_model=BudgetExecutionDetailResponse)
+async def get_budget_ejecucion_detail(
+    presupuesto_id: str,
+    cuenta_codigo: str = Query(..., description="Código de cuenta contable"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Detailed budget execution report with month-by-month breakdown.
+    Compares presupuesto_mes vs ejecutado_mes from actual accounting entries.
+    Includes accumulated totals.
+    """
+    result = await db.execute(
+        select(PresupuestoAnual).where(PresupuestoAnual.id == presupuesto_id)
+    )
+    presupuesto = result.scalars().first()
+    if not presupuesto:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Presupuesto no encontrado.",
+        )
+    await _get_company_for_user(db, presupuesto.company_id, current_user.id)
+
+    cuenta = None
+    for c in presupuesto.cuentas:
+        if c.cuenta_codigo == cuenta_codigo and c.is_active:
+            cuenta = c
+            break
+
+    if not cuenta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Cuenta {cuenta_codigo} no encontrada en el presupuesto.",
+        )
+
+    detalle_mensual: list[BudgetExecutionMonthDetail] = []
+    acumulado_presupuesto = Decimal("0")
+    acumulado_ejecutado = Decimal("0")
+
+    for mes_num in range(1, 13):
+        presupuesto_mes = Decimal("0")
+        for ejecucion in cuenta.ejecuciones_mensuales:
+            if ejecucion.mes == mes_num:
+                presupuesto_mes = ejecucion.monto_presupuestado
+                break
+
+        ejecutado_mes = await _get_ejecutado_from_asientos(
+            db, presupuesto.company_id, cuenta_codigo, presupuesto.anio, mes_num
+        )
+
+        acumulado_presupuesto += presupuesto_mes
+        acumulado_ejecutado += ejecutado_mes
+
+        porcentaje_acumulado = (
+            (acumulado_ejecutado / acumulado_presupuesto * Decimal("100")).quantize(Decimal("0.01"))
+            if acumulado_presupuesto > 0
+            else Decimal("0")
+        )
+
+        detalle_mensual.append(BudgetExecutionMonthDetail(
+            mes=mes_num,
+            mes_nombre=MESES_NOMBRES[mes_num - 1],
+            presupuesto_mes=presupuesto_mes,
+            ejecutado_mes=ejecutado_mes,
+            diferencia_mes=presupuesto_mes - ejecutado_mes,
+            acumulado_presupuesto=acumulado_presupuesto,
+            acumulado_ejecutado=acumulado_ejecutado,
+            porcentaje_acumulado=porcentaje_acumulado,
+        ))
+
+    total_ejecutado = sum(d.ejecutado_mes for d in detalle_mensual)
+    porcentaje_ejecucion = (
+        (total_ejecutado / cuenta.monto_anual * Decimal("100")).quantize(Decimal("0.01"))
+        if cuenta.monto_anual > 0
+        else Decimal("0")
+    )
+
+    return BudgetExecutionDetailResponse(
+        presupuesto_id=presupuesto_id,
+        presupuesto_nombre=presupuesto.nombre,
+        anio=presupuesto.anio,
+        cuenta_codigo=cuenta_codigo,
+        cuenta_nombre=cuenta.cuenta_nombre,
+        cuenta_tipo=cuenta.cuenta_tipo,
+        total_presupuesto=cuenta.monto_anual,
+        total_ejecutado=total_ejecutado,
+        porcentaje_ejecucion=porcentaje_ejecucion,
+        detalle_mensual=detalle_mensual,
+    )
+
+
+# ==========================================
+# Budget Excel Export (Fase 12)
+# ==========================================
+
+try:
+    import io as _io
+    from openpyxl import Workbook as _Workbook
+    from openpyxl.styles import (
+        Font as _Font,
+        Alignment as _Alignment,
+        PatternFill as _PatternFill,
+        Border as _Border,
+        Side as _Side,
+    )
+    from fastapi.responses import StreamingResponse as _StreamingResponse
+    HAS_OPENPYXL = True
+except ImportError:
+    HAS_OPENPYXL = False
+
+
+@router.get("/export/excel")
+async def export_budget_to_excel(
+    company_id: str = Query(..., description="ID de la empresa"),
+    anio: int = Query(..., description="Año fiscal"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export budget execution to Excel file.
+    Returns an Excel file with budget vs actual comparison for all accounts.
+    """
+    if not HAS_OPENPYXL:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="La exportacion a Excel requiere el paquete 'openpyxl'. Instalelo con: pip install openpyxl",
+        )
+
+    await _get_company_for_user(db, company_id, current_user.id)
+
+    result = await db.execute(
+        select(PresupuestoAnual).where(
+            PresupuestoAnual.company_id == company_id,
+            PresupuestoAnual.anio == anio,
+            PresupuestoAnual.is_active == True,
+        )
+    )
+    presupuesto = result.scalars().first()
+    if not presupuesto:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontro presupuesto activo para el anio {anio}.",
+        )
+
+    wb = _Workbook()
+    ws = wb.active
+    ws.title = f"Presupuesto {anio}"
+
+    header_font = _Font(bold=True, color="FFFFFF", size=11)
+    header_fill = _PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
+    title_font = _Font(bold=True, size=14, color="2F5496")
+    warning_fill = _PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    critical_fill = _PatternFill(start_color="FFA500", end_color="FFA500", fill_type="solid")
+    over_fill = _PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+    thin_border = _Border(
+        left=_Side(style="thin"),
+        right=_Side(style="thin"),
+        top=_Side(style="thin"),
+        bottom=_Side(style="thin"),
+    )
+    number_format = "#,##0.00"
+    percent_format = "0.00%"
+
+    ws.merge_cells("A1:J1")
+    title_cell = ws["A1"]
+    title_cell.value = f"Presupuesto vs Ejecucion {anio} - {presupuesto.nombre}"
+    title_cell.font = title_font
+    ws.merge_cells("A2:J2")
+    ws["A2"].value = f"Generado: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
+    ws["A2"].font = _Font(italic=True, size=10)
+
+    headers = [
+        "Codigo", "Cuenta", "Tipo", "Presupuesto", "Ejecutado",
+        "Diferencia", "% Ejecucion", "Nivel Alerta", "Presup. Mensual", "Ejecutado Mensual",
+    ]
+    header_row = 4
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=header_row, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = _Alignment(horizontal="center")
+        cell.border = thin_border
+
+    row_num = header_row + 1
+    for cuenta in presupuesto.cuentas:
+        if not cuenta.is_active:
+            continue
+
+        ejecutado = await _get_ejecutado_from_asientos(
+            db, company_id, cuenta.cuenta_codigo, anio
+        )
+        diferencia = cuenta.monto_anual - ejecutado
+        porcentaje = (
+            ejecutado / cuenta.monto_anual if cuenta.monto_anual > 0 else Decimal("0")
+        )
+
+        nivel_alerta = ""
+        row_fill = None
+        if ejecutado > cuenta.monto_anual:
+            nivel_alerta = "OVER"
+            row_fill = over_fill
+        elif porcentaje >= Decimal("0.95"):
+            nivel_alerta = "CRITICAL"
+            row_fill = critical_fill
+        elif porcentaje >= Decimal("0.80"):
+            nivel_alerta = "WARNING"
+            row_fill = warning_fill
+
+        presupuesto_mensual = ""
+        for ejecucion in cuenta.ejecuciones_mensuales:
+            presupuesto_mensual += f"M{ejecucion.mes}: ${ejecucion.monto_presupuestado:,.2f}\n"
+
+        row_data = [
+            cuenta.cuenta_codigo,
+            cuenta.cuenta_nombre,
+            cuenta.cuenta_tipo,
+            float(cuenta.monto_anual),
+            float(ejecutado),
+            float(diferencia),
+            float(porcentaje),
+            nivel_alerta,
+            presupuesto_mensual.strip(),
+            "",
+        ]
+
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.value = value
+            cell.border = thin_border
+
+            if col_num in (4, 5, 6):
+                cell.number_format = number_format
+            elif col_num == 7:
+                cell.number_format = percent_format
+
+            if row_fill and col_num <= 8:
+                cell.fill = row_fill
+
+        row_num += 1
+
+    row_num += 2
+    ws.merge_cells(f"A{row_num}:C{row_num}")
+    ws.cell(row=row_num, column=1).value = "RESUMEN"
+    ws.cell(row=row_num, column=1).font = _Font(bold=True, size=12)
+
+    row_num += 1
+    summary_items = [
+        ("Total Ingresos Presupuestado", float(presupuesto.total_ingresos_presupuestado)),
+        ("Total Ingresos Ejecutado", float(presupuesto.total_ingresos_ejecutado)),
+        ("Total Egresos Presupuestado", float(presupuesto.total_egresos_presupuestado)),
+        ("Total Egresos Ejecutado", float(presupuesto.total_egresos_ejecutado)),
+        ("Resultado Presupuestario", float(presupuesto.total_ingresos_presupuestado - presupuesto.total_egresos_presupuestado)),
+        ("Resultado Real", float(presupuesto.total_ingresos_ejecutado - presupuesto.total_egresos_ejecutado)),
+    ]
+
+    for label, value in summary_items:
+        ws.cell(row=row_num, column=1).value = label
+        ws.cell(row=row_num, column=1).font = _Font(bold=True)
+        ws.cell(row=row_num, column=4).value = value
+        ws.cell(row=row_num, column=4).number_format = number_format
+        row_num += 1
+
+    ws.column_dimensions["A"].width = 15
+    ws.column_dimensions["B"].width = 35
+    ws.column_dimensions["C"].width = 12
+    for col_letter in ["D", "E", "F", "G", "H"]:
+        ws.column_dimensions[col_letter].width = 18
+    ws.column_dimensions["I"].width = 40
+    ws.column_dimensions["J"].width = 20
+
+    output = _io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"presupuesto_{anio}_{company_id[:8]}.xlsx"
+
+    return _StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

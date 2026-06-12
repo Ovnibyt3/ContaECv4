@@ -216,18 +216,31 @@ async def refresh_token(
 
 @router.post("/logout")
 async def logout(
+    token: str = Depends(oauth2_scheme),
     current_user: User = Depends(get_current_user),
 ):
     """
     Cerrar sesión revocando el token de acceso actual.
-    El cliente debe enviar el token de acceso en el header Authorization.
-    Tanto el access token como el refresh token del cliente deben ser
-    descartados por el frontend.
+    El token se añade a la blacklist para invalidación inmediata.
     """
-    # The token is already validated by get_current_user dependency.
-    # The client is responsible for discarding both access and refresh tokens.
-    # The access token will naturally expire, and the refresh token
-    # should be discarded client-side.
+    # Revoke the access token by adding its JTI to the blacklist
+    from jose import jwt as jose_jwt
+
+    try:
+        payload = jose_jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti and exp:
+            blacklist = get_token_blacklist()
+            blacklist.revoke_token(jti, exp)
+            logger.info(f"Token revocado en logout: {current_user.email}, jti={jti[:8]}...")
+    except Exception as e:
+        logger.warning(f"Error revocando token en logout: {e}")
+
     logger.info(f"Cierre de sesión: {current_user.email}")
     return {"message": "Sesión cerrada exitosamente."}
 

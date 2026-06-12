@@ -4,9 +4,8 @@ Modelos de respuesta para dashboards de KPIs, métricas y alertas
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==========================================
@@ -17,11 +16,11 @@ class KPIResponse(BaseModel):
     """Respuesta con KPIs en tiempo real del negocio"""
     ventas_totales: Decimal = Field(default=Decimal("0"), description="Ventas totales del período (comprobantes AUTORIZADO)")
     ventas_mes_anterior: Decimal = Field(default=Decimal("0"), description="Ventas del mes anterior para comparación")
-    variacion_ventas: Optional[Decimal] = Field(default=None, description="% variación de ventas vs mes anterior")
+    variacion_ventas: Decimal | None = Field(default=None, description="% variación de ventas vs mes anterior")
     comprobantes_emitidos: int = Field(default=0, description="Total comprobantes emitidos")
     comprobantes_autorizados: int = Field(default=0, description="Total comprobantes autorizados por SRI")
     comprobantes_rechazados: int = Field(default=0, description="Total comprobantes rechazados por SRI")
-    tasa_aprobacion: Optional[Decimal] = Field(default=None, description="Tasa de aprobación SRI (%)")
+    tasa_aprobacion: Decimal | None = Field(default=None, description="Tasa de aprobación SRI (%)")
     ticket_promedio: Decimal = Field(default=Decimal("0"), description="Valor promedio por comprobante autorizado")
     iva_recaudado: Decimal = Field(default=Decimal("0"), description="Total IVA recaudado en el período")
     clientes_activos: int = Field(default=0, description="Número de clientes activos")
@@ -119,7 +118,7 @@ class AlertaBI(BaseModel):
 class KPIsResumen(BaseModel):
     """Resumen de KPIs financieros clave"""
     ventas_mes: Decimal = Field(default=Decimal("0"))
-    variacion_ventas: Optional[Decimal] = Field(default=None)
+    variacion_ventas: Decimal | None = Field(default=None)
     ticket_promedio: Decimal = Field(default=Decimal("0"))
     iva_recaudado: Decimal = Field(default=Decimal("0"))
     cuentas_por_cobrar: Decimal = Field(default=Decimal("0"))
@@ -174,27 +173,31 @@ class FactVentaRow(BaseModel):
     secuencial: str
     fecha_emision: str
     estado: str
-    cliente_id: Optional[str] = None
-    product_id: Optional[str] = None
-    cantidad: Optional[Decimal] = None
-    precio_unitario: Optional[Decimal] = None
+    cliente_id: str | None = None
+    product_id: str | None = None
+    cantidad: Decimal | None = None
+    precio_unitario: Decimal | None = None
     subtotal_sin_impuestos: Decimal
     total_iva: Decimal
     total_con_impuestos: Decimal
-    iva_porcentaje: Optional[Decimal] = None
+    iva_porcentaje: Decimal | None = None
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class DimProducto(BaseModel):
     """Dimensión de producto para Power BI"""
     product_id: str
     codigo_principal: str
-    codigo_auxiliar: Optional[str] = None
+    codigo_auxiliar: str | None = None
     descripcion: str
     tipo: str
     precio_unitario: Decimal
     iva_porcentaje: Decimal
     stock: Decimal
     is_active: bool
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class DimCliente(BaseModel):
@@ -203,8 +206,10 @@ class DimCliente(BaseModel):
     tipo_identificacion: str
     identificacion: str
     razon_social: str
-    email: Optional[str] = None
+    email: str | None = None
     is_active: bool
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class DimTiempo(BaseModel):
@@ -220,6 +225,8 @@ class DimTiempo(BaseModel):
     nombre_dia: str
     es_fin_semana: bool
 
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
 
 class FactInventarioRow(BaseModel):
     """Fila de la tabla de hechos de inventario para Power BI"""
@@ -229,7 +236,9 @@ class FactInventarioRow(BaseModel):
     stock: Decimal
     stock_minimo: Decimal
     valor_inventario: Decimal
-    ubicacion: Optional[str] = None
+    ubicacion: str | None = None
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class PowerBIExport(BaseModel):
@@ -239,3 +248,5 @@ class PowerBIExport(BaseModel):
     dim_clientes: list[DimCliente] = Field(default_factory=list)
     dim_tiempo: list[DimTiempo] = Field(default_factory=list)
     fact_inventario: list[FactInventarioRow] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

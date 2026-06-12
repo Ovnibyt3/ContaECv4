@@ -84,9 +84,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     NOTA ARQUITECTURAL: Este generador realiza un commit implícito al finalizar
     exitosamente la petición. Esto es un acoplamiento que debe ser refactorizado
     en el futuro: los endpoints deberían llamar a `await db.commit()` explícitamente.
-    
+
     Si se elimina el commit automático, todos los endpoints de escritura que solo
     llaman a `await db.flush()` dejarán de persistir datos silenciosamente.
+    Hay ~218 instancias de `await db.flush()` sin `await db.commit()` en los endpoints.
 
     Uso:
         @app.get("/items")
@@ -96,13 +97,12 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_factory() as session:
         try:
             yield session
-            # TODO: Remove implicit commit - endpoints should call commit() explicitly
+            # TODO: Remove implicit commit - requires auditing ~218 flush()-only endpoints
             await session.commit()
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
+        # session.close() is handled by async with context manager
 
 
 async def init_db() -> None:

@@ -3,27 +3,26 @@ ContaEC - Esquemas Pydantic de Registro de Auditoría
 Schemas para consulta y respuesta de registros de auditoría
 """
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuditLogResponse(BaseModel):
     """Esquema de respuesta para un registro de auditoría"""
     id: str = Field(..., description="ID único del registro")
-    user_id: Optional[str] = Field(None, description="ID del usuario")
-    user_email: Optional[str] = Field(None, description="Correo del usuario")
+    user_id: str | None = Field(None, description="ID del usuario")
+    user_email: str | None = Field(None, description="Correo del usuario")
     action: str = Field(..., description="Acción realizada")
     entity_type: str = Field(..., description="Tipo de entidad afectada")
-    entity_id: Optional[str] = Field(None, description="ID de la entidad afectada")
+    entity_id: str | None = Field(None, description="ID de la entidad afectada")
     description: str = Field(..., description="Descripción de la acción")
-    ip_address: Optional[str] = Field(None, description="Dirección IP")
-    user_agent: Optional[str] = Field(None, description="User-Agent del cliente")
-    old_values: Optional[str] = Field(None, description="Valores anteriores (JSON)")
-    new_values: Optional[str] = Field(None, description="Valores nuevos (JSON)")
+    ip_address: str | None = Field(None, description="Dirección IP")
+    user_agent: str | None = Field(None, description="User-Agent del cliente")
+    old_values: str | None = Field(None, description="Valores anteriores (JSON)")
+    new_values: str | None = Field(None, description="Valores nuevos (JSON)")
     created_at: datetime = Field(..., description="Fecha y hora de la acción")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class AuditStatsResponse(BaseModel):

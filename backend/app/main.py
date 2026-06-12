@@ -10,8 +10,9 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -69,32 +70,42 @@ async def lifespan(app: FastAPI):
     
     # Crear directorios necesarios
     import os
-    for directory in [settings.BACKUP_DIR, settings.TEMP_DIR, settings.UPLOAD_DIR]:
-        os.makedirs(directory, exist_ok=True)
-    
+    for directory in [settings.BACKUP_DIR, settings.TEMP_DIR, settings.UPLOAD_DIR, settings.SIGNATURES_DIR]:
+        await asyncio.to_thread(os.makedirs, directory, exist_ok=True)
+
     # Inicializar usuario administrador por defecto
     await _init_admin_user()
-    
+
     # Iniciar tarea de backup automático en background
     from app.api.v1.endpoints.backup import midnight_backup_task
     backup_task = asyncio.create_task(midnight_backup_task())
-    
+
     # Iniciar tarea de limpieza de archivos volátiles
     from app.core.volatile_storage import start_cleanup_task
-    asyncio.create_task(start_cleanup_task())
+    cleanup_task = asyncio.create_task(start_cleanup_task())
     logger.info("✅ Tarea de limpieza de archivos temporales iniciada")
-    
+
     # Iniciar tarea de limpieza de token blacklist
     token_cleanup_task = asyncio.create_task(_token_blacklist_cleanup())
     logger.info("✅ Tarea de limpieza de token blacklist iniciada")
-    
+
+    # NOTE: /uploads is no longer mounted as a public StaticFiles directory.
+    # Uploaded files are served through authenticated endpoints in uploads.py
+    # and config.py to prevent unauthorized access.
+    # Digital signatures are stored in SIGNATURES_DIR outside the uploads tree.
+
     logger.info(f"✅ {settings.APP_NAME} listo en http://{settings.BACKEND_HOST}:{settings.BACKEND_PORT}")
-    
+
     yield
-    
-    # Shutdown
+
+    # Shutdown - cancel background tasks
     backup_task.cancel()
+    cleanup_task.cancel()
     token_cleanup_task.cancel()
+
+    # Wait for tasks to finish gracefully
+    await asyncio.gather(backup_task, cleanup_task, token_cleanup_task, return_exceptions=True)
+
     await close_db()
     logger.info(f"🔴 {settings.APP_NAME} detenido")
 
@@ -174,6 +185,7 @@ async def _init_admin_user():
 
 
 # Crear aplicación FastAPI
+# Disable Swagger/ReDoc in production to prevent API schema exposure
 app = FastAPI(
     title="ContaEC",
     version=settings.APP_VERSION,
@@ -184,8 +196,8 @@ app = FastAPI(
         "DNS: conta.tymtechnology.shop\n\n"
         "Facturación electrónica conforme a la Ficha Técnica del SRI v2.32"
     ),
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
     lifespan=lifespan,
     redirect_slashes=False,
 )
@@ -195,8 +207,21 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ==================== MIDDLEWARE ====================
+# NOTE: FastAPI's add_middleware prepends each new middleware.
+# The LAST one added executes FIRST in the request phase.
+# Desired order: CORS -> SecurityHeaders -> InputSanitization -> RateLimit
+# So we add them in reverse:
 
-# CORS
+# Rate limiting (executes first - reject early)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
+
+# Sanitización de entradas (executes second)
+app.add_middleware(InputSanitizationMiddleware)
+
+# Headers de seguridad (executes third)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS (executes last - must be outermost for preflight handling)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -205,14 +230,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Headers de seguridad
-app.add_middleware(SecurityHeadersMiddleware)
+# ==================== GLOBAL EXCEPTION HANDLER ====================
 
-# Sanitización de entradas
-app.add_middleware(InputSanitizationMiddleware)
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Global exception handler that sanitizes error responses in production.
+    Prevents leaking stack traces, internal paths, and database errors to clients.
+    """
+    if isinstance(exc, HTTPException):
+        # Let FastAPI handle HTTPException normally
+        raise exc
 
-# Rate limiting
-app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
+    # Log full exception server-side for debugging
+    logger.error(f"Unhandled exception in {request.url.path}: {exc}", exc_info=True)
+
+    # Return generic error to client
+    detail = "Error interno del servidor. Intente nuevamente."
+    if settings.is_development:
+        # In development, include more info for debugging
+        detail = f"Error interno: {str(exc)}"
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": detail},
+    )
+
 
 # ==================== RUTAS ====================
 
@@ -228,9 +271,6 @@ async def health_check():
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
-        "developer": "T&M Technology Ec",
-        "support": "info@tymtechnology.shop",
-        "phone": "0960068866",
     }
 
 
@@ -262,12 +302,6 @@ async def get_sri_catalogs():
         "contribuyente_tipos": CONTRIBUYENTE_TIPOS,
         "regimen_tipos": REGIMEN_TIPOS,
     }
-
-
-# Archivos estáticos para uploads
-import os
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 if __name__ == "__main__":

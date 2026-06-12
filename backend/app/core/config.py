@@ -3,9 +3,15 @@ ContaEC - Configuración de la aplicación
 Lee las variables de entorno desde el archivo .env usando pydantic-settings
 """
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env file path relative to this config file's directory
+_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE_PATH = _CONFIG_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -15,7 +21,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE_PATH),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -131,13 +137,14 @@ class Settings(BaseSettings):
     # Servidor
     # ==========================================
     BACKEND_HOST: str = "0.0.0.0"
-    BACKEND_PORT: int = 8000
+    BACKEND_PORT: int = 8001
 
     # ==========================================
     # Almacenamiento Volátil
     # ==========================================
     TEMP_DIR: str = "./temp"
     UPLOAD_DIR: str = "./uploads"
+    SIGNATURES_DIR: str = "./signatures"  # Outside public uploads directory
 
     # ==========================================
     # Propiedades derivadas
@@ -151,6 +158,19 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """Indica si el ambiente es desarrollo"""
         return self.APP_ENV.lower() == "development"
+
+    # Allowed JWT algorithms - prevent "none" algorithm attack
+    _ALLOWED_JWT_ALGORITHMS = {"HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512"}
+
+    @model_validator(mode="after")
+    def validate_jwt_algorithm(self) -> "Settings":
+        """Ensure JWT_ALGORITHM is not set to an insecure value like 'none'."""
+        if self.JWT_ALGORITHM not in self._ALLOWED_JWT_ALGORITHMS:
+            raise ValueError(
+                f"JWT_ALGORITHM must be one of {self._ALLOWED_JWT_ALGORITHMS}, "
+                f"got '{self.JWT_ALGORITHM}'. The 'none' algorithm is NOT allowed."
+            )
+        return self
 
     @property
     def sri_ws_recepcion(self) -> str:

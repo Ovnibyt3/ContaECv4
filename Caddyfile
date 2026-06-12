@@ -1,23 +1,27 @@
-:80 {
-        @transform_port_query {
-                query XTransformPort=*
+conta.tymtechnology.shop {
+        # Reverse proxy to Next.js frontend (which proxies /api/* to FastAPI)
+        reverse_proxy localhost:3000 {
+                header_up Host {host}
+                header_up X-Forwarded-For {remote_host}
+                header_up X-Forwarded-Proto {scheme}
+                header_up X-Real-IP {remote_host}
         }
 
-        handle @transform_port_query {
-                reverse_proxy localhost:{query.XTransformPort} {
-                        header_up Host {host}
-                        header_up X-Forwarded-For {remote_host}
-                        header_up X-Forwarded-Proto {scheme}
-                        header_up X-Real-IP {remote_host}
-                }
+        # Security headers
+        header {
+                X-Content-Type-Options nosniff
+                X-Frame-Options DENY
+                X-XSS-Protection "1; mode=block"
+                Referrer-Policy strict-origin-when-cross-origin
+                Strict-Transport-Security "max-age=31536000; includeSubDomains"
         }
 
-        handle {
-                reverse_proxy localhost:3000 {
-                        header_up Host {host}
-                        header_up X-Forwarded-For {remote_host}
-                        header_up X-Forwarded-Proto {scheme}
-                        header_up X-Real-IP {remote_host}
-                }
+        # Compression
+        encode gzip zstd
+
+        # Logging
+        log {
+                output file /var/log/caddy/contaec.log
+                format console
         }
 }

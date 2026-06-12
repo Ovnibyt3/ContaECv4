@@ -284,3 +284,63 @@ class IntegrationStats(BaseModel):
     total_sync_logs: int = 0
     sync_logs_hoy: int = 0
     ultima_sync_fecha: datetime | None = None
+
+
+# ==========================================
+# E-Commerce Sync Responses (Fase 15)
+# ==========================================
+
+class EcommerceSyncProductsResponse(BaseModel):
+    """Response for sync-products endpoint"""
+    connector_id: str
+    connector_nombre: str
+    plataforma: str
+    total_procesados: int = 0
+    total_creados: int = 0
+    total_actualizados: int = 0
+    total_errores: int = 0
+    errores: list[str] = Field(default_factory=list)
+    sync_log_id: str | None = None
+
+
+class EcommerceSyncOrdersResponse(BaseModel):
+    """Response for sync-orders endpoint"""
+    connector_id: str
+    connector_nombre: str
+    plataforma: str
+    total_ordenes_procesadas: int = 0
+    total_facturas_creadas: int = 0
+    total_errores: int = 0
+    errores: list[str] = Field(default_factory=list)
+    sync_log_id: str | None = None
+
+
+class EcommerceSyncInventoryResponse(BaseModel):
+    """Response for sync-inventory endpoint"""
+    connector_id: str
+    connector_nombre: str
+    plataforma: str
+    total_productos_procesados: int = 0
+    total_stock_actualizados: int = 0
+    total_errores: int = 0
+    errores: list[str] = Field(default_factory=list)
+    sync_log_id: str | None = None
+
+
+class EcommerceConnectorStatus(BaseModel):
+    """Status response for e-commerce connector"""
+    connector_id: str
+    connector_nombre: str
+    plataforma: str
+    estado: str
+    url_tienda: str
+    ultima_sincronizacion: datetime | None = None
+    ultimo_error: str | None = None
+    total_productos_sync: int = 0
+    total_ordenes_sync: int = 0
+    is_active: bool
+    sync_productos: bool
+    sync_ordenes: bool
+    sync_inventario: bool
+    sync_clientes: bool
+    ultima_sync_details: dict | None = None

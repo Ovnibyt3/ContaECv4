@@ -4,9 +4,8 @@ Schemas para sesiones de caja, tickets, detalles y arqueos
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ==========================================
@@ -19,7 +18,7 @@ class POSCashSessionCreate(BaseModel):
         ...,
         description="ID de la empresa",
     )
-    warehouse_id: Optional[str] = Field(
+    warehouse_id: str | None = Field(
         None,
         description="ID del almacén desde el que vende el POS",
     )
@@ -45,7 +44,7 @@ class POSCashSessionClose(BaseModel):
         ge=0,
         description="Efectivo contado al cerrar la caja",
     )
-    observaciones_cierre: Optional[str] = Field(
+    observaciones_cierre: str | None = Field(
         None,
         description="Observaciones al cerrar la caja",
     )
@@ -55,16 +54,16 @@ class POSCashSessionResponse(BaseModel):
     """Esquema de respuesta para una sesión de caja"""
     id: str = Field(..., description="ID único de la sesión")
     company_id: str = Field(..., description="ID de la empresa")
-    warehouse_id: Optional[str] = Field(None, description="ID del almacén")
+    warehouse_id: str | None = Field(None, description="ID del almacén")
     numero_caja: str = Field(..., description="Número de caja")
     user_id: str = Field(..., description="ID del cajero")
     estado: str = Field(..., description="Estado: abierta, cerrada")
     fecha_apertura: datetime = Field(..., description="Fecha de apertura")
-    fecha_cierre: Optional[datetime] = Field(None, description="Fecha de cierre")
+    fecha_cierre: datetime | None = Field(None, description="Fecha de cierre")
     monto_apertura: Decimal = Field(..., description="Monto de apertura")
-    monto_cierre_efectivo: Optional[Decimal] = Field(None, description="Efectivo contado al cierre")
-    monto_cierre_calculado: Optional[Decimal] = Field(None, description="Efectivo calculado al cierre")
-    monto_diferencia: Optional[Decimal] = Field(None, description="Diferencia (sobrante/faltante)")
+    monto_cierre_efectivo: Decimal | None = Field(None, description="Efectivo contado al cierre")
+    monto_cierre_calculado: Decimal | None = Field(None, description="Efectivo calculado al cierre")
+    monto_diferencia: Decimal | None = Field(None, description="Diferencia (sobrante/faltante)")
     total_ventas_efectivo: Decimal = Field(..., description="Total ventas efectivo")
     total_ventas_tarjeta: Decimal = Field(..., description="Total ventas tarjeta")
     total_ventas_credito: Decimal = Field(..., description="Total ventas crédito")
@@ -73,11 +72,11 @@ class POSCashSessionResponse(BaseModel):
     total_propina: Decimal = Field(..., description="Total propinas")
     total_descuentos: Decimal = Field(..., description="Total descuentos")
     total_devoluciones: Decimal = Field(..., description="Total devoluciones")
-    observaciones_cierre: Optional[str] = Field(None, description="Observaciones de cierre")
+    observaciones_cierre: str | None = Field(None, description="Observaciones de cierre")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class POSCashSessionResumen(BaseModel):
@@ -99,7 +98,7 @@ class POSCashSessionResumen(BaseModel):
     cantidad_tickets: int = Field(..., description="Cantidad de tickets")
     cantidad_tickets_pagados: int = Field(..., description="Cantidad de tickets pagados")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -108,7 +107,7 @@ class POSCashSessionResumen(BaseModel):
 
 class POSTicketDetalleCreate(BaseModel):
     """Esquema para crear una línea de detalle de ticket"""
-    product_id: Optional[str] = Field(
+    product_id: str | None = Field(
         None,
         description="ID del producto (opcional para items manuales)",
     )
@@ -163,7 +162,7 @@ class POSTicketDetalleResponse(BaseModel):
     """Esquema de respuesta para una línea de detalle de ticket"""
     id: str = Field(..., description="ID único del detalle")
     ticket_id: str = Field(..., description="ID del ticket")
-    product_id: Optional[str] = Field(None, description="ID del producto")
+    product_id: str | None = Field(None, description="ID del producto")
     codigo_principal: str = Field(..., description="Código principal")
     descripcion: str = Field(..., description="Descripción")
     cantidad: Decimal = Field(..., description="Cantidad")
@@ -176,7 +175,7 @@ class POSTicketDetalleResponse(BaseModel):
     iva_valor: Decimal = Field(..., description="Valor IVA")
     created_at: datetime = Field(..., description="Fecha de creación")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class POSTicketCreate(BaseModel):
@@ -194,17 +193,17 @@ class POSTicketCreate(BaseModel):
         max_length=20,
         description="Tipo de venta: efectivo, tarjeta, credito, mixto, otro",
     )
-    cliente_nombre: Optional[str] = Field(
+    cliente_nombre: str | None = Field(
         None,
         max_length=200,
         description="Nombre del cliente (default: CONSUMIDOR FINAL)",
     )
-    cliente_identificacion: Optional[str] = Field(
+    cliente_identificacion: str | None = Field(
         None,
         max_length=20,
         description="Número de identificación del cliente (default: 9999999999999)",
     )
-    cliente_tipo_identificacion: Optional[str] = Field(
+    cliente_tipo_identificacion: str | None = Field(
         None,
         max_length=2,
         description="Tipo de identificación (default: 07=consumidor final)",
@@ -239,17 +238,17 @@ class POSTicketCreate(BaseModel):
         ge=0,
         description="Propina del cliente",
     )
-    numero_tarjeta: Optional[str] = Field(
+    numero_tarjeta: str | None = Field(
         None,
         max_length=4,
         description="Últimos 4 dígitos de la tarjeta",
     )
-    referencia_pago: Optional[str] = Field(
+    referencia_pago: str | None = Field(
         None,
         max_length=100,
         description="Referencia del pago",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -264,7 +263,7 @@ class POSTicketResponse(BaseModel):
     id: str = Field(..., description="ID único del ticket")
     company_id: str = Field(..., description="ID de la empresa")
     cash_session_id: str = Field(..., description="ID de la sesión de caja")
-    comprobante_id: Optional[str] = Field(None, description="ID del comprobante electrónico")
+    comprobante_id: str | None = Field(None, description="ID del comprobante electrónico")
     numero_ticket: str = Field(..., description="Número de ticket")
     estado: str = Field(..., description="Estado: pendiente, pagado, anulado, devuelto")
     tipo_venta: str = Field(..., description="Tipo de venta")
@@ -281,9 +280,9 @@ class POSTicketResponse(BaseModel):
     monto_otro: Decimal = Field(..., description="Monto otro")
     cambio: Decimal = Field(..., description="Cambio devuelto")
     propina: Decimal = Field(..., description="Propina")
-    numero_tarjeta: Optional[str] = Field(None, description="Últimos 4 dígitos tarjeta")
-    referencia_pago: Optional[str] = Field(None, description="Referencia de pago")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    numero_tarjeta: str | None = Field(None, description="Últimos 4 dígitos tarjeta")
+    referencia_pago: str | None = Field(None, description="Referencia de pago")
+    observaciones: str | None = Field(None, description="Observaciones")
     user_id: str = Field(..., description="ID del cajero")
     detalles: list[POSTicketDetalleResponse] = Field(
         default_factory=list,
@@ -292,7 +291,7 @@ class POSTicketResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -306,11 +305,11 @@ class POSArqueoCreate(BaseModel):
         max_length=20,
         description="Tipo de arqueo: parcial, final",
     )
-    billetes: Optional[dict[str, int]] = Field(
+    billetes: dict[str, int] | None = Field(
         None,
         description="Conteo de billetes por denominación: {\"1\": 5, \"5\": 10, ...}",
     )
-    monedas: Optional[dict[str, int]] = Field(
+    monedas: dict[str, int] | None = Field(
         None,
         description="Conteo de monedas por denominación: {\"0.05\": 20, \"0.10\": 50, ...}",
     )
@@ -329,7 +328,7 @@ class POSArqueoCreate(BaseModel):
         ge=0,
         description="Total de efectivo contado",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones del arqueo",
     )
@@ -349,18 +348,108 @@ class POSArqueoResponse(BaseModel):
     cash_session_id: str = Field(..., description="ID de la sesión de caja")
     company_id: str = Field(..., description="ID de la empresa")
     tipo: str = Field(..., description="Tipo de arqueo: parcial, final")
-    billetes: Optional[str] = Field(None, description="JSON conteo de billetes")
-    monedas: Optional[str] = Field(None, description="JSON conteo de monedas")
+    billetes: str | None = Field(None, description="JSON conteo de billetes")
+    monedas: str | None = Field(None, description="JSON conteo de monedas")
     total_billetes: Decimal = Field(..., description="Total billetes")
     total_monedas: Decimal = Field(..., description="Total monedas")
     total_efectivo_contado: Decimal = Field(..., description="Total efectivo contado")
     total_efectivo_calculado: Decimal = Field(..., description="Total efectivo calculado")
     diferencia: Decimal = Field(..., description="Diferencia (sobrante+/faltante-)")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
     user_id: str = Field(..., description="ID del usuario")
     created_at: datetime = Field(..., description="Fecha de creación")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+
+class POSArqueoCerrarRequest(BaseModel):
+    """Esquema para cerrar un arqueo con desglose de denominaciones"""
+    billetes_100: int = Field(default=0, ge=0, description="Cantidad de billetes de $100")
+    billetes_50: int = Field(default=0, ge=0, description="Cantidad de billetes de $50")
+    billetes_20: int = Field(default=0, ge=0, description="Cantidad de billetes de $20")
+    billetes_10: int = Field(default=0, ge=0, description="Cantidad de billetes de $10")
+    billetes_5: int = Field(default=0, ge=0, description="Cantidad de billetes de $5")
+    billetes_1: int = Field(default=0, ge=0, description="Cantidad de billetes de $1")
+    monedas: Decimal = Field(default=Decimal("0"), ge=0, description="Total en monedas")
+    vales: Decimal = Field(default=Decimal("0"), ge=0, description="Total en vales")
+    vouchers: Decimal = Field(default=Decimal("0"), ge=0, description="Total en vouchers/tarjetas")
+    umbral_diferencia: Decimal = Field(
+        default=Decimal("5.00"),
+        ge=0,
+        description="Umbral para flag de diferencia (default $5.00)",
+    )
+    observaciones: str | None = Field(None, description="Observaciones del cierre")
+
+
+class POSArqueoCerrarResponse(BaseModel):
+    """Esquema de respuesta tras cerrar un arqueo"""
+    id: str = Field(..., description="ID único del arqueo")
+    tipo: str = Field(..., description="Tipo de arqueo")
+    total_efectivo_sistema: Decimal = Field(..., description="Efectivo esperado por el sistema")
+    total_efectivo_real: Decimal = Field(..., description="Efectivo real contado")
+    diferencia: Decimal = Field(..., description="Diferencia (sobrante+/faltante-)")
+    estado_diferencia: str = Field(..., description="OK, CON_DIFERENCIA")
+    detalle_billetes: dict[str, int] = Field(..., description="Desglose de billetes")
+    total_monedas: Decimal = Field(..., description="Total en monedas")
+    total_vales: Decimal = Field(..., description="Total en vales")
+    total_vouchers: Decimal = Field(..., description="Total en vouchers")
+    observaciones: str | None = Field(None, description="Observaciones")
+    created_at: datetime = Field(..., description="Fecha de creación")
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+
+class POSArqueoResumenItem(BaseModel):
+    """Esquema de un item en el resumen de arqueos"""
+    id: str = Field(..., description="ID del arqueo")
+    numero_caja: str = Field(..., description="Número de caja")
+    tipo: str = Field(..., description="Tipo: parcial, final")
+    fecha_apertura: datetime = Field(..., description="Fecha apertura sesión")
+    fecha_arqueo: datetime = Field(..., description="Fecha del arqueo")
+    total_efectivo_sistema: Decimal = Field(..., description="Efectivo esperado")
+    total_efectivo_contado: Decimal = Field(..., description="Efectivo contado")
+    diferencia: Decimal = Field(..., description="Diferencia")
+    estado_diferencia: str | None = Field(None, description="OK, CON_DIFERENCIA, o None")
+    cajero_email: str | None = Field(None, description="Email del cajero")
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+
+class POSArqueoResumenResponse(BaseModel):
+    """Esquema de respuesta para resumen de arqueos"""
+    total_registros: int = Field(..., description="Total de registros")
+    total_sobrante: Decimal = Field(..., description="Suma de diferencias positivas")
+    total_faltante: Decimal = Field(..., description="Suma de diferencias negativas (valor absoluto)")
+    total_diferencia_neta: Decimal = Field(..., description="Diferencia neta (sobrante - faltante)")
+    arqueos: list[POSArqueoResumenItem] = Field(..., description="Lista de arqueos")
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+
+class POSArqueoReporteResponse(BaseModel):
+    """Esquema de respuesta para reporte de arqueo"""
+    id: str = Field(..., description="ID del arqueo")
+    tipo: str = Field(..., description="Tipo de arqueo")
+    numero_caja: str = Field(..., description="Número de caja")
+    fecha_apertura: datetime = Field(..., description="Fecha apertura")
+    fecha_arqueo: datetime = Field(..., description="Fecha arqueo")
+    cajero: str = Field(..., description="Nombre del cajero")
+    monto_apertura: Decimal = Field(..., description="Monto apertura")
+    total_ventas_efectivo: Decimal = Field(..., description="Total ventas efectivo")
+    total_ventas_tarjeta: Decimal = Field(..., description="Total ventas tarjeta")
+    total_ventas_credito: Decimal = Field(..., description="Total ventas crédito")
+    total_ventas: Decimal = Field(..., description="Total ventas general")
+    total_efectivo_sistema: Decimal = Field(..., description="Efectivo esperado")
+    detalle_billetes: dict[str, int] | None = Field(None, description="Billetes contados")
+    total_monedas: Decimal = Field(..., description="Total monedas")
+    total_vales: Decimal = Field(..., description="Total vales")
+    total_vouchers: Decimal = Field(..., description="Total vouchers")
+    total_efectivo_real: Decimal = Field(..., description="Efectivo real contado")
+    diferencia: Decimal = Field(..., description="Diferencia")
+    estado_diferencia: str | None = Field(None)
+    observaciones: str | None = Field(None)
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -371,7 +460,7 @@ class POSProductSearchResponse(BaseModel):
     """Esquema de respuesta para búsqueda de producto por código de barras"""
     id: str = Field(..., description="ID del producto")
     codigo_principal: str = Field(..., description="Código principal")
-    codigo_barras: Optional[str] = Field(None, description="Código de barras")
+    codigo_barras: str | None = Field(None, description="Código de barras")
     descripcion: str = Field(..., description="Descripción del producto")
     tipo: str = Field(..., description="Tipo: B=Bien, S=Servicio")
     precio_unitario: Decimal = Field(..., description="Precio unitario sin impuestos")
@@ -381,7 +470,7 @@ class POSProductSearchResponse(BaseModel):
     stock: Decimal = Field(..., description="Stock actual")
     stock_minimo: Decimal = Field(..., description="Stock mínimo")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -405,8 +494,8 @@ class POSTicketPrintResponse(BaseModel):
     cambio: Decimal = Field(..., description="Cambio")
     propina: Decimal = Field(..., description="Propina")
     tipo_venta: str = Field(..., description="Tipo de venta")
-    empresa_nombre: Optional[str] = Field(None, description="Nombre de la empresa")
-    empresa_ruc: Optional[str] = Field(None, description="RUC de la empresa")
-    empresa_direccion: Optional[str] = Field(None, description="Dirección de la empresa")
+    empresa_nombre: str | None = Field(None, description="Nombre de la empresa")
+    empresa_ruc: str | None = Field(None, description="RUC de la empresa")
+    empresa_direccion: str | None = Field(None, description="Dirección de la empresa")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

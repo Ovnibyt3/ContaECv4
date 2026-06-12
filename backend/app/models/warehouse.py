@@ -133,8 +133,8 @@ class WarehouseLocation(Base):
     """
     Modelo de Ubicación dentro de un Almacén.
 
-    Representa una ubicación física dentro de un almacén (zona, rack, estante).
-    Puede estar asignada a un producto específico.
+    Representa una ubicación física dentro de un almacén (zona, pasillo, rack, estante, bin).
+    Puede estar asignada a un producto específico y tiene control de capacidad.
     """
     __tablename__ = "warehouse_locations"
 
@@ -159,38 +159,46 @@ class WarehouseLocation(Base):
     zona: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        comment="Zona del almacén (ej: A, B, C)",
+        comment="Zona del almacén (ej: A, B, C, Refrigerados)",
     )
-    rack: Mapped[str] = mapped_column(
+    pasillo: Mapped[str | None] = mapped_column(
         String(50),
-        nullable=False,
-        comment="Rack dentro de la zona (ej: R1, R2)",
+        nullable=True,
+        comment="Pasillo o corredor dentro de la zona",
     )
-    estante: Mapped[str] = mapped_column(
+    rack: Mapped[str | None] = mapped_column(
         String(50),
-        nullable=False,
-        comment="Estante o nivel del rack (ej: E1, E2)",
+        nullable=True,
+        comment="Rack o estante dentro del pasillo (ej: R1, R2, B)",
+    )
+    estante: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Nivel del rack o estante (ej: E1, E2, 2)",
     )
     nivel: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
-        comment="Posición dentro del estante (opcional)",
+        comment="Posición dentro del estante/bin (opcional)",
     )
     codigo_ubicacion: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
-        comment="Código de ubicación auto-generado (ej: A-R1-E1)",
+        comment="Código de ubicación auto-generado (ej: A-P3-RB-E2)",
     )
-    capacidad_maxima: Mapped[Decimal | None] = mapped_column(
-        Numeric(12, 4),
-        nullable=True,
-        comment="Capacidad máxima de la ubicación",
-    )
-    cantidad_actual: Mapped[Decimal] = mapped_column(
-        Numeric(12, 4),
-        default=Decimal("0"),
+    ubicacion_completa: Mapped[str] = mapped_column(
+        String(200),
         nullable=False,
-        comment="Cantidad actual en la ubicación",
+        comment="Descripción completa de la ubicación (ej: ZonaA-Pasillo3-RackB-Estante2)",
+    )
+    capacidad_maxima: Mapped[int | None] = mapped_column(
+        nullable=True,
+        comment="Capacidad máxima en unidades",
+    )
+    capacidad_actual: Mapped[int] = mapped_column(
+        default=0,
+        nullable=False,
+        comment="Ocupación actual en unidades",
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,

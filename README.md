@@ -355,14 +355,15 @@ APP_ENV=production
 DEBUG=false
 
 # SECURITY: Generar claves únicas y seguras con:
-SECRET_KEY=VGVqoqj0Z252UJR6xmrBCllbZIfmkwrYmlZatrD4cewVqSQc38ZZPyMar70hO6_OVKMfdmX6Eaap9V3dNTHZBA
-ENCRYPTION_KEY=Oa4w_01KGCLqV0G3PDusJOoPhMMfMcYTl20d2UjCyHXvHL7YiSsdh9Or3-zivGpd52xx7VM69khuZ1tZR0dmZA
-JWT_SECRET_KEY=kkcR9iveo-RfXWvtpBkbdkjc3P9ND2SUerA5uG_96wGjk7RDOIVUhSbxVSMnCWGwcbeLMYWwldv4WALdT2m9Lg
+# SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
+SECRET_KEY=<GENERAR_CON_PYTHON>
+ENCRYPTION_KEY=<GENERAR_CON_PYTHON>
+JWT_SECRET_KEY=<GENERAR_CON_PYTHON>
 
 # --- Base de Datos (PostgreSQL) ---
-DATABASE_URL=postgresql+asyncpg://contaec_user:EvJcqP2z4zoryZ5@localhost:5432/contaec_db
+DATABASE_URL=postgresql+asyncpg://contaec_user:<TU_PASSWORD>@localhost:5432/contaec_db
 POSTGRES_USER=contaec_user
-POSTGRES_PASSWORD=EvJcqP2z4zoryZ5
+POSTGRES_PASSWORD=<TU_PASSWORD_POSTGRES>
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=contaec_db
@@ -374,7 +375,7 @@ JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
 
 # --- Credenciales Admin ---
 ADMIN_EMAIL=steve.mejia@tymtechnology.shop
-ADMIN_PASSWORD=Vitaestcum21..
+ADMIN_PASSWORD=<GENERAR_CONTRASENA_SEGURA>
 
 # --- Servicios Web del SRI ---
 # (Las URLs ya están configuradas por defecto en config.py)
@@ -385,7 +386,7 @@ ADMIN_PASSWORD=Vitaestcum21..
 
 # --- Respaldos ---
 BACKUP_DIR=./backups
-BACKUP_ENCRYPTION_KEY=rXOHnntm1N6yDBvc2-Z2GogT20rpb0KtqiNuxN3VZGU=
+BACKUP_ENCRYPTION_KEY=<GENERAR_CON_PYTHON>
 
 # --- ClamAV (Antivirus) ---
 CLAMAV_ENABLED=true
@@ -395,7 +396,7 @@ CLAMAV_PORT=3310
 
 # --- VirusTotal ---
 VIRUSTOTAL_ENABLED=false
-VIRUSTOTAL_API_KEY=778b612188000a11cc6fd51f4aafb3e79ed72674524e82ff6320a9f0dbce9ec9
+VIRUSTOTAL_API_KEY=<TU_API_KEY_VIRUSTOTAL>
 
 # --- CORS ---
 CORS_ORIGINS=https://conta.tymtechnology.shop,http://10.0.1.20

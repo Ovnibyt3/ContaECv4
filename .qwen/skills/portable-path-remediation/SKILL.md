@@ -1,6 +1,13 @@
 ---
 name: portable-path-remediation
 description: Systematic approach to replacing hardcoded absolute paths (e.g., /home/user/project) with portable relative paths across shell scripts, TypeScript, JSON, and Python files
+license: MIT
+metadata:
+  version: "1.0.0"
+  domain: devops-infrastructure
+  triggers: hardcoded paths, absolute paths, /home/z/, path remediation, portable paths, cross-platform paths, environment migration
+  role: specialist
+  scope: remediation
 source: auto-skill
 extracted_at: '2026-06-10T05:56:37.736Z'
 ---

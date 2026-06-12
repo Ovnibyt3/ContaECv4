@@ -4,9 +4,8 @@ Pydantic schemas para login, registro, tokens y actualización de usuario
 """
 import re
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 # ==========================================
@@ -54,7 +53,7 @@ class UserRegister(BaseModel):
         max_length=128,
         description="Confirmación de la contraseña",
     )
-    phone: Optional[str] = Field(
+    phone: str | None = Field(
         None,
         max_length=20,
         description="Número de teléfono",
@@ -123,15 +122,15 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     """Esquema de datos del payload del token JWT"""
-    sub: Optional[str] = Field(
+    sub: str | None = Field(
         None,
         description="ID del usuario (subject del token)",
     )
-    type: Optional[str] = Field(
+    type: str | None = Field(
         None,
         description="Tipo de token (access/refresh)",
     )
-    exp: Optional[datetime] = Field(
+    exp: datetime | None = Field(
         None,
         description="Fecha de expiración del token",
     )
@@ -156,43 +155,43 @@ class UserResponse(BaseModel):
     full_name: str = Field(..., description="Nombre completo")
     is_active: bool = Field(..., description="Indica si el usuario está activo")
     is_admin: bool = Field(..., description="Indica si el usuario es administrador")
-    phone: Optional[str] = Field(None, description="Número de teléfono")
+    phone: str | None = Field(None, description="Número de teléfono")
     language: str = Field("es_EC", description="Idioma preferido")
     theme: str = Field("light", description="Tema de la interfaz")
     license_type: str = Field("monthly", description="Tipo de licencia")
-    license_start_date: Optional[datetime] = Field(None, description="Inicio de licencia")
-    license_end_date: Optional[datetime] = Field(None, description="Fin de licencia")
+    license_start_date: datetime | None = Field(None, description="Inicio de licencia")
+    license_end_date: datetime | None = Field(None, description="Fin de licencia")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class UserUpdate(BaseModel):
     """Esquema para actualización de datos del usuario"""
-    full_name: Optional[str] = Field(
+    full_name: str | None = Field(
         None,
         min_length=2,
         max_length=255,
         description="Nombre completo del usuario",
     )
-    phone: Optional[str] = Field(
+    phone: str | None = Field(
         None,
         max_length=20,
         description="Número de teléfono",
     )
-    language: Optional[str] = Field(
+    language: str | None = Field(
         None,
         description="Idioma preferido (es_EC, en_US)",
     )
-    theme: Optional[str] = Field(
+    theme: str | None = Field(
         None,
         description="Tema de la interfaz (light, dark, system)",
     )
 
     @field_validator("language")
     @classmethod
-    def validate_language(cls, v: Optional[str]) -> Optional[str]:
+    def validate_language(cls, v: str | None) -> str | None:
         """Valida que el idioma sea soportado"""
         if v is not None and v not in ("es_EC", "en_US"):
             raise ValueError("Idioma no soportado. Opciones: es_EC, en_US")
@@ -200,7 +199,7 @@ class UserUpdate(BaseModel):
 
     @field_validator("theme")
     @classmethod
-    def validate_theme(cls, v: Optional[str]) -> Optional[str]:
+    def validate_theme(cls, v: str | None) -> str | None:
         """Valida que el tema sea válido"""
         if v is not None and v not in ("light", "dark", "system"):
             raise ValueError("Tema no válido. Opciones: light, dark, system")

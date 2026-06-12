@@ -4,9 +4,8 @@ Schemas para generación, aprobación, pago y respuesta de roles de pago
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.hr_constants import ESTADOS_ROL
 
@@ -35,7 +34,7 @@ class PayrollGenerate(BaseModel):
         description="Año del período",
         examples=[2024],
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones generales del rol",
     )
@@ -64,7 +63,7 @@ class DecimoTerceroRequest(BaseModel):
     """Esquema para calcular décimo tercero"""
     company_id: str = Field(..., description="ID de la empresa")
     periodo_anio: int = Field(..., ge=2000, le=2100, description="Año de cálculo")
-    employee_id: Optional[str] = Field(None, description="ID del empleado (opcional, todos si no se especifica)")
+    employee_id: str | None = Field(None, description="ID del empleado (opcional, todos si no se especifica)")
 
 
 class DecimoCuartoRequest(BaseModel):
@@ -75,7 +74,7 @@ class DecimoCuartoRequest(BaseModel):
         default="sierra",
         description="Región: sierra (pago agosto) o costa (pago marzo)",
     )
-    employee_id: Optional[str] = Field(None, description="ID del empleado (opcional)")
+    employee_id: str | None = Field(None, description="ID del empleado (opcional)")
 
     @field_validator("region")
     @classmethod
@@ -137,7 +136,7 @@ class RolPagoDetalleResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class RolPagoResponse(BaseModel):
@@ -147,18 +146,18 @@ class RolPagoResponse(BaseModel):
     user_id: str = Field(..., description="ID del usuario creador")
     periodo_mes: int = Field(..., description="Mes del período")
     periodo_anio: int = Field(..., description="Año del período")
-    fecha_pago: Optional[datetime] = Field(None, description="Fecha de pago")
+    fecha_pago: datetime | None = Field(None, description="Fecha de pago")
     estado: str = Field(..., description="Estado del rol")
     total_remuneraciones: Decimal = Field(..., description="Total remuneraciones")
     total_descuentos: Decimal = Field(..., description="Total descuentos")
     total_empleador: Decimal = Field(..., description="Total aportes empleador")
     total_liquido: Decimal = Field(..., description="Total líquido")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
     is_active: bool = Field(..., description="Activo en el sistema")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class RolPagoFullResponse(RolPagoResponse):

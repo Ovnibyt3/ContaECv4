@@ -4,9 +4,8 @@ Schemas para creación, actualización, respuesta y envío de plantillas
 """
 import re
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EmailTemplateCreate(BaseModel):
@@ -36,7 +35,7 @@ class EmailTemplateCreate(BaseModel):
         min_length=1,
         description="Cuerpo del correo en HTML (soporta variables {{variable}})",
     )
-    cuerpo_texto: Optional[str] = Field(
+    cuerpo_texto: str | None = Field(
         None,
         description="Cuerpo del correo en texto plano (opcional)",
     )
@@ -60,44 +59,44 @@ class EmailTemplateCreate(BaseModel):
 
 class EmailTemplateUpdate(BaseModel):
     """Esquema para actualizar una plantilla de correo"""
-    nombre: Optional[str] = Field(
+    nombre: str | None = Field(
         None,
         min_length=1,
         max_length=200,
         description="Nombre descriptivo de la plantilla",
     )
-    tipo: Optional[str] = Field(
+    tipo: str | None = Field(
         None,
         max_length=50,
         description="Tipo de plantilla",
     )
-    asunto: Optional[str] = Field(
+    asunto: str | None = Field(
         None,
         min_length=1,
         max_length=500,
         description="Asunto del correo",
     )
-    cuerpo_html: Optional[str] = Field(
+    cuerpo_html: str | None = Field(
         None,
         min_length=1,
         description="Cuerpo del correo en HTML",
     )
-    cuerpo_texto: Optional[str] = Field(
+    cuerpo_texto: str | None = Field(
         None,
         description="Cuerpo del correo en texto plano",
     )
-    is_default: Optional[bool] = Field(
+    is_default: bool | None = Field(
         None,
         description="Indica si es la plantilla por defecto",
     )
-    is_active: Optional[bool] = Field(
+    is_active: bool | None = Field(
         None,
         description="Indica si la plantilla está activa",
     )
 
     @field_validator("tipo")
     @classmethod
-    def validate_tipo(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo(cls, v: str | None) -> str | None:
         """Valida que el tipo de plantilla sea válido"""
         if v is not None and v not in {"factura", "nota_credito", "nota_debito", "proforma", "general"}:
             raise ValueError(
@@ -115,13 +114,13 @@ class EmailTemplateResponse(BaseModel):
     tipo: str = Field(..., description="Tipo de plantilla")
     asunto: str = Field(..., description="Asunto del correo")
     cuerpo_html: str = Field(..., description="Cuerpo HTML del correo")
-    cuerpo_texto: Optional[str] = Field(None, description="Cuerpo texto plano")
+    cuerpo_texto: str | None = Field(None, description="Cuerpo texto plano")
     is_default: bool = Field(..., description="Es plantilla por defecto")
     is_active: bool = Field(..., description="Está activa")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class EmailTemplatePreviewRequest(BaseModel):
@@ -143,7 +142,7 @@ class EmailSendRequest(BaseModel):
         ...,
         description="ID de la plantilla a utilizar",
     )
-    to_email: Optional[str] = Field(
+    to_email: str | None = Field(
         None,
         max_length=255,
         description="Correo destino (si no se especifica, usa el del cliente del comprobante)",

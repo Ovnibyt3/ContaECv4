@@ -4,9 +4,8 @@ Pydantic schemas para creación, actualización y respuesta de empresas
 """
 import re
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ==========================================
@@ -29,7 +28,7 @@ class CompanyCreate(BaseModel):
         description="Razón social de la empresa (nombre legal)",
         examples=["DISTRIBUIDORA ABC S.A."],
     )
-    nombre_comercial: Optional[str] = Field(
+    nombre_comercial: str | None = Field(
         None,
         max_length=255,
         description="Nombre comercial de la empresa",
@@ -42,7 +41,7 @@ class CompanyCreate(BaseModel):
         description="Dirección de la matriz de la empresa",
         examples=["Av. Amazonas 1234 y Amazonas"],
     )
-    dir_establecimiento: Optional[str] = Field(
+    dir_establecimiento: str | None = Field(
         None,
         max_length=500,
         description="Dirección del establecimiento principal",
@@ -61,7 +60,7 @@ class CompanyCreate(BaseModel):
         description="Código del punto de emisión (3 dígitos)",
         examples=["001"],
     )
-    contribuyente_especial: Optional[str] = Field(
+    contribuyente_especial: str | None = Field(
         None,
         max_length=5,
         description="Número de resolución como contribuyente especial",
@@ -81,23 +80,23 @@ class CompanyCreate(BaseModel):
         description="Tipo de emisión: 1=Normal",
         examples=["1"],
     )
-    rise: Optional[str] = Field(
+    rise: str | None = Field(
         None,
         max_length=50,
         description="Régimen Simplificado RISE",
     )
-    agente_retencion: Optional[str] = Field(
+    agente_retencion: str | None = Field(
         None,
         max_length=5,
         description="Número de resolución como agente de retención",
     )
-    contribuyente_rimpe: Optional[str] = Field(
+    contribuyente_rimpe: str | None = Field(
         None,
         max_length=50,
         description="Tipo de contribuyente RIMPE",
         examples=["RIMPE Emprendedor"],
     )
-    logo_path: Optional[str] = Field(
+    logo_path: str | None = Field(
         None,
         max_length=500,
         description="Ruta del logo de la empresa",
@@ -149,7 +148,7 @@ class CompanyCreate(BaseModel):
 
     @field_validator("contribuyente_rimpe")
     @classmethod
-    def validate_contribuyente_rimpe(cls, v: Optional[str]) -> Optional[str]:
+    def validate_contribuyente_rimpe(cls, v: str | None) -> str | None:
         """Valida que el tipo de contribuyente RIMPE sea válido"""
         if v is not None:
             valid_types = {"RIMPE Emprendedor", "RIMPE Negocio Popular", ""}
@@ -163,43 +162,43 @@ class CompanyCreate(BaseModel):
 
 class CompanyUpdate(BaseModel):
     """Esquema para actualizar datos de una empresa"""
-    razon_social: Optional[str] = Field(
+    razon_social: str | None = Field(
         None,
         min_length=2,
         max_length=255,
         description="Razón social de la empresa",
     )
-    nombre_comercial: Optional[str] = Field(
+    nombre_comercial: str | None = Field(
         None,
         max_length=255,
         description="Nombre comercial de la empresa",
     )
-    dir_matriz: Optional[str] = Field(
+    dir_matriz: str | None = Field(
         None,
         min_length=5,
         max_length=500,
         description="Dirección de la matriz",
     )
-    dir_establecimiento: Optional[str] = Field(
+    dir_establecimiento: str | None = Field(
         None,
         max_length=500,
         description="Dirección del establecimiento",
     )
-    cod_establecimiento: Optional[str] = Field(None, max_length=3)
-    cod_punto_emision: Optional[str] = Field(None, max_length=3)
-    contribuyente_especial: Optional[str] = Field(None, max_length=5)
-    obligado_contabilidad: Optional[str] = Field(None)
-    tipo_ambiente: Optional[str] = Field(None)
-    tipo_emision: Optional[str] = Field(None)
-    rise: Optional[str] = Field(None, max_length=50)
-    agente_retencion: Optional[str] = Field(None, max_length=5)
-    contribuyente_rimpe: Optional[str] = Field(None, max_length=50)
-    logo_path: Optional[str] = Field(None, max_length=500)
-    is_active: Optional[bool] = Field(None, description="Estado activo de la empresa")
+    cod_establecimiento: str | None = Field(None, max_length=3)
+    cod_punto_emision: str | None = Field(None, max_length=3)
+    contribuyente_especial: str | None = Field(None, max_length=5)
+    obligado_contabilidad: str | None = Field(None)
+    tipo_ambiente: str | None = Field(None)
+    tipo_emision: str | None = Field(None)
+    rise: str | None = Field(None, max_length=50)
+    agente_retencion: str | None = Field(None, max_length=5)
+    contribuyente_rimpe: str | None = Field(None, max_length=50)
+    logo_path: str | None = Field(None, max_length=500)
+    is_active: bool | None = Field(None, description="Estado activo de la empresa")
 
     @field_validator("obligado_contabilidad")
     @classmethod
-    def validate_obligado_contabilidad(cls, v: Optional[str]) -> Optional[str]:
+    def validate_obligado_contabilidad(cls, v: str | None) -> str | None:
         """Valida que el valor sea SI o NO"""
         if v is not None and v not in ("SI", "NO"):
             raise ValueError("obligado_contabilidad debe ser 'SI' o 'NO'")
@@ -207,7 +206,7 @@ class CompanyUpdate(BaseModel):
 
     @field_validator("tipo_ambiente")
     @classmethod
-    def validate_tipo_ambiente(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo_ambiente(cls, v: str | None) -> str | None:
         """Valida que el tipo de ambiente sea 1 o 2"""
         if v is not None and v not in ("1", "2"):
             raise ValueError("tipo_ambiente debe ser '1' (Pruebas) o '2' (Producción)")
@@ -220,24 +219,24 @@ class CompanyResponse(BaseModel):
     user_id: str = Field(..., description="ID del usuario propietario")
     ruc: str = Field(..., description="RUC de la empresa")
     razon_social: str = Field(..., description="Razón social")
-    nombre_comercial: Optional[str] = Field(None, description="Nombre comercial")
+    nombre_comercial: str | None = Field(None, description="Nombre comercial")
     dir_matriz: str = Field(..., description="Dirección de la matriz")
-    dir_establecimiento: Optional[str] = Field(None, description="Dirección del establecimiento")
+    dir_establecimiento: str | None = Field(None, description="Dirección del establecimiento")
     cod_establecimiento: str = Field(..., description="Código del establecimiento")
     cod_punto_emision: str = Field(..., description="Código del punto de emisión")
-    contribuyente_especial: Optional[str] = Field(None, description="Contribuyente especial")
+    contribuyente_especial: str | None = Field(None, description="Contribuyente especial")
     obligado_contabilidad: str = Field(..., description="Obligado a llevar contabilidad")
     tipo_ambiente: str = Field(..., description="Tipo de ambiente")
     tipo_emision: str = Field(..., description="Tipo de emisión")
-    rise: Optional[str] = Field(None, description="RISE")
-    agente_retencion: Optional[str] = Field(None, description="Agente de retención")
-    contribuyente_rimpe: Optional[str] = Field(None, description="Contribuyente RIMPE")
-    logo_path: Optional[str] = Field(None, description="Ruta del logo")
+    rise: str | None = Field(None, description="RISE")
+    agente_retencion: str | None = Field(None, description="Agente de retención")
+    contribuyente_rimpe: str | None = Field(None, description="Contribuyente RIMPE")
+    logo_path: str | None = Field(None, description="Ruta del logo")
     is_active: bool = Field(..., description="Estado activo")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -278,4 +277,4 @@ class EstablishmentResponse(BaseModel):
     direccion: str = Field(..., description="Dirección del establecimiento")
     is_active: bool = Field(..., description="Estado activo")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

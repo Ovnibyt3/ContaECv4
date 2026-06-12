@@ -4,9 +4,8 @@ Pydantic schemas para asignación, actualización y consulta de roles
 """
 import json
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.user_company_role import CompanyRole
 
@@ -30,7 +29,7 @@ class UserRoleCreate(BaseModel):
         description="Rol a asignar (owner, admin, accountant, viewer, sales, hr_manager)",
         examples=["accountant"],
     )
-    permissions: Optional[dict[str, bool]] = Field(
+    permissions: dict[str, bool] | None = Field(
         None,
         description=(
             "Permisos granulares para el rol. "
@@ -57,23 +56,23 @@ class UserRoleCreate(BaseModel):
 
 class UserRoleUpdate(BaseModel):
     """Esquema para actualizar un rol o permisos de un usuario en una empresa"""
-    role: Optional[str] = Field(
+    role: str | None = Field(
         None,
         description="Nuevo rol a asignar",
         examples=["admin"],
     )
-    permissions: Optional[dict[str, bool]] = Field(
+    permissions: dict[str, bool] | None = Field(
         None,
         description="Permisos granulares actualizados",
     )
-    is_active: Optional[bool] = Field(
+    is_active: bool | None = Field(
         None,
         description="Estado activo de la asignación de rol",
     )
 
     @field_validator("role")
     @classmethod
-    def validate_role(cls, v: Optional[str]) -> Optional[str]:
+    def validate_role(cls, v: str | None) -> str | None:
         """Valida que el rol sea uno de los valores permitidos"""
         if v is not None:
             valid_roles = [r.value for r in CompanyRole]
@@ -94,7 +93,7 @@ class UserRoleResponse(BaseModel):
     user_id: str = Field(..., description="ID del usuario")
     company_id: str = Field(..., description="ID de la empresa")
     role: str = Field(..., description="Rol del usuario en la empresa")
-    permissions: Optional[dict[str, bool]] = Field(
+    permissions: dict[str, bool] | None = Field(
         None,
         description="Permisos granulares del rol",
     )
@@ -102,7 +101,7 @@ class UserRoleResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
     @classmethod
     def from_model(cls, obj) -> "UserRoleResponse":
@@ -157,10 +156,10 @@ class UserRoleWithCompanyResponse(BaseModel):
     id: str = Field(..., description="ID único de la asignación de rol")
     user_id: str = Field(..., description="ID del usuario")
     company_id: str = Field(..., description="ID de la empresa")
-    company_name: Optional[str] = Field(None, description="Razón social de la empresa")
-    company_ruc: Optional[str] = Field(None, description="RUC de la empresa")
+    company_name: str | None = Field(None, description="Razón social de la empresa")
+    company_ruc: str | None = Field(None, description="RUC de la empresa")
     role: str = Field(..., description="Rol del usuario en la empresa")
-    permissions: Optional[dict[str, bool]] = Field(
+    permissions: dict[str, bool] | None = Field(
         None,
         description="Permisos granulares del rol",
     )
@@ -168,4 +167,4 @@ class UserRoleWithCompanyResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

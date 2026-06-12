@@ -6,9 +6,8 @@ con tipos de identificación según catálogos del SRI (Tabla 7)
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class SupplierCreate(BaseModel):
@@ -36,32 +35,32 @@ class SupplierCreate(BaseModel):
         description="Razón social o nombre completo del proveedor",
         examples=["DISTRIBUIDORA ABC S.A."],
     )
-    nombre_comercial: Optional[str] = Field(
+    nombre_comercial: str | None = Field(
         None,
         max_length=255,
         description="Nombre comercial del proveedor",
     )
-    direccion: Optional[str] = Field(
+    direccion: str | None = Field(
         None,
         max_length=500,
         description="Dirección del proveedor",
     )
-    email: Optional[str] = Field(
+    email: EmailStr | None = Field(
         None,
         max_length=255,
         description="Correo electrónico del proveedor",
     )
-    telefono: Optional[str] = Field(
+    telefono: str | None = Field(
         None,
         max_length=20,
         description="Número de teléfono del proveedor",
     )
-    contacto_nombre: Optional[str] = Field(
+    contacto_nombre: str | None = Field(
         None,
         max_length=200,
         description="Nombre del contacto principal",
     )
-    contacto_telefono: Optional[str] = Field(
+    contacto_telefono: str | None = Field(
         None,
         max_length=20,
         description="Teléfono del contacto principal",
@@ -76,27 +75,27 @@ class SupplierCreate(BaseModel):
         ge=0,
         description="Plazo de crédito habitual en días (0 = contado)",
     )
-    retencion_iva_codigo: Optional[str] = Field(
+    retencion_iva_codigo: str | None = Field(
         None,
         max_length=2,
         description="Código de retención de IVA habitual según Tabla 19 del SRI",
     )
-    retencion_iva_porcentaje: Optional[Decimal] = Field(
+    retencion_iva_porcentaje: Decimal | None = Field(
         None,
         ge=0,
         description="Porcentaje de retención de IVA habitual",
     )
-    retencion_renta_codigo: Optional[str] = Field(
+    retencion_renta_codigo: str | None = Field(
         None,
         max_length=3,
         description="Código de retención de Renta habitual según Tabla 20 del SRI",
     )
-    retencion_renta_porcentaje: Optional[Decimal] = Field(
+    retencion_renta_porcentaje: Decimal | None = Field(
         None,
         ge=0,
         description="Porcentaje de retención de Renta habitual",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales sobre el proveedor",
     )
@@ -124,7 +123,7 @@ class SupplierCreate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+    def validate_email(cls, v: str | None) -> str | None:
         """Validación básica del formato de correo electrónico"""
         if v is not None and v.strip():
             if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v.strip()):
@@ -135,94 +134,94 @@ class SupplierCreate(BaseModel):
 
 class SupplierUpdate(BaseModel):
     """Esquema para actualizar un proveedor"""
-    tipo_identificacion: Optional[str] = Field(
+    tipo_identificacion: str | None = Field(
         None,
         max_length=2,
         description="Tipo de identificación SRI",
     )
-    identificacion: Optional[str] = Field(
+    identificacion: str | None = Field(
         None,
         max_length=20,
         description="Número de identificación",
     )
-    razon_social: Optional[str] = Field(
+    razon_social: str | None = Field(
         None,
         min_length=1,
         max_length=255,
         description="Razón social o nombre completo",
     )
-    nombre_comercial: Optional[str] = Field(
+    nombre_comercial: str | None = Field(
         None,
         max_length=255,
         description="Nombre comercial",
     )
-    direccion: Optional[str] = Field(
+    direccion: str | None = Field(
         None,
         max_length=500,
         description="Dirección",
     )
-    email: Optional[str] = Field(
+    email: EmailStr | None = Field(
         None,
         max_length=255,
         description="Correo electrónico",
     )
-    telefono: Optional[str] = Field(
+    telefono: str | None = Field(
         None,
         max_length=20,
         description="Número de teléfono",
     )
-    contacto_nombre: Optional[str] = Field(
+    contacto_nombre: str | None = Field(
         None,
         max_length=200,
         description="Nombre del contacto principal",
     )
-    contacto_telefono: Optional[str] = Field(
+    contacto_telefono: str | None = Field(
         None,
         max_length=20,
         description="Teléfono del contacto principal",
     )
-    forma_pago_habitual: Optional[str] = Field(
+    forma_pago_habitual: str | None = Field(
         None,
         max_length=2,
         description="Código de forma de pago habitual",
     )
-    plazo_credito_dias: Optional[int] = Field(
+    plazo_credito_dias: int | None = Field(
         None,
         ge=0,
         description="Plazo de crédito en días",
     )
-    retencion_iva_codigo: Optional[str] = Field(
+    retencion_iva_codigo: str | None = Field(
         None,
         max_length=2,
         description="Código de retención de IVA",
     )
-    retencion_iva_porcentaje: Optional[Decimal] = Field(
+    retencion_iva_porcentaje: Decimal | None = Field(
         None,
         ge=0,
         description="Porcentaje de retención de IVA",
     )
-    retencion_renta_codigo: Optional[str] = Field(
+    retencion_renta_codigo: str | None = Field(
         None,
         max_length=3,
         description="Código de retención de Renta",
     )
-    retencion_renta_porcentaje: Optional[Decimal] = Field(
+    retencion_renta_porcentaje: Decimal | None = Field(
         None,
         ge=0,
         description="Porcentaje de retención de Renta",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
-    is_active: Optional[bool] = Field(
+    is_active: bool | None = Field(
         None,
         description="Indica si el proveedor está activo",
     )
 
     @field_validator("tipo_identificacion")
     @classmethod
-    def validate_tipo_identificacion(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo_identificacion(cls, v: str | None) -> str | None:
         """Valida que el tipo de identificación sea válido"""
         if v is not None and v not in {"04", "05", "06", "08"}:
             raise ValueError(
@@ -233,7 +232,7 @@ class SupplierUpdate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+    def validate_email(cls, v: str | None) -> str | None:
         """Validación básica del formato de correo electrónico"""
         if v is not None and v.strip():
             if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v.strip()):
@@ -249,21 +248,21 @@ class SupplierResponse(BaseModel):
     tipo_identificacion: str = Field(..., description="Tipo de identificación SRI")
     identificacion: str = Field(..., description="Número de identificación")
     razon_social: str = Field(..., description="Razón social o nombre completo")
-    nombre_comercial: Optional[str] = Field(None, description="Nombre comercial")
-    direccion: Optional[str] = Field(None, description="Dirección")
-    email: Optional[str] = Field(None, description="Correo electrónico")
-    telefono: Optional[str] = Field(None, description="Número de teléfono")
-    contacto_nombre: Optional[str] = Field(None, description="Nombre del contacto")
-    contacto_telefono: Optional[str] = Field(None, description="Teléfono del contacto")
+    nombre_comercial: str | None = Field(None, description="Nombre comercial")
+    direccion: str | None = Field(None, description="Dirección")
+    email: EmailStr | None = Field(None, description="Correo electrónico")
+    telefono: str | None = Field(None, description="Número de teléfono")
+    contacto_nombre: str | None = Field(None, description="Nombre del contacto")
+    contacto_telefono: str | None = Field(None, description="Teléfono del contacto")
     forma_pago_habitual: str = Field(..., description="Forma de pago habitual")
     plazo_credito_dias: int = Field(..., description="Plazo de crédito en días")
-    retencion_iva_codigo: Optional[str] = Field(None, description="Código retención IVA")
-    retencion_iva_porcentaje: Optional[Decimal] = Field(None, description="% retención IVA")
-    retencion_renta_codigo: Optional[str] = Field(None, description="Código retención Renta")
-    retencion_renta_porcentaje: Optional[Decimal] = Field(None, description="% retención Renta")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    retencion_iva_codigo: str | None = Field(None, description="Código retención IVA")
+    retencion_iva_porcentaje: Decimal | None = Field(None, description="% retención IVA")
+    retencion_renta_codigo: str | None = Field(None, description="Código retención Renta")
+    retencion_renta_porcentaje: Decimal | None = Field(None, description="% retención Renta")
+    observaciones: str | None = Field(None, description="Observaciones")
     is_active: bool = Field(..., description="Indica si está activo")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

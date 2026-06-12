@@ -21,11 +21,65 @@ Reglas de formato del SRI:
 """
 import secrets
 import re
+import logging
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
 from typing import Any, Optional
 
 from lxml import etree
+
+logger = logging.getLogger(__name__)
+
+# XSD schema directory (store locally for offline validation)
+_XSD_DIR = Path(__file__).parent.parent / "xsd"
+_XSD_FILES = {
+    "01": "factura_V1.1.0.xsd",
+    "03": "liquidacionCompra_V1.1.0.xsd",
+    "04": "notaCredito_V1.1.0.xsd",
+    "05": "notaDebito_V1.1.0.xsd",
+    "06": "guiaRemision_V1.1.0.xsd",
+    "07": "comprobanteRetencion_V1.1.0.xsd",
+}
+
+
+def validate_xml_against_xsd(xml_string: str, tipo_comprobante: str) -> list[str]:
+    """
+    Validate generated XML against the SRI XSD schema for the given document type.
+
+    Args:
+        xml_string: The XML content to validate
+        tipo_comprobante: SRI document type code (01, 03, 04, 05, 06, 07)
+
+    Returns:
+        List of validation error messages. Empty list means valid.
+    """
+    xsd_filename = _XSD_FILES.get(tipo_comprobante)
+    if not xsd_filename:
+        logger.warning(f"No XSD schema for document type: {tipo_comprobante}")
+        return []
+
+    xsd_path = _XSD_DIR / xsd_filename
+    if not xsd_path.exists():
+        logger.warning(f"XSD file not found: {xsd_path}. Skipping validation.")
+        return []
+
+    try:
+        schema_doc = etree.parse(str(xsd_path))
+        schema = etree.XMLSchema(schema_doc)
+        xml_doc = etree.fromstring(xml_string.encode("utf-8"))
+        schema.assertValid(xml_doc)
+        return []
+    except etree.XMLSchemaParseError as e:
+        logger.error(f"XSD parse error for {xsd_filename}: {e}")
+        return [f"XSD parse error: {str(e)}"]
+    except etree.DocumentInvalid as e:
+        errors = [str(err) for err in schema.error_log]
+        logger.error(f"XML validation failed for {tipo_comprobante}: {errors}")
+        return errors
+    except Exception as e:
+        logger.error(f"Unexpected XSD validation error: {e}")
+        return [str(e)]
 
 
 # ==========================================

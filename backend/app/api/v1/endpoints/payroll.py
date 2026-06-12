@@ -2150,3 +2150,403 @@ async def export_bank_payment(
         filename=filename,
         content=content_b64,
     )
+
+
+# ==========================================
+# Exportar a PDF - Rol de Pago, IESS Batch, RDEP
+# ==========================================
+
+@router.get("/export/rol-pago-pdf")
+async def export_rol_pago_pdf(
+    company_id: str = Query(..., description="ID de la empresa"),
+    periodo_mes: int = Query(..., ge=1, le=12, description="Mes del período"),
+    periodo_anio: int = Query(..., ge=2000, le=2100, description="Año del período"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Exportar rol de pago a PDF con formato de nómina ecuatoriana.
+    Incluye detalle por empleado: ingresos, descuentos, aportes, líquido.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak,
+    )
+
+    company = await _get_company_for_user(db, company_id, current_user.id)
+
+    # Obtener roles de pago
+    result = await db.execute(
+        select(RolPago).where(
+            RolPago.company_id == company_id,
+            RolPago.periodo_mes == periodo_mes,
+            RolPago.periodo_anio == periodo_anio,
+        )
+    )
+    roles = result.scalars().all()
+    if not roles:
+        raise HTTPException(status_code=404, detail="No se encontraron roles de pago para el período especificado")
+
+    rol = roles[0]
+
+    # Obtener detalles con empleados
+    detalle_result = await db.execute(
+        select(RolPagoDetalle).where(RolPagoDetalle.rol_pago_id == rol.id)
+    )
+    detalles = detalle_result.scalars().all()
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        topMargin=15*mm,
+        bottomMargin=15*mm,
+        leftMargin=15*mm,
+        rightMargin=15*mm,
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="TitleBold", fontSize=14, spaceAfter=6, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="SubTitle", fontSize=10, spaceAfter=4, fontName="Helvetica"))
+    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, spaceAfter=2, fontName="Helvetica"))
+
+    elements = []
+
+    # Header
+    elements.append(Paragraph(f"ROL DE PAGO - {company.razon_social}", styles["TitleBold"]))
+    elements.append(Paragraph(
+        f"RUC: {company.ruc} | {company.dir_matriz}",
+        styles["BodySmall"],
+    ))
+    elements.append(Paragraph(
+        f"Período: {periodo_mes}/{periodo_anio} | Generado: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M')}",
+        styles["BodySmall"],
+    ))
+    elements.append(Spacer(1, 4*mm))
+
+    # Totales generales
+    total_ingresos = sum(d.total_ingresos for d in detalles)
+    total_descuentos = sum(d.total_descuentos for d in detalles)
+    total_liquido = sum(d.liquido_pagar for d in detalles)
+
+    elements.append(Paragraph(
+        f"Empleados: {len(detalles)} | Total Ingresos: ${total_ingresos:,.2f} | "
+        f"Total Descuentos: ${total_descuentos:,.2f} | Total Liquido: ${total_liquido:,.2f}",
+        styles["SubTitle"],
+    ))
+    elements.append(Spacer(1, 3*mm))
+
+    # Tabla principal
+    data = [
+        ["Cédula", "Empleado", "Ingresos", "IESS Pers.", "Otros Desc.", "Liquido", "Firma"]
+    ]
+    for d in detalles:
+        data.append([
+            d.employee.cedula if d.employee else "",
+            f"{d.employee.nombres} {d.employee.apellidos}" if d.employee else "",
+            f"${d.total_ingresos:,.2f}",
+            f"${d.iess_personal:,.2f}",
+            f"${d.total_descuentos - d.iess_personal:,.2f}",
+            f"${d.liquido_pagar:,.2f}",
+            "",  # Espacio para firma
+        ])
+
+    col_widths = [0.7*inch, 1.8*inch, 0.75*inch, 0.7*inch, 0.7*inch, 0.75*inch, 0.7*inch]
+    t = Table(data, colWidths=col_widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2d6a4f")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTSIZE", (0, 1), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f4f0")]),
+        ("ALIGN", (2, 1), (5, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 6*mm))
+
+    # Firmas
+    elements.append(Spacer(1, 15*mm))
+    firma_data = [
+        ["________________________", "", "________________________"],
+        ["Elaborado por", "", "Aprobado por"],
+    ]
+    t_firmas = Table(firma_data, colWidths=[2.5*inch, 1*inch, 2.5*inch])
+    t_firmas.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    elements.append(t_firmas)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=rol_pago_{periodo_mes}_{periodo_anio}.pdf"},
+    )
+
+
+@router.get("/export/iess-batch-pdf")
+async def export_iess_batch_pdf(
+    company_id: str = Query(..., description="ID de la empresa"),
+    periodo_mes: int = Query(..., ge=1, le=12, description="Mes del período"),
+    periodo_anio: int = Query(..., ge=2000, le=2100, description="Año del período"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Exportar reporte batch IESS en formato para presentación al IESS.
+    Incluye aportes personales y patronales por empleado.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+    )
+
+    company = await _get_company_for_user(db, company_id, current_user.id)
+
+    result = await db.execute(
+        select(RolPago).where(
+            RolPago.company_id == company_id,
+            RolPago.periodo_mes == periodo_mes,
+            RolPago.periodo_anio == periodo_anio,
+        )
+    )
+    roles = result.scalars().all()
+    if not roles:
+        raise HTTPException(status_code=404, detail="No se encontraron roles de pago para el período")
+
+    rol = roles[0]
+    detalle_result = await db.execute(
+        select(RolPagoDetalle).where(RolPagoDetalle.rol_pago_id == rol.id)
+    )
+    detalles = detalle_result.scalars().all()
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=15*mm, bottomMargin=15*mm, leftMargin=15*mm, rightMargin=15*mm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="TitleBold", fontSize=13, spaceAfter=6, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, spaceAfter=2, fontName="Helvetica"))
+
+    elements = []
+    elements.append(Paragraph("REPORTE BATCH IESS", styles["TitleBold"]))
+    elements.append(Paragraph(
+        f"Empresa: {company.razon_social} | RUC: {company.ruc} | Período: {periodo_mes}/{periodo_anio}",
+        styles["BodySmall"],
+    ))
+    elements.append(Paragraph(
+        f"Total empleados: {len(detalles)} | Aporte Personal: 9.45% | Aporte Patronal: 11.15% | Riesgos Trabajo: 0.55%",
+        styles["BodySmall"],
+    ))
+    elements.append(Spacer(1, 3*mm))
+
+    data = [
+        ["Cédula", "Empleado", "Remun. Gravada", "IESS Personal 9.45%", "IESS Patronal 11.15%", "Riesgos 0.55%"]
+    ]
+    total_gravada = total_personal = total_patronal = total_riesgos = Decimal("0")
+    for d in detalles:
+        gravada = d.total_ingresos
+        personal = d.iess_personal
+        patronal = (gravada * IESS_PATRONAL_RATE / Decimal("100")).quantize(Decimal("0.01"))
+        riesgos = (gravada * IESS_RIESGOS_RATE / Decimal("100")).quantize(Decimal("0.01"))
+        total_gravada += gravada
+        total_personal += personal
+        total_patronal += patronal
+        total_riesgos += riesgos
+
+        emp = d.employee
+        data.append([
+            emp.cedula if emp else "",
+            f"{emp.nombres} {emp.apellidos}" if emp else "",
+            f"${gravada:,.2f}",
+            f"${personal:,.2f}",
+            f"${patronal:,.2f}",
+            f"${riesgos:,.2f}",
+        ])
+
+    data.append([
+        "TOTALES", "", f"${total_gravada:,.2f}",
+        f"${total_personal:,.2f}", f"${total_patronal:,.2f}", f"${total_riesgos:,.2f}",
+    ])
+
+    col_widths = [0.8*inch, 1.8*inch, 1*inch, 1*inch, 1*inch, 0.9*inch]
+    t = Table(data, colWidths=col_widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTSIZE", (0, 1), (-1, -1), 7),
+        ("BACKGROUND", (0, 1), (-1, -2), colors.HexColor("#f8f9fa")),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e8f0e8")),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    elements.append(t)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=iess_batch_{periodo_mes}_{periodo_anio}.pdf"},
+    )
+
+
+@router.get("/export/rdep-pdf")
+async def export_rdep_pdf(
+    company_id: str = Query(..., description="ID de la empresa"),
+    periodo_mes: int = Query(..., ge=1, le=12, description="Mes del período"),
+    periodo_anio: int = Query(..., ge=2000, le=2100, description="Año del período"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Exportar reporte RDEP (Relación de Deducciones del Empleado al Patrono)
+    en formato PDF para presentación al SRI.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak,
+    )
+
+    company = await _get_company_for_user(db, company_id, current_user.id)
+
+    result = await db.execute(
+        select(RolPago).where(
+            RolPago.company_id == company_id,
+            RolPago.periodo_mes == periodo_mes,
+            RolPago.periodo_anio == periodo_anio,
+        )
+    )
+    roles = result.scalars().all()
+    if not roles:
+        raise HTTPException(status_code=404, detail="No se encontraron roles de pago para el período")
+
+    rol = roles[0]
+    detalle_result = await db.execute(
+        select(RolPagoDetalle).where(RolPagoDetalle.rol_pago_id == rol.id)
+    )
+    detalles = detalle_result.scalars().all()
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=15*mm, bottomMargin=15*mm, leftMargin=15*mm, rightMargin=15*mm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="TitleBold", fontSize=13, spaceAfter=6, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="BodySmall", fontSize=8, spaceAfter=2, fontName="Helvetica"))
+
+    elements = []
+    elements.append(Paragraph("REPORTE RDEP - RELACIÓN DE DEDUCCIONES", styles["TitleBold"]))
+    elements.append(Paragraph(
+        f"Empleador: {company.razon_social} | RUC: {company.ruc} | Período: {periodo_mes}/{periodo_anio}",
+        styles["BodySmall"],
+    ))
+    elements.append(Spacer(1, 3*mm))
+
+    # Ingresos gravados
+    elements.append(Paragraph("A. INGRESOS GRAVADOS", styles["TitleBold"]))
+    data_grav = [["Cédula", "Empleado", "Salario Básico", "Horas Extra", "Comisiones", "Otros", "Total Gravado"]]
+    for d in detalles:
+        emp = d.employee
+        data_grav.append([
+            emp.cedula if emp else "",
+            f"{emp.nombres} {emp.apellidos}" if emp else "",
+            f"${d.salario_basico:,.2f}",
+            f"${d.horas_extra:,.2f}",
+            f"${d.comisiones:,.2f}",
+            f"${d.otros_ingresos:,.2f}",
+            f"${d.total_ingresos:,.2f}",
+        ])
+    t = Table(data_grav, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#5c2d91")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f0fa")]),
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 4*mm))
+
+    # Deducciones
+    elements.append(Paragraph("B. DEDUCCIONES", styles["TitleBold"]))
+    data_ded = [["Cédula", "Empleado", "IESS Personal", "Préstamos", "Anticipos", "Otros", "Total Desc."]]
+    for d in detalles:
+        emp = d.employee
+        otros_desc = d.total_descuentos - d.iess_personal - d.prestamos - d.anticipos
+        data_ded.append([
+            emp.cedula if emp else "",
+            f"{emp.nombres} {emp.apellidos}" if emp else "",
+            f"${d.iess_personal:,.2f}",
+            f"${d.prestamos:,.2f}",
+            f"${d.anticipos:,.2f}",
+            f"${otros_desc:,.2f}",
+            f"${d.total_descuentos:,.2f}",
+        ])
+    t2 = Table(data_ded, repeatRows=1)
+    t2.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#8b0000")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fdf0f0")]),
+    ]))
+    elements.append(t2)
+    elements.append(Spacer(1, 4*mm))
+
+    # Resumen
+    elements.append(Paragraph("C. RESUMEN", styles["TitleBold"]))
+    total_gravado = sum(d.total_ingresos for d in detalles)
+    total_desc = sum(d.total_descuentos for d in detalles)
+    resumen_data = [
+        ["Concepto", "Valor"],
+        ["Total Ingresos Gravados", f"${total_gravado:,.2f}"],
+        ["Total Deducciones", f"${total_desc:,.2f}"],
+        ["Total Liquido a Pagar", f"${total_gravado - total_desc:,.2f}"],
+    ]
+    t3 = Table(resumen_data, colWidths=[3*inch, 2*inch])
+    t3.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2d6a4f")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e8f5e8")),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+    ]))
+    elements.append(t3)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=rdep_{periodo_mes}_{periodo_anio}.pdf"},
+    )

@@ -102,6 +102,7 @@ import {
   createCompany,
   updateCompany,
   deleteCompany,
+  lookupRuc,
   getSRIIVARates,
   getSRIDocumentTypes,
   getSRITipoIdentificacion,
@@ -493,13 +494,44 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nc-ruc">RUC</Label>
-                <Input
-                  id="nc-ruc"
-                  placeholder="1790000000001"
-                  value={newCompany.ruc}
-                  onChange={(e) => setNewCompany({ ...newCompany, ruc: e.target.value })}
-                  maxLength={13}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="nc-ruc"
+                    placeholder="1790000000001"
+                    value={newCompany.ruc}
+                    onChange={(e) => setNewCompany({ ...newCompany, ruc: e.target.value })}
+                    maxLength={13}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={newCompany.ruc.length !== 13 || !/^\d+$/.test(newCompany.ruc)}
+                    onClick={async () => {
+                      if (newCompany.ruc.length !== 13) return;
+                      try {
+                        const data = await lookupRuc(newCompany.ruc);
+                        if (data.razon_social) {
+                          setNewCompany((prev) => ({
+                            ...prev,
+                            razon_social: data.razon_social || prev.razon_social,
+                            nombre_comercial: data.nombre_comercial || prev.nombre_comercial,
+                            dir_matriz: data.dir_matriz || prev.dir_matriz,
+                            obligado_contabilidad: data.obligado_contabilidad || prev.obligado_contabilidad,
+                            contribuyente_especial: data.contribuyente_especial || prev.contribuyente_especial,
+                          }));
+                          toast.success('Datos cargados desde el SRI');
+                        } else if (data.message) {
+                          toast.warning(data.message);
+                        }
+                      } catch {
+                        toast.error('Error consultando RUC al SRI');
+                      }
+                    }}
+                  >
+                    Buscar en SRI
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nc-cod-est">Cod. Establecimiento</Label>

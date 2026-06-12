@@ -4,7 +4,7 @@ Agrupa todos los endpoints de la versión 1
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, admin, companies, config, licenses, backup, uploads, comprobantes, products, clients, proformas, audit, email_templates, email_receiver, smtp_profiles, suppliers, purchases, warehouses, pos, bi, budgets, projects, integrations, ml_ai, accounting, notifications, user_roles, crm
+from app.api.v1.endpoints import auth, admin, companies, config, licenses, backup, uploads, comprobantes, products, clients, proformas, audit, email_templates, email_receiver, smtp_profiles, suppliers, purchases, warehouses, ubicaciones, pos, bi, budgets, projects, integrations, ml_ai, accounting, notifications, user_roles, crm, cuentas_pagar
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -62,6 +62,9 @@ api_router.include_router(purchases.router)
 # Multi-Almacén y Logística
 api_router.include_router(warehouses.router)
 
+# Ubicaciones Físicas de Almacén
+api_router.include_router(ubicaciones.router)
+
 # Punto de Venta (POS)
 api_router.include_router(pos.router)
 
@@ -91,3 +94,6 @@ api_router.include_router(user_roles.router)
 
 # CRM Avanzado (Pipeline, Oportunidades, Seguimiento)
 api_router.include_router(crm.router)
+
+# Cuentas por Pagar (gestión de pagos, renegociación, exportación)
+api_router.include_router(cuentas_pagar.router)

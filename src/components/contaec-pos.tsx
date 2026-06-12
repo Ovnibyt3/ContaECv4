@@ -1000,7 +1000,13 @@ function ChangeDialog({
   function handleWindowPrint() {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-      printWindow.document.write(`<pre style="font-family:monospace;font-size:12px;">${receiptText}</pre>`);
+      // HTML-encode receiptText to prevent XSS from product descriptions, client names, etc.
+      const encoded = receiptText
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      printWindow.document.write(`<pre style="font-family:monospace;font-size:12px;">${encoded}</pre>`);
       printWindow.document.close();
       printWindow.print();
     }
@@ -1773,7 +1779,13 @@ function TicketsTab({ companyId }: { companyId: string }) {
   function handleWindowPrint() {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-      printWindow.document.write(`<pre style="font-family:monospace;font-size:12px;">${receiptText}</pre>`);
+      // HTML-encode receiptText to prevent XSS from product descriptions, client names, etc.
+      const encoded = receiptText
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      printWindow.document.write(`<pre style="font-family:monospace;font-size:12px;">${encoded}</pre>`);
       printWindow.document.close();
       printWindow.print();
     }

@@ -4,9 +4,8 @@ Schemas para almacenes, ubicaciones, transferencias y stock
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ==========================================
@@ -33,22 +32,22 @@ class WarehouseCreate(BaseModel):
         description="Código del almacén (ej: BOD-001), único por empresa",
         examples=["BOD-001"],
     )
-    direccion: Optional[str] = Field(
+    direccion: str | None = Field(
         None,
         max_length=500,
         description="Dirección del almacén",
     )
-    ciudad: Optional[str] = Field(
+    ciudad: str | None = Field(
         None,
         max_length=100,
         description="Ciudad donde se ubica el almacén",
     )
-    responsable: Optional[str] = Field(
+    responsable: str | None = Field(
         None,
         max_length=200,
         description="Persona responsable del almacén",
     )
-    telefono: Optional[str] = Field(
+    telefono: str | None = Field(
         None,
         max_length=50,
         description="Teléfono del almacén",
@@ -61,39 +60,39 @@ class WarehouseCreate(BaseModel):
 
 class WarehouseUpdate(BaseModel):
     """Esquema para actualizar un almacén"""
-    nombre: Optional[str] = Field(
+    nombre: str | None = Field(
         None,
         min_length=1,
         max_length=200,
         description="Nombre del almacén",
     )
-    codigo: Optional[str] = Field(
+    codigo: str | None = Field(
         None,
         min_length=1,
         max_length=20,
         description="Código del almacén",
     )
-    direccion: Optional[str] = Field(
+    direccion: str | None = Field(
         None,
         max_length=500,
         description="Dirección del almacén",
     )
-    ciudad: Optional[str] = Field(
+    ciudad: str | None = Field(
         None,
         max_length=100,
         description="Ciudad",
     )
-    responsable: Optional[str] = Field(
+    responsable: str | None = Field(
         None,
         max_length=200,
         description="Responsable",
     )
-    telefono: Optional[str] = Field(
+    telefono: str | None = Field(
         None,
         max_length=50,
         description="Teléfono",
     )
-    is_principal: Optional[bool] = Field(
+    is_principal: bool | None = Field(
         None,
         description="¿Es almacén principal?",
     )
@@ -105,16 +104,16 @@ class WarehouseResponse(BaseModel):
     company_id: str = Field(..., description="ID de la empresa")
     nombre: str = Field(..., description="Nombre del almacén")
     codigo: str = Field(..., description="Código del almacén")
-    direccion: Optional[str] = Field(None, description="Dirección")
-    ciudad: Optional[str] = Field(None, description="Ciudad")
-    responsable: Optional[str] = Field(None, description="Responsable")
-    telefono: Optional[str] = Field(None, description="Teléfono")
+    direccion: str | None = Field(None, description="Dirección")
+    ciudad: str | None = Field(None, description="Ciudad")
+    responsable: str | None = Field(None, description="Responsable")
+    telefono: str | None = Field(None, description="Teléfono")
     is_principal: bool = Field(..., description="¿Es almacén principal?")
     is_active: bool = Field(..., description="¿Está activo?")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -123,7 +122,7 @@ class WarehouseResponse(BaseModel):
 
 class WarehouseLocationCreate(BaseModel):
     """Esquema para crear una ubicación dentro de un almacén"""
-    producto_id: Optional[str] = Field(
+    producto_id: str | None = Field(
         None,
         description="ID del producto asignado a esta ubicación (opcional)",
     )
@@ -131,75 +130,95 @@ class WarehouseLocationCreate(BaseModel):
         ...,
         min_length=1,
         max_length=50,
-        description="Zona del almacén (ej: A, B, C)",
+        description="Zona del almacén (ej: A, B, C, Refrigerados)",
         examples=["A"],
     )
-    rack: str = Field(
-        ...,
-        min_length=1,
+    pasillo: str | None = Field(
+        None,
         max_length=50,
-        description="Rack dentro de la zona (ej: R1, R2)",
+        description="Pasillo o corredor dentro de la zona",
+        examples=["3"],
+    )
+    rack: str | None = Field(
+        None,
+        max_length=50,
+        description="Rack o estante dentro del pasillo (ej: R1, R2, B)",
         examples=["R1"],
     )
-    estante: str = Field(
-        ...,
-        min_length=1,
+    estante: str | None = Field(
+        None,
         max_length=50,
-        description="Estante o nivel del rack (ej: E1, E2)",
+        description="Nivel del rack o estante (ej: E1, E2, 2)",
         examples=["E1"],
     )
-    nivel: Optional[str] = Field(
+    nivel: str | None = Field(
         None,
         max_length=50,
-        description="Posición dentro del estante (opcional)",
+        description="Posición dentro del estante/bin (opcional)",
     )
-    capacidad_maxima: Optional[Decimal] = Field(
+    capacidad_maxima: int | None = Field(
         None,
-        ge=0,
-        description="Capacidad máxima de la ubicación",
+        ge=1,
+        description="Capacidad máxima en unidades",
     )
-    cantidad_actual: Decimal = Field(
-        default=Decimal("0"),
+    capacidad_actual: int = Field(
+        default=0,
         ge=0,
-        description="Cantidad actual en la ubicación",
+        description="Ocupación actual en unidades",
     )
+
+    @field_validator("capacidad_actual")
+    @classmethod
+    def validate_capacidad_actual(cls, v: int, values) -> int:
+        """Valida que capacidad_actual no exceda capacidad_maxima si está definida"""
+        max_cap = values.data.get("capacidad_maxima")
+        if max_cap is not None and v > max_cap:
+            raise ValueError(
+                f"La ocupación actual ({v}) no puede exceder la capacidad máxima ({max_cap})"
+            )
+        return v
 
 
 class WarehouseLocationUpdate(BaseModel):
     """Esquema para actualizar una ubicación de almacén"""
-    producto_id: Optional[str] = Field(
+    producto_id: str | None = Field(
         None,
         description="ID del producto asignado",
     )
-    zona: Optional[str] = Field(
+    zona: str | None = Field(
         None,
         max_length=50,
         description="Zona del almacén",
     )
-    rack: Optional[str] = Field(
+    pasillo: str | None = Field(
+        None,
+        max_length=50,
+        description="Pasillo o corredor",
+    )
+    rack: str | None = Field(
         None,
         max_length=50,
         description="Rack",
     )
-    estante: Optional[str] = Field(
+    estante: str | None = Field(
         None,
         max_length=50,
         description="Estante",
     )
-    nivel: Optional[str] = Field(
+    nivel: str | None = Field(
         None,
         max_length=50,
         description="Nivel/posición",
     )
-    capacidad_maxima: Optional[Decimal] = Field(
+    capacidad_maxima: int | None = Field(
         None,
-        ge=0,
-        description="Capacidad máxima",
+        ge=1,
+        description="Capacidad máxima en unidades",
     )
-    cantidad_actual: Optional[Decimal] = Field(
+    capacidad_actual: int | None = Field(
         None,
         ge=0,
-        description="Cantidad actual",
+        description="Ocupación actual en unidades",
     )
 
 
@@ -207,19 +226,43 @@ class WarehouseLocationResponse(BaseModel):
     """Esquema de respuesta para una ubicación de almacén"""
     id: str = Field(..., description="ID único de la ubicación")
     warehouse_id: str = Field(..., description="ID del almacén")
-    producto_id: Optional[str] = Field(None, description="ID del producto")
+    producto_id: str | None = Field(None, description="ID del producto")
     zona: str = Field(..., description="Zona")
-    rack: str = Field(..., description="Rack")
-    estante: str = Field(..., description="Estante")
-    nivel: Optional[str] = Field(None, description="Nivel/posición")
-    codigo_ubicacion: str = Field(..., description="Código de ubicación (ej: A-R1-E1)")
-    capacidad_maxima: Optional[Decimal] = Field(None, description="Capacidad máxima")
-    cantidad_actual: Decimal = Field(..., description="Cantidad actual")
+    pasillo: str | None = Field(None, description="Pasillo o corredor")
+    rack: str | None = Field(None, description="Rack o estante")
+    estante: str | None = Field(None, description="Nivel del rack o estante")
+    nivel: str | None = Field(None, description="Nivel/posición dentro del estante")
+    codigo_ubicacion: str = Field(..., description="Código de ubicación (ej: A-P3-RB-E2)")
+    ubicacion_completa: str = Field(..., description="Descripción completa (ej: ZonaA-Pasillo3-RackB-Estante2)")
+    capacidad_maxima: int | None = Field(None, description="Capacidad máxima en unidades")
+    capacidad_actual: int = Field(..., description="Ocupación actual en unidades")
     is_active: bool = Field(..., description="¿Está activa?")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+
+class WarehouseLocationStockResponse(BaseModel):
+    """Esquema de respuesta para el stock en una ubicación específica"""
+    product_id: str = Field(..., description="ID del producto")
+    product_codigo: str = Field(..., description="Código del producto")
+    product_descripcion: str = Field(..., description="Descripción del producto")
+    cantidad: Decimal = Field(..., description="Cantidad del producto en esta ubicación")
+
+
+class WarehouseLocationMapResponse(BaseModel):
+    """Esquema de respuesta para el mapa visual de un almacén"""
+    warehouse_id: str = Field(..., description="ID del almacén")
+    warehouse_nombre: str = Field(..., description="Nombre del almacén")
+    zonas: dict[str, list[WarehouseLocationResponse]] = Field(
+        ...,
+        description="Ubicaciones agrupadas por zona",
+    )
+    total_ubicaciones: int = Field(..., description="Total de ubicaciones en el almacén")
+    ubicaciones_disponibles: int = Field(..., description="Ubicaciones sin producto asignado")
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -242,11 +285,11 @@ class WarehouseTransferDetalleCreate(BaseModel):
         ge=0,
         description="Costo unitario del producto",
     )
-    ubicacion_origen_id: Optional[str] = Field(
+    ubicacion_origen_id: str | None = Field(
         None,
         description="ID de la ubicación de origen dentro del almacén origen",
     )
-    ubicacion_destino_id: Optional[str] = Field(
+    ubicacion_destino_id: str | None = Field(
         None,
         description="ID de la ubicación de destino dentro del almacén destino",
     )
@@ -260,11 +303,11 @@ class WarehouseTransferDetalleResponse(BaseModel):
     cantidad: Decimal = Field(..., description="Cantidad transferida")
     costo_unitario: Decimal = Field(..., description="Costo unitario")
     costo_total: Decimal = Field(..., description="Costo total")
-    ubicacion_origen_id: Optional[str] = Field(None, description="ID ubicación origen")
-    ubicacion_destino_id: Optional[str] = Field(None, description="ID ubicación destino")
+    ubicacion_origen_id: str | None = Field(None, description="ID ubicación origen")
+    ubicacion_destino_id: str | None = Field(None, description="ID ubicación destino")
     created_at: datetime = Field(..., description="Fecha de creación")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class WarehouseTransferCreate(BaseModel):
@@ -286,12 +329,12 @@ class WarehouseTransferCreate(BaseModel):
         min_length=1,
         description="Lista de líneas de detalle",
     )
-    motivo: Optional[str] = Field(
+    motivo: str | None = Field(
         None,
         max_length=500,
         description="Motivo de la transferencia",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -314,11 +357,11 @@ class WarehouseTransferResponse(BaseModel):
     warehouse_origen_id: str = Field(..., description="ID almacén origen")
     warehouse_destino_id: str = Field(..., description="ID almacén destino")
     estado: str = Field(..., description="Estado: pendiente, en_transito, recibida, anulada")
-    motivo: Optional[str] = Field(None, description="Motivo")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    motivo: str | None = Field(None, description="Motivo")
+    observaciones: str | None = Field(None, description="Observaciones")
     user_id: str = Field(..., description="ID del usuario creador")
-    fecha_envio: Optional[datetime] = Field(None, description="Fecha de envío")
-    fecha_recepcion: Optional[datetime] = Field(None, description="Fecha de recepción")
+    fecha_envio: datetime | None = Field(None, description="Fecha de envío")
+    fecha_recepcion: datetime | None = Field(None, description="Fecha de recepción")
     detalles: list[WarehouseTransferDetalleResponse] = Field(
         default_factory=list,
         description="Líneas de detalle",
@@ -326,7 +369,7 @@ class WarehouseTransferResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -342,7 +385,7 @@ class WarehouseStockResponse(BaseModel):
     saldo_valor: Decimal = Field(default=Decimal("0"), description="Valor en stock")
     costo_promedio: Decimal = Field(default=Decimal("0"), description="Costo promedio ponderado")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -354,21 +397,21 @@ class KardexDetalladoResponse(BaseModel):
     id: str = Field(..., description="ID único del movimiento")
     company_id: str = Field(..., description="ID de la empresa")
     product_id: str = Field(..., description="ID del producto")
-    warehouse_id: Optional[str] = Field(None, description="ID del almacén")
-    warehouse_nombre: Optional[str] = Field(None, description="Nombre del almacén")
+    warehouse_id: str | None = Field(None, description="ID del almacén")
+    warehouse_nombre: str | None = Field(None, description="Nombre del almacén")
     tipo_movimiento: str = Field(..., description="Tipo de movimiento")
     cantidad: Decimal = Field(..., description="Cantidad del movimiento")
     costo_unitario: Decimal = Field(..., description="Costo unitario")
     costo_total: Decimal = Field(..., description="Costo total del movimiento")
     saldo_cantidad: Decimal = Field(..., description="Saldo de cantidad acumulado")
     saldo_valor: Decimal = Field(..., description="Saldo de valor acumulado")
-    referencia_tipo: Optional[str] = Field(None, description="Tipo de referencia")
-    referencia_id: Optional[str] = Field(None, description="ID de referencia")
-    referencia_secuencial: Optional[str] = Field(None, description="Secuencial de referencia")
-    detalle: Optional[str] = Field(None, description="Detalle del movimiento")
+    referencia_tipo: str | None = Field(None, description="Tipo de referencia")
+    referencia_id: str | None = Field(None, description="ID de referencia")
+    referencia_secuencial: str | None = Field(None, description="Secuencial de referencia")
+    detalle: str | None = Field(None, description="Detalle del movimiento")
     fecha_movimiento: datetime = Field(..., description="Fecha del movimiento")
     user_id: str = Field(..., description="ID del usuario")
     is_active: bool = Field(..., description="¿Está activo?")
     created_at: datetime = Field(..., description="Fecha de creación")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

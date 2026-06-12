@@ -1,6 +1,13 @@
 ---
 name: fastapi-security-remediation
 description: Systematic approach to fixing security vulnerabilities identified in a FastAPI backend audit
+license: MIT
+metadata:
+  version: "1.0.0"
+  domain: backend-security
+  triggers: security vulnerabilities, FastAPI security, security audit, XSS, SQLi, XXE, exposed credentials, rate limiting, CORS, security fix, security remediation
+  role: specialist
+  scope: remediation
 source: auto-skill
 extracted_at: '2026-06-09T16:50:35.365Z'
 ---
@@ -61,7 +68,53 @@ When you receive a security audit report identifying vulnerabilities (XSS, XXE, 
   async with aiofiles.open(path, "wb") as f:
       await f.write(data)
   ```
-- Apply to all file reads/writes in `async def` functions
+- Replace `with open(path, "r") as f: json.load(f)` with:
+  ```python
+  async with aiofiles.open(path, "r", encoding="utf-8") as f:
+      content = await f.read()
+      data = json.loads(content)
+  ```
+- For file delete operations in async functions, use `asyncio.to_thread`:
+  ```python
+  async def _delete_async(path: Path) -> None:
+      if path.exists():
+          await asyncio.to_thread(path.unlink)
+  ```
+- Apply to all file reads/writes/deletes in `async def` functions
+
+#### Background Task Cleanup Pattern
+- Long-running background tasks with `asyncio.sleep()` cannot be cancelled quickly. Use incremental sleep:
+  ```python
+  async def background_task() -> None:
+      running = True
+      try:
+          while running:
+              await do_work()
+              # Sleep in 1s increments for quick exit when stopped
+              for _ in range(SLEEP_INTERVAL_SECONDS):
+                  if not running:
+                      break
+                  await asyncio.sleep(1)
+      finally:
+          running = False
+          logger.info("Task stopped cleanly")
+  ```
+- In lifespan shutdown, set the flag to False and await briefly before cancelling.
+
+#### Pydantic-Settings Absolute .env Path
+- `env_file=".env"` resolves relative to CWD, which breaks with systemd services or when running from different directories.
+- Always resolve `.env` path relative to the config file:
+  ```python
+  from pathlib import Path
+  _CONFIG_DIR = Path(__file__).resolve().parent.parent.parent
+  _ENV_FILE_PATH = _CONFIG_DIR / ".env"
+
+  model_config = SettingsConfigDict(
+      env_file=str(_ENV_FILE_PATH),
+      env_file_encoding="utf-8",
+      ...
+  )
+  ```
 
 #### Rate Limiting with slowapi
 1. Create a `rate_limiter.py` module:
@@ -92,6 +145,79 @@ When you receive a security audit report identifying vulnerabilities (XSS, XXE, 
   now_utc = datetime.now(timezone.utc)
   now_local = now_utc.astimezone(ZoneInfo("America/Guayaquil"))
   ```
+
+#### Middleware Ordering
+FastAPI's `add_middleware()` **prepends** each new middleware. The LAST one added executes FIRST in the request phase. To achieve a specific execution order, add them in reverse:
+
+```python
+# Desired order: CORS -> SecurityHeaders -> InputSanitization -> RateLimit
+# Add in REVERSE order:
+
+app.add_middleware(RateLimitMiddleware, ...)       # executes FIRST
+app.add_middleware(InputSanitizationMiddleware)     # executes 2nd
+app.add_middleware(SecurityHeadersMiddleware)       # executes 3rd
+app.add_middleware(CORSMiddleware, ...)             # executes LAST (outermost)
+```
+
+**Why**: CORS must be outermost to handle preflight OPTIONS requests before any other middleware runs. Rate limiting should run first to reject bad requests early.
+
+#### StaticFiles Mount Security
+Never mount `StaticFiles` at module import time. Mount during `lifespan` startup:
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ... other startup ...
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+    yield
+```
+
+**Why**: Mounting at import time means `makedirs()` runs before any validation, potentially creating directories in wrong locations. Also, StaticFiles serves files without authentication — consider adding an auth-protected endpoint if uploads contain sensitive data.
+
+#### Health Check Endpoint Best Practices
+Health check endpoints should not expose internal information:
+
+```python
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "environment": settings.APP_ENV,
+    }
+    # DO NOT include: developer contact info, email, phone, internal URLs
+```
+
+For production, add actual health probes (DB connectivity, disk space):
+```python
+    # await db.execute(text("SELECT 1"))  # verify DB connection
+    # shutil.disk_usage(settings.UPLOAD_DIR)  # verify disk space
+```
+
+#### Race Condition Prevention with SELECT ... FOR UPDATE
+When multiple concurrent requests increment a counter (e.g., invoice sequences), use row-level locking:
+
+```python
+async def get_next_counter_async(self, db: AsyncSession) -> int:
+    from sqlalchemy import select, with_for_update
+
+    # Lock the row to prevent concurrent updates
+    result = await db.execute(
+        select(MyModel).where(MyModel.id == self.id).with_for_update()
+    )
+    locked = result.scalars().first()
+    if not locked:
+        raise ValueError("Record not found")
+
+    current = locked.counter
+    locked.counter = current + 1
+    await db.flush()
+    return current
+```
+
+**Why**: Without `with_for_update()`, two concurrent requests can read the same value, increment it, and write back the same result — producing duplicate sequence numbers. `SELECT ... FOR UPDATE` locks the row until the transaction commits.
 
 #### Implicit Database Commits
 - If removing implicit commits would break many endpoints, document the risk instead:

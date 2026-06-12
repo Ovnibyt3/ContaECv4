@@ -44,6 +44,10 @@ from app.schemas.integration import (
     EcommerceSyncLogCreate,
     EcommerceSyncLogResponse,
     IntegrationStats,
+    EcommerceSyncProductsResponse,
+    EcommerceSyncOrdersResponse,
+    EcommerceSyncInventoryResponse,
+    EcommerceConnectorStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -1104,3 +1108,718 @@ async def list_sync_logs(
         responses.append(resp)
 
     return responses
+
+
+# ==========================================
+# Feature 2: E-Commerce Connectors (Fase 15)
+# ==========================================
+
+async def _get_connector_for_user(
+    db: AsyncSession,
+    connector_id: str,
+    user_id: str,
+) -> EcommerceConnector:
+    """Get a connector verifying ownership by user"""
+    result = await db.execute(
+        select(EcommerceConnector)
+        .join(Company, EcommerceConnector.company_id == Company.id)
+        .where(
+            EcommerceConnector.id == connector_id,
+            Company.user_id == user_id,
+        )
+    )
+    connector = result.scalars().first()
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conector no encontrado o no pertenece al usuario.",
+        )
+    return connector
+
+
+async def _fetch_woocommerce_products(connector: EcommerceConnector) -> list[dict]:
+    """Fetch products from WooCommerce REST API"""
+    import aiohttp
+    import base64
+
+    auth = base64.b64encode(f"{connector.api_key}:{connector.api_secret}".encode()).decode()
+    url = f"{connector.url_tienda.rstrip('/')}/wp-json/wc/v3/products"
+    params = {"per_page": 100, "status": "publish"}
+
+    products = []
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                params=params,
+                headers={"Authorization": f"Basic {auth}"},
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as resp:
+                if resp.status == 200:
+                    products = await resp.json()
+                else:
+                    logger.error(f"WooCommerce products fetch failed: {resp.status}")
+    except Exception as e:
+        logger.error(f"Error fetching WooCommerce products: {e}")
+        raise
+    return products
+
+
+async def _fetch_shopify_products(connector: EcommerceConnector) -> list[dict]:
+    """Fetch products from Shopify REST API"""
+    import aiohttp
+
+    url = f"{connector.url_tienda.rstrip('/')}/admin/api/2024-01/products.json"
+    params = {"limit": 250}
+    headers = {"X-Shopify-Access-Token": connector.access_token or ""}
+
+    products = []
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    products = data.get("products", [])
+                else:
+                    logger.error(f"Shopify products fetch failed: {resp.status}")
+    except Exception as e:
+        logger.error(f"Error fetching Shopify products: {e}")
+        raise
+    return products
+
+
+async def _fetch_woocommerce_orders(connector: EcommerceConnector) -> list[dict]:
+    """Fetch orders from WooCommerce REST API"""
+    import aiohttp
+    import base64
+
+    auth = base64.b64encode(f"{connector.api_key}:{connector.api_secret}".encode()).decode()
+    url = f"{connector.url_tienda.rstrip('/')}/wp-json/wc/v3/orders"
+    after_date = datetime.now(timezone.utc).replace(day=1).isoformat()
+    params = {"per_page": 100, "status": "processing,completed", "after": after_date}
+
+    orders = []
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                params=params,
+                headers={"Authorization": f"Basic {auth}"},
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as resp:
+                if resp.status == 200:
+                    orders = await resp.json()
+                else:
+                    logger.error(f"WooCommerce orders fetch failed: {resp.status}")
+    except Exception as e:
+        logger.error(f"Error fetching WooCommerce orders: {e}")
+        raise
+    return orders
+
+
+async def _fetch_shopify_orders(connector: EcommerceConnector) -> list[dict]:
+    """Fetch orders from Shopify REST API"""
+    import aiohttp
+
+    url = f"{connector.url_tienda.rstrip('/')}/admin/api/2024-01/orders.json"
+    params = {"status": "open", "limit": 250}
+    headers = {"X-Shopify-Access-Token": connector.access_token or ""}
+
+    orders = []
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    orders = data.get("orders", [])
+                else:
+                    logger.error(f"Shopify orders fetch failed: {resp.status}")
+    except Exception as e:
+        logger.error(f"Error fetching Shopify orders: {e}")
+        raise
+    return orders
+
+
+async def _push_woocommerce_inventory(connector: EcommerceConnector, sku: str, stock: int) -> bool:
+    """Push stock level to WooCommerce"""
+    import aiohttp
+    import base64
+
+    auth = base64.b64encode(f"{connector.api_key}:{connector.api_secret}".encode()).decode()
+    search_url = f"{connector.url_tienda.rstrip('/')}/wp-json/wc/v3/products"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                search_url,
+                params={"sku": sku, "per_page": 1},
+                headers={"Authorization": f"Basic {auth}"},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status == 200:
+                    products = await resp.json()
+                    if products:
+                        product_id = products[0]["id"]
+                        update_url = f"{connector.url_tienda.rstrip('/')}/wp-json/wc/v3/products/{product_id}"
+                        async with session.put(
+                            update_url,
+                            json={"stock_quantity": stock, "manage_stock": True},
+                            headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"},
+                            timeout=aiohttp.ClientTimeout(total=30),
+                        ) as update_resp:
+                            return update_resp.status in (200, 201)
+    except Exception as e:
+        logger.error(f"Error pushing to WooCommerce inventory: {e}")
+    return False
+
+
+async def _push_shopify_inventory(connector: EcommerceConnector, product_id: str, variant_id: str, stock: int) -> bool:
+    """Push stock level to Shopify"""
+    import aiohttp
+
+    url = f"{connector.url_tienda.rstrip('/')}/admin/api/2024-01/variants/{variant_id}.json"
+    headers = {
+        "X-Shopify-Access-Token": connector.access_token or "",
+        "Content-Type": "application/json",
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.put(
+                url,
+                json={"variant": {"id": variant_id, "inventory_quantity": stock}},
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                return resp.status in (200, 201)
+    except Exception as e:
+        logger.error(f"Error pushing to Shopify inventory: {e}")
+    return False
+
+
+@router.post("/ecommerce/{connector_id}/sync-products", response_model=EcommerceSyncProductsResponse)
+async def sync_ecommerce_products(
+    connector_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync products from e-commerce platform to ContaEC.
+    Maps: e-commerce product -> ContaEC Product
+    (sku->codigo_principal, title->descripcion, price->precio_venta, stock->stock_actual)
+    Supports: woocommerce, shopify
+    """
+    from app.models.product import Product, ProductoTipo
+
+    connector = await _get_connector_for_user(db, connector_id, current_user.id)
+
+    if connector.estado not in [ConnectorEstado.CONECTADO.value, ConnectorEstado.CONFIGURADO.value]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El conector debe estar conectado o configurado para sincronizar productos.",
+        )
+
+    if not connector.sync_productos:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La sincronizacion de productos esta deshabilitada para este conector.",
+        )
+
+    sync_log = EcommerceSyncLog(
+        company_id=connector.company_id,
+        connector_id=connector_id,
+        tipo_sync="productos",
+        estado=SyncEstado.EN_PROGRESO.value,
+        creado_por=current_user.id,
+    )
+    db.add(sync_log)
+    await db.flush()
+
+    try:
+        if connector.plataforma == EcommercePlataforma.WOOCOMMERCE.value:
+            external_products = await _fetch_woocommerce_products(connector)
+        elif connector.plataforma == EcommercePlataforma.SHOPFIY.value:
+            external_products = await _fetch_shopify_products(connector)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Plataforma no soportada para sincronizacion de productos: {connector.plataforma}",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        sync_log.estado = SyncEstado.CON_ERROR.value
+        sync_log.fecha_fin = datetime.now(timezone.utc)
+        sync_log.detalle_errores = str(e)
+        await db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error al obtener productos de la plataforma: {str(e)}",
+        )
+
+    processed = 0
+    created = 0
+    updated = 0
+    errors: list[str] = []
+
+    for ep in external_products:
+        processed += 1
+        try:
+            if connector.plataforma == EcommercePlataforma.WOOCOMMERCE.value:
+                sku = ep.get("sku") or f"WC-{ep.get('id')}"
+                descripcion = ep.get("name", "Sin nombre")
+                precio = float(ep.get("regular_price") or ep.get("price") or 0)
+                stock_val = ep.get("stock_quantity") or 0
+            else:
+                sku = ep.get("variants", [{}])[0].get("sku") or f"SH-{ep.get('id')}"
+                descripcion = ep.get("title", "Sin nombre")
+                precio = float(ep.get("variants", [{}])[0].get("price") or 0)
+                stock_val = ep.get("variants", [{}])[0].get("inventory_quantity") or 0
+
+            existing_result = await db.execute(
+                select(Product).where(
+                    Product.company_id == connector.company_id,
+                    Product.codigo_principal == sku,
+                )
+            )
+            existing = existing_result.scalars().first()
+
+            if existing:
+                existing.descripcion = descripcion
+                existing.precio_unitario = Decimal(str(precio))
+                existing.stock = Decimal(str(stock_val))
+                existing.updated_at = datetime.now(timezone.utc)
+                updated += 1
+            else:
+                product = Product(
+                    company_id=connector.company_id,
+                    codigo_principal=sku,
+                    descripcion=descripcion,
+                    tipo=ProductoTipo.BIEN.value,
+                    precio_unitario=Decimal(str(precio)),
+                    iva_codigo="10",
+                    iva_porcentaje=Decimal("12"),
+                    unidad_medida="Unidad",
+                    stock=Decimal(str(stock_val)),
+                    stock_minimo=Decimal("0"),
+                )
+                db.add(product)
+                created += 1
+
+        except Exception as e:
+            errors.append(f"Error processing product {ep.get('id', 'unknown')}: {str(e)}")
+
+    sync_log.estado = SyncEstado.COMPLETADA.value
+    sync_log.fecha_fin = datetime.now(timezone.utc)
+    sync_log.registros_procesados = processed
+    sync_log.registros_creados = created
+    sync_log.registros_actualizados = updated
+    sync_log.registros_errores = len(errors)
+    if errors:
+        sync_log.detalle_errores = "\n".join(errors[:50])
+
+    connector.total_productos_sync += created
+    connector.ultima_sincronizacion = datetime.now(timezone.utc)
+    await db.flush()
+
+    await log_action(
+        db=db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action="ECOMMERCE_SYNC_PRODUCTS",
+        entity_type="ecommerce_connector",
+        entity_id=connector.id,
+        description=f"Sincronizacion de productos desde {connector.plataforma}: {created} creados, {updated} actualizados",
+        ip_address=request.client.host if request.client else None,
+    )
+
+    return EcommerceSyncProductsResponse(
+        connector_id=connector_id,
+        connector_nombre=connector.nombre,
+        plataforma=connector.plataforma,
+        total_procesados=processed,
+        total_creados=created,
+        total_actualizados=updated,
+        total_errores=len(errors),
+        errores=errors[:10],
+        sync_log_id=sync_log.id,
+    )
+
+
+@router.post("/ecommerce/{connector_id}/sync-orders", response_model=EcommerceSyncOrdersResponse)
+async def sync_ecommerce_orders(
+    connector_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync orders from e-commerce platform to ContaEC.
+    Creates Factura (Comprobante) in ContaEC from each e-commerce order.
+    Maps: order->comprobante, customer->cliente, items->detalles
+    """
+    from app.models.comprobante import Comprobante, ComprobanteDetalle, ComprobanteEstado, ComprobanteTipo
+    from app.models.client import Client
+
+    connector = await _get_connector_for_user(db, connector_id, current_user.id)
+
+    if connector.estado not in [ConnectorEstado.CONECTADO.value, ConnectorEstado.CONFIGURADO.value]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El conector debe estar conectado o configurado para sincronizar ordenes.",
+        )
+
+    if not connector.sync_ordenes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La sincronizacion de ordenes esta deshabilitada para este conector.",
+        )
+
+    sync_log = EcommerceSyncLog(
+        company_id=connector.company_id,
+        connector_id=connector_id,
+        tipo_sync="ordenes",
+        estado=SyncEstado.EN_PROGRESO.value,
+        creado_por=current_user.id,
+    )
+    db.add(sync_log)
+    await db.flush()
+
+    try:
+        if connector.plataforma == EcommercePlataforma.WOOCOMMERCE.value:
+            external_orders = await _fetch_woocommerce_orders(connector)
+        elif connector.plataforma == EcommercePlataforma.SHOPFIY.value:
+            external_orders = await _fetch_shopify_orders(connector)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Plataforma no soportada para sincronizacion de ordenes: {connector.plataforma}",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        sync_log.estado = SyncEstado.CON_ERROR.value
+        sync_log.fecha_fin = datetime.now(timezone.utc)
+        sync_log.detalle_errores = str(e)
+        await db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error al obtener ordenes de la plataforma: {str(e)}",
+        )
+
+    processed = 0
+    facturas_creadas = 0
+    errors: list[str] = []
+
+    for order in external_orders:
+        processed += 1
+        try:
+            ext_order_id = str(order.get("id", ""))
+            existing_result = await db.execute(
+                select(Comprobante).where(
+                    Comprobante.company_id == connector.company_id,
+                    Comprobante.referencia_id == ext_order_id,
+                    Comprobante.referencia_tipo == "ecommerce_order",
+                )
+            )
+            if existing_result.scalars().first():
+                continue
+
+            if connector.plataforma == EcommercePlataforma.WOOCOMMERCE.value:
+                billing = order.get("billing", {})
+                customer_email = billing.get("email", "")
+                customer_name = f"{billing.get('first_name', '')} {billing.get('last_name', '')}".strip()
+                customer_id_doc = billing.get("cpf") or billing.get("cuit") or ""
+                order_total = float(order.get("total") or 0)
+                line_items = order.get("line_items", [])
+                order_date_str = order.get("date_created", "")
+            else:
+                billing = order.get("billing_address", {})
+                customer_email = order.get("email", "")
+                customer_name = f"{order.get('customer', {}).get('first_name', '')} {order.get('customer', {}).get('last_name', '')}".strip()
+                customer_id_doc = ""
+                order_total = float(order.get("total_price") or 0)
+                line_items = order.get("line_items", [])
+                order_date_str = order.get("created_at", "")
+
+            order_date = datetime.now(timezone.utc)
+            if order_date_str:
+                try:
+                    order_date = datetime.fromisoformat(order_date_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    pass
+
+            client_result = await db.execute(
+                select(Client).where(
+                    Client.company_id == connector.company_id,
+                    Client.email == customer_email,
+                )
+            )
+            client = client_result.scalars().first()
+            if not client and customer_name:
+                client = Client(
+                    company_id=connector.company_id,
+                    nombre=customer_name,
+                    email=customer_email or None,
+                    identificacion=customer_id_doc or None,
+                    tipo_cliente="consumidor_final",
+                )
+                db.add(client)
+                await db.flush()
+
+            secuencial_result = await db.execute(
+                select(func.coalesce(func.max(func.cast(Comprobante.secuencial, Integer)), 0)).where(
+                    Comprobante.company_id == connector.company_id,
+                    Comprobante.tipo_comprobante == ComprobanteTipo.FACTURA.value,
+                )
+            )
+            next_sec = (secuencial_result.scalar() or 0) + 1
+            secuencial = f"{next_sec:09d}"
+
+            subtotal = Decimal(str(order_total)) / Decimal("1.12")
+            iva = Decimal(str(order_total)) - subtotal
+
+            comprobante = Comprobante(
+                company_id=connector.company_id,
+                client_id=client.id if client else None,
+                user_id=current_user.id,
+                tipo_comprobante=ComprobanteTipo.FACTURA.value,
+                secuencial=secuencial,
+                fecha_emision=order_date,
+                estado=ComprobanteEstado.AUTORIZADO.value,
+                ambiente="1",
+                subtotal_sin_iva=subtotal.quantize(Decimal("0.01")),
+                subtotal_con_iva=Decimal(str(order_total)).quantize(Decimal("0.01")),
+                subtotal_iva=iva.quantize(Decimal("0.01")),
+                iva_porcentaje=Decimal("12"),
+                total=Decimal(str(order_total)).quantize(Decimal("0.01")),
+                referencia_tipo="ecommerce_order",
+                referencia_id=ext_order_id,
+                referencia_secuencial=order.get("number") or order.get("name") or ext_order_id,
+                cliente_nombre=customer_name or "Cliente E-Commerce",
+                cliente_email=customer_email or "",
+                cliente_identificacion=customer_id_doc or "9999999999",
+            )
+
+            for item in line_items:
+                item_name = item.get("name", "Producto")
+                item_qty = item.get("quantity") or 1
+                item_price = float(item.get("price") or item.get("total") or 0)
+                item_subtotal = Decimal(str(item_price))
+
+                detalle = ComprobanteDetalle(
+                    codigo_principal=item.get("sku") or item.get("product_id") or "",
+                    descripcion=item_name,
+                    cantidad=Decimal(str(item_qty)),
+                    precio_unitario=item_subtotal,
+                    subtotal=item_subtotal.quantize(Decimal("0.01")),
+                    iva_porcentaje=Decimal("12"),
+                )
+                comprobante.detalles.append(detalle)
+
+            db.add(comprobante)
+            facturas_creadas += 1
+
+        except Exception as e:
+            errors.append(f"Error processing order {order.get('id', 'unknown')}: {str(e)}")
+
+    sync_log.estado = SyncEstado.COMPLETADA.value
+    sync_log.fecha_fin = datetime.now(timezone.utc)
+    sync_log.registros_procesados = processed
+    sync_log.registros_creados = facturas_creadas
+    sync_log.registros_errores = len(errors)
+    if errors:
+        sync_log.detalle_errores = "\n".join(errors[:50])
+
+    connector.total_ordenes_sync += facturas_creadas
+    connector.ultima_sincronizacion = datetime.now(timezone.utc)
+    await db.flush()
+
+    await log_action(
+        db=db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action="ECOMMERCE_SYNC_ORDERS",
+        entity_type="ecommerce_connector",
+        entity_id=connector.id,
+        description=f"Sincronizacion de ordenes desde {connector.plataforma}: {facturas_creadas} facturas creadas",
+        ip_address=request.client.host if request.client else None,
+    )
+
+    return EcommerceSyncOrdersResponse(
+        connector_id=connector_id,
+        connector_nombre=connector.nombre,
+        plataforma=connector.plataforma,
+        total_ordenes_procesadas=processed,
+        total_facturas_creadas=facturas_creadas,
+        total_errores=len(errors),
+        errores=errors[:10],
+        sync_log_id=sync_log.id,
+    )
+
+
+@router.post("/ecommerce/{connector_id}/sync-inventory", response_model=EcommerceSyncInventoryResponse)
+async def sync_ecommerce_inventory(
+    connector_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync inventory from ContaEC to e-commerce platform.
+    Pushes stock levels back to e-commerce platform.
+    """
+    from app.models.product import Product
+
+    connector = await _get_connector_for_user(db, connector_id, current_user.id)
+
+    if connector.estado not in [ConnectorEstado.CONECTADO.value, ConnectorEstado.CONFIGURADO.value]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El conector debe estar conectado o configurado para sincronizar inventario.",
+        )
+
+    if not connector.sync_inventario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La sincronizacion de inventario esta deshabilitada para este conector.",
+        )
+
+    sync_log = EcommerceSyncLog(
+        company_id=connector.company_id,
+        connector_id=connector_id,
+        tipo_sync="inventario",
+        estado=SyncEstado.EN_PROGRESO.value,
+        creado_por=current_user.id,
+    )
+    db.add(sync_log)
+    await db.flush()
+
+    products_result = await db.execute(
+        select(Product).where(
+            Product.company_id == connector.company_id,
+            Product.is_active == True,
+        )
+    )
+    products = products_result.scalars().all()
+
+    processed = 0
+    stock_updated = 0
+    errors: list[str] = []
+
+    for product in products:
+        processed += 1
+        try:
+            stock = int(product.stock)
+
+            if connector.plataforma == EcommercePlataforma.WOOCOMMERCE.value:
+                success = await _push_woocommerce_inventory(connector, product.codigo_principal, stock)
+                if success:
+                    stock_updated += 1
+            elif connector.plataforma == EcommercePlataforma.SHOPFIY.value:
+                import json
+                config = {}
+                if connector.configuracion_extra:
+                    try:
+                        config = json.loads(connector.configuracion_extra)
+                    except json.JSONDecodeError:
+                        pass
+
+                product_id = config.get("product_ids", {}).get(product.codigo_principal, "")
+                variant_id = config.get("variant_ids", {}).get(product.codigo_principal, "")
+
+                if variant_id:
+                    success = await _push_shopify_inventory(connector, product_id, variant_id, stock)
+                    if success:
+                        stock_updated += 1
+                else:
+                    errors.append(f"No variant_id mapped for product {product.codigo_principal}")
+            else:
+                errors.append(f"Plataforma no soportada: {connector.plataforma}")
+
+        except Exception as e:
+            errors.append(f"Error syncing inventory for {product.codigo_principal}: {str(e)}")
+
+    sync_log.estado = SyncEstado.COMPLETADA.value
+    sync_log.fecha_fin = datetime.now(timezone.utc)
+    sync_log.registros_procesados = processed
+    sync_log.registros_actualizados = stock_updated
+    sync_log.registros_errores = len(errors)
+    if errors:
+        sync_log.detalle_errores = "\n".join(errors[:50])
+
+    connector.ultima_sincronizacion = datetime.now(timezone.utc)
+    await db.flush()
+
+    await log_action(
+        db=db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action="ECOMMERCE_SYNC_INVENTORY",
+        entity_type="ecommerce_connector",
+        entity_id=connector.id,
+        description=f"Sincronizacion de inventario hacia {connector.plataforma}: {stock_updated} productos actualizados",
+        ip_address=request.client.host if request.client else None,
+    )
+
+    return EcommerceSyncInventoryResponse(
+        connector_id=connector_id,
+        connector_nombre=connector.nombre,
+        plataforma=connector.plataforma,
+        total_productos_procesados=processed,
+        total_stock_actualizados=stock_updated,
+        total_errores=len(errors),
+        errores=errors[:10],
+        sync_log_id=sync_log.id,
+    )
+
+
+@router.get("/ecommerce/{connector_id}/status", response_model=EcommerceConnectorStatus)
+async def get_ecommerce_connector_status(
+    connector_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get last sync status, errors, and product count for an e-commerce connector.
+    """
+    connector = await _get_connector_for_user(db, connector_id, current_user.id)
+
+    last_sync_result = await db.execute(
+        select(EcommerceSyncLog)
+        .where(EcommerceSyncLog.connector_id == connector_id)
+        .order_by(EcommerceSyncLog.fecha_inicio.desc())
+        .limit(1)
+    )
+    last_sync = last_sync_result.scalars().first()
+
+    last_sync_details = None
+    if last_sync:
+        last_sync_details = {
+            "tipo_sync": last_sync.tipo_sync,
+            "estado": last_sync.estado,
+            "fecha_inicio": last_sync.fecha_inicio.isoformat() if last_sync.fecha_inicio else None,
+            "fecha_fin": last_sync.fecha_fin.isoformat() if last_sync.fecha_fin else None,
+            "registros_procesados": last_sync.registros_procesados,
+            "registros_creados": last_sync.registros_creados,
+            "registros_actualizados": last_sync.registros_actualizados,
+            "registros_errores": last_sync.registros_errores,
+            "ultimo_error": last_sync.detalle_errores[:200] if last_sync.detalle_errores else None,
+        }
+
+    return EcommerceConnectorStatus(
+        connector_id=connector_id,
+        connector_nombre=connector.nombre,
+        plataforma=connector.plataforma,
+        estado=connector.estado,
+        url_tienda=connector.url_tienda,
+        ultima_sincronizacion=connector.ultima_sincronizacion,
+        ultimo_error=connector.ultimo_error,
+        total_productos_sync=connector.total_productos_sync,
+        total_ordenes_sync=connector.total_ordenes_sync,
+        is_active=connector.is_active,
+        sync_productos=connector.sync_productos,
+        sync_ordenes=connector.sync_ordenes,
+        sync_inventario=connector.sync_inventario,
+        sync_clientes=connector.sync_clientes,
+        ultima_sync_details=last_sync_details,
+    )

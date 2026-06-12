@@ -5,9 +5,8 @@ Schemas para creación, actualización, cese y respuesta de empleados
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.hr_constants import (
     ESTADOS_EMPLEADO,
@@ -46,31 +45,31 @@ class EmployeeCreate(BaseModel):
         description="Nombres del empleado",
         examples=["JUAN CARLOS"],
     )
-    fecha_nacimiento: Optional[datetime] = Field(
+    fecha_nacimiento: datetime | None = Field(
         None,
         description="Fecha de nacimiento del empleado",
     )
-    genero: Optional[str] = Field(
+    genero: str | None = Field(
         None,
         max_length=1,
         description="Género: M=Masculino, F=Femenino",
     )
-    estado_civil: Optional[str] = Field(
+    estado_civil: str | None = Field(
         None,
         max_length=20,
         description="Estado civil del empleado",
     )
-    direccion: Optional[str] = Field(
+    direccion: str | None = Field(
         None,
         max_length=500,
         description="Dirección de domicilio",
     )
-    telefono: Optional[str] = Field(
+    telefono: str | None = Field(
         None,
         max_length=20,
         description="Número de teléfono",
     )
-    email: Optional[str] = Field(
+    email: EmailStr | None = Field(
         None,
         max_length=255,
         description="Correo electrónico del empleado",
@@ -83,7 +82,7 @@ class EmployeeCreate(BaseModel):
         description="Cargo o puesto del empleado",
         examples=["Contador"],
     )
-    departamento: Optional[str] = Field(
+    departamento: str | None = Field(
         None,
         max_length=200,
         description="Departamento o área",
@@ -124,23 +123,23 @@ class EmployeeCreate(BaseModel):
         default=True,
         description="Indica si el empleado está afiliado al IESS",
     )
-    iess_numero_seguro: Optional[str] = Field(
+    iess_numero_seguro: str | None = Field(
         None,
         max_length=20,
         description="Número de seguro social IESS",
     )
     # Información bancaria
-    banco: Optional[str] = Field(
+    banco: str | None = Field(
         None,
         max_length=100,
         description="Nombre del banco",
     )
-    tipo_cuenta: Optional[str] = Field(
+    tipo_cuenta: str | None = Field(
         None,
         max_length=20,
         description="Tipo de cuenta: ahorro/corriente",
     )
-    numero_cuenta: Optional[str] = Field(
+    numero_cuenta: str | None = Field(
         None,
         max_length=30,
         description="Número de cuenta bancaria",
@@ -182,25 +181,15 @@ class EmployeeCreate(BaseModel):
 
     @field_validator("genero")
     @classmethod
-    def validate_genero(cls, v: Optional[str]) -> Optional[str]:
+    def validate_genero(cls, v: str | None) -> str | None:
         """Valida que el género sea M o F"""
         if v is not None and v not in GENEROS:
             raise ValueError("Género inválido. Válidos: M (Masculino), F (Femenino)")
         return v
 
-    @field_validator("email")
-    @classmethod
-    def validate_email(cls, v: Optional[str]) -> Optional[str]:
-        """Validación básica del formato de correo electrónico"""
-        if v is not None and v.strip():
-            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v.strip()):
-                raise ValueError("Formato de correo electrónico inválido")
-            return v.strip()
-        return v
-
     @field_validator("tipo_cuenta")
     @classmethod
-    def validate_tipo_cuenta(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo_cuenta(cls, v: str | None) -> str | None:
         """Valida que el tipo de cuenta sea válido"""
         if v is not None and v not in TIPOS_CUENTA:
             raise ValueError(
@@ -211,61 +200,52 @@ class EmployeeCreate(BaseModel):
 
 class EmployeeUpdate(BaseModel):
     """Esquema para actualizar datos de un empleado"""
-    apellidos: Optional[str] = Field(None, min_length=1, max_length=200)
-    nombres: Optional[str] = Field(None, min_length=1, max_length=200)
-    fecha_nacimiento: Optional[datetime] = None
-    genero: Optional[str] = Field(None, max_length=1)
-    estado_civil: Optional[str] = Field(None, max_length=20)
-    direccion: Optional[str] = Field(None, max_length=500)
-    telefono: Optional[str] = Field(None, max_length=20)
-    email: Optional[str] = Field(None, max_length=255)
-    cargo: Optional[str] = Field(None, min_length=1, max_length=200)
-    departamento: Optional[str] = Field(None, max_length=200)
-    tipo_contrato: Optional[str] = None
-    tipo_pago: Optional[str] = None
-    sueldo_mensual: Optional[Decimal] = Field(None, gt=0, decimal_places=2)
-    horas_trabajo_semanal: Optional[Decimal] = Field(None, decimal_places=2)
-    fondo_reserva: Optional[bool] = None
-    iess_afiliado: Optional[bool] = None
-    iess_numero_seguro: Optional[str] = Field(None, max_length=20)
-    banco: Optional[str] = Field(None, max_length=100)
-    tipo_cuenta: Optional[str] = Field(None, max_length=20)
-    numero_cuenta: Optional[str] = Field(None, max_length=30)
-    is_active: Optional[bool] = None
+    apellidos: str | None = Field(None, min_length=1, max_length=200)
+    nombres: str | None = Field(None, min_length=1, max_length=200)
+    fecha_nacimiento: datetime | None = None
+    genero: str | None = Field(None, max_length=1)
+    estado_civil: str | None = Field(None, max_length=20)
+    direccion: str | None = Field(None, max_length=500)
+    telefono: str | None = Field(None, max_length=20)
+    email: EmailStr | None = Field(None, max_length=255)
+    cargo: str | None = Field(None, min_length=1, max_length=200)
+    departamento: str | None = Field(None, max_length=200)
+    tipo_contrato: str | None = None
+    tipo_pago: str | None = None
+    sueldo_mensual: Decimal | None = Field(None, gt=0, decimal_places=2)
+    horas_trabajo_semanal: Decimal | None = Field(None, decimal_places=2)
+    fondo_reserva: bool | None = None
+    iess_afiliado: bool | None = None
+    iess_numero_seguro: str | None = Field(None, max_length=20)
+    banco: str | None = Field(None, max_length=100)
+    tipo_cuenta: str | None = Field(None, max_length=20)
+    numero_cuenta: str | None = Field(None, max_length=30)
+    is_active: bool | None = None
 
     @field_validator("tipo_contrato")
     @classmethod
-    def validate_tipo_contrato(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo_contrato(cls, v: str | None) -> str | None:
         if v is not None and v not in TIPOS_CONTRATO:
             raise ValueError(f"Tipo de contrato inválido. Válidos: {', '.join(TIPOS_CONTRATO)}")
         return v
 
     @field_validator("tipo_pago")
     @classmethod
-    def validate_tipo_pago(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo_pago(cls, v: str | None) -> str | None:
         if v is not None and v not in TIPOS_PAGO:
             raise ValueError(f"Tipo de pago inválido. Válidos: {', '.join(TIPOS_PAGO)}")
         return v
 
     @field_validator("genero")
     @classmethod
-    def validate_genero(cls, v: Optional[str]) -> Optional[str]:
+    def validate_genero(cls, v: str | None) -> str | None:
         if v is not None and v not in GENEROS:
             raise ValueError("Género inválido. Válidos: M, F")
         return v
 
-    @field_validator("email")
-    @classmethod
-    def validate_email(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v.strip():
-            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v.strip()):
-                raise ValueError("Formato de correo electrónico inválido")
-            return v.strip()
-        return v
-
     @field_validator("tipo_cuenta")
     @classmethod
-    def validate_tipo_cuenta(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo_cuenta(cls, v: str | None) -> str | None:
         if v is not None and v not in TIPOS_CUENTA:
             raise ValueError(f"Tipo de cuenta inválido. Válidos: {', '.join(TIPOS_CUENTA)}")
         return v
@@ -277,7 +257,7 @@ class EmployeeCese(BaseModel):
         ...,
         description="Fecha de salida/cese del empleado",
     )
-    motivo: Optional[str] = Field(
+    motivo: str | None = Field(
         None,
         max_length=500,
         description="Motivo del cese",
@@ -293,23 +273,23 @@ class EmployeeResponse(BaseModel):
     cedula: str = Field(..., description="Número de cédula")
     apellidos: str = Field(..., description="Apellidos")
     nombres: str = Field(..., description="Nombres")
-    fecha_nacimiento: Optional[datetime] = Field(None, description="Fecha de nacimiento")
-    genero: Optional[str] = Field(None, description="Género")
-    estado_civil: Optional[str] = Field(None, description="Estado civil")
-    direccion: Optional[str] = Field(None, description="Dirección")
-    telefono: Optional[str] = Field(None, description="Teléfono")
-    email: Optional[str] = Field(None, description="Correo electrónico")
+    fecha_nacimiento: datetime | None = Field(None, description="Fecha de nacimiento")
+    genero: str | None = Field(None, description="Género")
+    estado_civil: str | None = Field(None, description="Estado civil")
+    direccion: str | None = Field(None, description="Dirección")
+    telefono: str | None = Field(None, description="Teléfono")
+    email: EmailStr | None = Field(None, description="Correo electrónico")
     # Laboral
     cargo: str = Field(..., description="Cargo")
-    departamento: Optional[str] = Field(None, description="Departamento")
+    departamento: str | None = Field(None, description="Departamento")
     tipo_contrato: str = Field(..., description="Tipo de contrato")
     fecha_ingreso: datetime = Field(..., description="Fecha de ingreso")
-    fecha_salida: Optional[datetime] = Field(None, description="Fecha de salida")
+    fecha_salida: datetime | None = Field(None, description="Fecha de salida")
     estado: str = Field(..., description="Estado del empleado")
     # Salarial
     tipo_pago: str = Field(..., description="Tipo de pago")
     sueldo_mensual: Decimal = Field(..., description="Sueldo mensual")
-    sueldo_diario: Optional[Decimal] = Field(None, description="Sueldo diario")
+    sueldo_diario: Decimal | None = Field(None, description="Sueldo diario")
     horas_trabajo_semanal: Decimal = Field(..., description="Horas semanales")
     # Beneficios
     fondo_reserva: bool = Field(..., description="Tiene fondo de reserva")
@@ -319,17 +299,17 @@ class EmployeeResponse(BaseModel):
     fondos_reserva_acumulado: Decimal = Field(..., description="Fondos de reserva acumulados")
     # IESS
     iess_afiliado: bool = Field(..., description="Afiliado al IESS")
-    iess_numero_seguro: Optional[str] = Field(None, description="Número seguro IESS")
+    iess_numero_seguro: str | None = Field(None, description="Número seguro IESS")
     # Bancaria
-    banco: Optional[str] = Field(None, description="Banco")
-    tipo_cuenta: Optional[str] = Field(None, description="Tipo de cuenta")
-    numero_cuenta: Optional[str] = Field(None, description="Número de cuenta")
+    banco: str | None = Field(None, description="Banco")
+    tipo_cuenta: str | None = Field(None, description="Tipo de cuenta")
+    numero_cuenta: str | None = Field(None, description="Número de cuenta")
     # Estado
     is_active: bool = Field(..., description="Activo en el sistema")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class DepartmentResponse(BaseModel):
@@ -337,4 +317,4 @@ class DepartmentResponse(BaseModel):
     nombre: str = Field(..., description="Nombre del departamento")
     total_empleados: int = Field(..., description="Total de empleados en el departamento")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

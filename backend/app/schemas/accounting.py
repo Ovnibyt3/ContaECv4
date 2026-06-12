@@ -2,11 +2,12 @@
 ContaEC - Schemas de Contabilidad Core
 Plan de Cuentas, Asientos Contables, Cuentas por Cobrar, Pagos, Períodos Fiscales
 """
+from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==========================================
@@ -20,29 +21,29 @@ class CuentaContableCreate(BaseModel):
     tipo: str = Field(..., description="Tipo: activo, pasivo, patrimonio, ingreso, gasto, costo")
     naturaleza: str = Field(..., description="Naturaleza: deudora o acreedora")
     nivel: int = Field(default=1, description="Nivel jerárquico")
-    cuenta_padre_id: Optional[str] = None
+    cuenta_padre_id: str | None = None
     es_cuenta_movimiento: bool = True
     es_imputable: bool = True
     saldo_inicial: Decimal = Decimal("0")
-    descripcion: Optional[str] = None
-    etiqueta: Optional[str] = None
-    cuenta_contrapartida_id: Optional[str] = None
+    descripcion: str | None = None
+    etiqueta: str | None = None
+    cuenta_contrapartida_id: str | None = None
 
 
 class CuentaContableUpdate(BaseModel):
     """Schema para actualizar una cuenta contable"""
-    nombre: Optional[str] = None
-    tipo: Optional[str] = None
-    naturaleza: Optional[str] = None
-    nivel: Optional[int] = None
-    cuenta_padre_id: Optional[str] = None
-    es_cuenta_movimiento: Optional[bool] = None
-    es_imputable: Optional[bool] = None
-    saldo_inicial: Optional[Decimal] = None
-    descripcion: Optional[str] = None
-    etiqueta: Optional[str] = None
-    cuenta_contrapartida_id: Optional[str] = None
-    is_active: Optional[bool] = None
+    nombre: str | None = None
+    tipo: str | None = None
+    naturaleza: str | None = None
+    nivel: int | None = None
+    cuenta_padre_id: str | None = None
+    es_cuenta_movimiento: bool | None = None
+    es_imputable: bool | None = None
+    saldo_inicial: Decimal | None = None
+    descripcion: str | None = None
+    etiqueta: str | None = None
+    cuenta_contrapartida_id: str | None = None
+    is_active: bool | None = None
 
 
 class CuentaContableResponse(BaseModel):
@@ -54,25 +55,24 @@ class CuentaContableResponse(BaseModel):
     tipo: str
     naturaleza: str
     nivel: int
-    cuenta_padre_id: Optional[str] = None
+    cuenta_padre_id: str | None = None
     es_cuenta_movimiento: bool
     es_imputable: bool
     saldo_inicial: Decimal
     saldo_actual: Decimal
     total_debitos: Decimal
     total_creditos: Decimal
-    descripcion: Optional[str] = None
-    etiqueta: Optional[str] = None
-    cuenta_contrapartida_id: Optional[str] = None
+    descripcion: str | None = None
+    etiqueta: str | None = None
+    cuenta_contrapartida_id: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
     # Computed
-    codigo_nombre: Optional[str] = None
+    codigo_nombre: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -84,9 +84,9 @@ class AsientoDetalleCreate(BaseModel):
     cuenta_contable_id: str
     debito: Decimal = Decimal("0")
     credito: Decimal = Decimal("0")
-    descripcion: Optional[str] = None
-    referencia_tipo: Optional[str] = None
-    referencia_id: Optional[str] = None
+    descripcion: str | None = None
+    referencia_tipo: str | None = None
+    referencia_id: str | None = None
 
 
 class AsientoDetalleResponse(BaseModel):
@@ -96,16 +96,15 @@ class AsientoDetalleResponse(BaseModel):
     cuenta_contable_id: str
     debito: Decimal
     credito: Decimal
-    descripcion: Optional[str] = None
-    referencia_tipo: Optional[str] = None
-    referencia_id: Optional[str] = None
+    descripcion: str | None = None
+    referencia_tipo: str | None = None
+    referencia_id: str | None = None
     created_at: datetime
     # Cuenta contable info
-    cuenta_codigo: Optional[str] = None
-    cuenta_nombre: Optional[str] = None
+    cuenta_codigo: str | None = None
+    cuenta_nombre: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class AsientoContableCreate(BaseModel):
@@ -113,19 +112,19 @@ class AsientoContableCreate(BaseModel):
     fecha: datetime
     tipo: str = Field(default="ordinario", description="Tipo: apertura, ordinario, cierre, ajuste, estimacion, reclasificacion")
     concepto: str = Field(..., max_length=500, description="Concepto del asiento")
-    referencia_tipo: Optional[str] = None
-    referencia_id: Optional[str] = None
-    referencia_secuencial: Optional[str] = None
-    observaciones: Optional[str] = None
+    referencia_tipo: str | None = None
+    referencia_id: str | None = None
+    referencia_secuencial: str | None = None
+    observaciones: str | None = None
     detalles: list[AsientoDetalleCreate] = Field(..., min_length=2, description="Al menos 2 líneas (débito y crédito)")
-    periodo_fiscal_id: Optional[str] = None
+    periodo_fiscal_id: str | None = None
 
 
 class AsientoContableUpdate(BaseModel):
     """Schema para actualizar un asiento contable (solo en borrador)"""
-    concepto: Optional[str] = None
-    observaciones: Optional[str] = None
-    detalles: Optional[list[AsientoDetalleCreate]] = None
+    concepto: str | None = None
+    observaciones: str | None = None
+    detalles: list[AsientoDetalleCreate] | None = None
 
 
 class AsientoContableResponse(BaseModel):
@@ -133,7 +132,7 @@ class AsientoContableResponse(BaseModel):
     id: str
     company_id: str
     user_id: str
-    periodo_fiscal_id: Optional[str] = None
+    periodo_fiscal_id: str | None = None
     numero: str
     fecha: datetime
     tipo: str
@@ -141,18 +140,17 @@ class AsientoContableResponse(BaseModel):
     total_debitos: Decimal
     total_creditos: Decimal
     concepto: str
-    referencia_tipo: Optional[str] = None
-    referencia_id: Optional[str] = None
-    referencia_secuencial: Optional[str] = None
-    observaciones: Optional[str] = None
+    referencia_tipo: str | None = None
+    referencia_id: str | None = None
+    referencia_secuencial: str | None = None
+    observaciones: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
     detalles: list[AsientoDetalleResponse] = []
-    is_cuadrado: Optional[bool] = None
+    is_cuadrado: bool | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -161,51 +159,50 @@ class AsientoContableResponse(BaseModel):
 
 class CuentaPorCobrarCreate(BaseModel):
     """Schema para crear una cuenta por cobrar"""
-    client_id: Optional[str] = None
-    comprobante_id: Optional[str] = None
-    numero_factura: Optional[str] = None
+    client_id: str | None = None
+    comprobante_id: str | None = None
+    numero_factura: str | None = None
     fecha_emision: datetime
-    fecha_vencimiento: Optional[datetime] = None
+    fecha_vencimiento: datetime | None = None
     monto_total: Decimal
     dias_credito: int = 30
-    cliente_nombre: Optional[str] = None
-    cliente_identificacion: Optional[str] = None
-    observaciones: Optional[str] = None
+    cliente_nombre: str | None = None
+    cliente_identificacion: str | None = None
+    observaciones: str | None = None
 
 
 class CuentaPorCobrarUpdate(BaseModel):
     """Schema para actualizar una cuenta por cobrar"""
-    fecha_vencimiento: Optional[datetime] = None
-    dias_credito: Optional[int] = None
-    observaciones: Optional[str] = None
-    estado: Optional[str] = None
+    fecha_vencimiento: datetime | None = None
+    dias_credito: int | None = None
+    observaciones: str | None = None
+    estado: str | None = None
 
 
 class CuentaPorCobrarResponse(BaseModel):
     """Schema de respuesta de cuenta por cobrar"""
     id: str
     company_id: str
-    client_id: Optional[str] = None
-    comprobante_id: Optional[str] = None
-    numero_factura: Optional[str] = None
+    client_id: str | None = None
+    comprobante_id: str | None = None
+    numero_factura: str | None = None
     fecha_emision: datetime
-    fecha_vencimiento: Optional[datetime] = None
+    fecha_vencimiento: datetime | None = None
     monto_total: Decimal
     monto_pagado: Decimal
     monto_pendiente: Decimal
     estado: str
     dias_credito: int
     dias_vencida: int
-    cliente_nombre: Optional[str] = None
-    cliente_identificacion: Optional[str] = None
-    observaciones: Optional[str] = None
+    cliente_nombre: str | None = None
+    cliente_identificacion: str | None = None
+    observaciones: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    rango_vencimiento: Optional[str] = None
+    rango_vencimiento: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -218,21 +215,21 @@ class PagoCreate(BaseModel):
     fecha: datetime
     monto: Decimal
     forma_pago: str = "01"
-    referencia: Optional[str] = None
-    cuenta_bancaria_id: Optional[str] = None
-    cuenta_por_cobrar_id: Optional[str] = None
-    cuenta_por_pagar_id: Optional[str] = None
-    tercero_nombre: Optional[str] = None
-    tercero_identificacion: Optional[str] = None
-    observaciones: Optional[str] = None
+    referencia: str | None = None
+    cuenta_bancaria_id: str | None = None
+    cuenta_por_cobrar_id: str | None = None
+    cuenta_por_pagar_id: str | None = None
+    tercero_nombre: str | None = None
+    tercero_identificacion: str | None = None
+    observaciones: str | None = None
 
 
 class PagoUpdate(BaseModel):
     """Schema para actualizar un pago"""
-    forma_pago: Optional[str] = None
-    referencia: Optional[str] = None
-    observaciones: Optional[str] = None
-    estado: Optional[str] = None
+    forma_pago: str | None = None
+    referencia: str | None = None
+    observaciones: str | None = None
+    estado: str | None = None
 
 
 class PagoResponse(BaseModel):
@@ -245,21 +242,20 @@ class PagoResponse(BaseModel):
     fecha: datetime
     monto: Decimal
     forma_pago: str
-    referencia: Optional[str] = None
-    cuenta_bancaria_id: Optional[str] = None
-    cuenta_por_cobrar_id: Optional[str] = None
-    cuenta_por_pagar_id: Optional[str] = None
-    tercero_nombre: Optional[str] = None
-    tercero_identificacion: Optional[str] = None
+    referencia: str | None = None
+    cuenta_bancaria_id: str | None = None
+    cuenta_por_cobrar_id: str | None = None
+    cuenta_por_pagar_id: str | None = None
+    tercero_nombre: str | None = None
+    tercero_identificacion: str | None = None
     estado: str
-    observaciones: Optional[str] = None
-    asiento_id: Optional[str] = None
+    observaciones: str | None = None
+    asiento_id: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -270,17 +266,17 @@ class PeriodoFiscalCreate(BaseModel):
     """Schema para crear un período fiscal"""
     nombre: str = Field(..., max_length=100, description="Nombre del período")
     anio: int = Field(..., description="Año fiscal")
-    mes: Optional[int] = Field(None, ge=1, le=12, description="Mes (1-12, None para anual)")
+    mes: int | None = Field(None, ge=1, le=12, description="Mes (1-12, None para anual)")
     tipo_periodo: str = Field(default="mensual", description="Tipo: mensual, trimestral, semestral, anual")
     fecha_inicio: datetime
     fecha_fin: datetime
-    observaciones: Optional[str] = None
+    observaciones: str | None = None
 
 
 class PeriodoFiscalUpdate(BaseModel):
     """Schema para actualizar un período fiscal"""
-    nombre: Optional[str] = None
-    observaciones: Optional[str] = None
+    nombre: str | None = None
+    observaciones: str | None = None
 
 
 class PeriodoFiscalResponse(BaseModel):
@@ -289,23 +285,22 @@ class PeriodoFiscalResponse(BaseModel):
     company_id: str
     nombre: str
     anio: int
-    mes: Optional[int] = None
+    mes: int | None = None
     tipo_periodo: str
     fecha_inicio: datetime
     fecha_fin: datetime
     estado: str
-    fecha_cierre: Optional[datetime] = None
-    cerrado_por: Optional[str] = None
+    fecha_cierre: datetime | None = None
+    cerrado_por: str | None = None
     total_debitos: Decimal
     total_creditos: Decimal
     total_asientos: int
-    observaciones: Optional[str] = None
+    observaciones: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -331,7 +326,7 @@ class BalanceComprobacionResponse(BaseModel):
     total_creditos: Decimal = Decimal("0")
     total_saldo_deudor: Decimal = Decimal("0")
     total_saldo_acreedor: Decimal = Decimal("0")
-    periodo: Optional[str] = None
+    periodo: str | None = None
     fecha_generacion: datetime = Field(default_factory=datetime.now)
 
 
@@ -346,7 +341,7 @@ class LibroDiarioItem(BaseModel):
     cuenta_nombre: str
     debito: Decimal = Decimal("0")
     credito: Decimal = Decimal("0")
-    descripcion: Optional[str] = None
+    descripcion: str | None = None
 
 
 class LibroMayorItem(BaseModel):
@@ -363,9 +358,9 @@ class LibroMayorItem(BaseModel):
 
 class EnvejecimientoCarteraItem(BaseModel):
     """Item del envejecimiento de cartera (CxC)"""
-    cliente_id: Optional[str] = None
+    cliente_id: str | None = None
     cliente_nombre: str
-    cliente_identificacion: Optional[str] = None
+    cliente_identificacion: str | None = None
     total: Decimal = Decimal("0")
     vigente: Decimal = Decimal("0")
     dias_1_30: Decimal = Decimal("0")
@@ -399,4 +394,4 @@ class ContabilidadStats(BaseModel):
     total_cobros_mes: Decimal = Decimal("0")
     total_pagos_mes: Decimal = Decimal("0")
     periodos_abiertos: int = 0
-    periodo_actual: Optional[str] = None
+    periodo_actual: str | None = None

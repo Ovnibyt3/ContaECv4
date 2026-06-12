@@ -2,12 +2,16 @@
 ContaEC - Endpoints de Punto de Venta (POS)
 Sesiones de caja, tickets de venta, arqueos y búsqueda de productos
 """
+import io
 import json
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +34,12 @@ from app.models.product import Product
 from app.models.user import User
 from app.models.warehouse import Warehouse
 from app.schemas.pos import (
+    POSArqueoCerrarRequest,
+    POSArqueoCerrarResponse,
     POSArqueoCreate,
+    POSArqueoReporteResponse,
+    POSArqueoResumenItem,
+    POSArqueoResumenResponse,
     POSArqueoResponse,
     POSCashSessionClose,
     POSCashSessionCreate,
@@ -795,7 +804,684 @@ async def get_printable_ticket(
 
 
 # ==========================================
-# Búsqueda de producto por código de barras
+# Ticket PDF (thermal 80mm receipt)
+# ==========================================
+
+@router.get("/tickets/{ticket_id}/pdf")
+async def get_ticket_pdf(
+    ticket_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generar PDF de ticket imprimible en formato termico 80mm.
+    Retorna un StreamingResponse con el PDF listo para descargar/imprimir.
+    """
+    result = await db.execute(
+        select(POSTicket).where(POSTicket.id == ticket_id)
+    )
+    ticket = result.scalars().first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado.")
+    await _get_company_for_user(db, ticket.company_id, current_user.id)
+
+    # Obtener datos de la empresa
+    company_result = await db.execute(
+        select(Company).where(Company.id == ticket.company_id)
+    )
+    company = company_result.scalars().first()
+
+    # Obtener nombre del cajero
+    user_result = await db.execute(
+        select(User).where(User.id == ticket.user_id)
+    )
+    user = user_result.scalars().first()
+    cajero_nombre = user.email.split("@")[0] if user else "N/A"
+
+    # Obtener numero de caja
+    session_result = await db.execute(
+        select(POSCashSession).where(POSCashSession.id == ticket.cash_session_id)
+    )
+    session = session_result.scalars().first()
+    numero_caja = session.numero_caja if session else "N/A"
+
+    # Configuracion PDF 80mm thermal
+    paper_width = 80 * mm
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=(paper_width, 500 * mm))
+    c.setTitle(f"Ticket {ticket.numero_ticket}")
+
+    # Margenes y ancho util
+    margin = 3 * mm
+    usable_width = paper_width - 2 * margin
+    x = margin
+    y = 480 * mm  # empezar desde arriba
+
+    def draw_line(text: str, font_size: int = 7, bold: bool = False, align: str = "left") -> None:
+        nonlocal y
+        font_name = "Courier-Bold" if bold else "Courier"
+        c.setFont(font_name, font_size)
+        if align == "center":
+            text_width = c.stringWidth(text, font_name, font_size)
+            c.drawString((paper_width - text_width) / 2, y, text)
+        elif align == "right":
+            text_width = c.stringWidth(text, font_name, font_size)
+            c.drawString(paper_width - margin - text_width, y, text)
+        else:
+            c.drawString(x, y, text)
+        y -= font_size + 1.5
+
+    def draw_separator(char: str = "-", font_size: int = 7) -> None:
+        nonlocal y
+        c.setFont("Courier", font_size)
+        char_width = c.stringWidth(char, "Courier", font_size)
+        if char_width > 0:
+            num_chars = int(usable_width / char_width)
+            c.drawString(x, y, char * num_chars)
+        y -= font_size + 1.5
+
+    def draw_two_lines(left: str, right: str, font_size: int = 7, bold: bool = False) -> None:
+        nonlocal y
+        font_name = "Courier-Bold" if bold else "Courier"
+        c.setFont(font_name, font_size)
+        left_width = c.stringWidth(left, font_name, font_size)
+        right_width = c.stringWidth(right, font_name, font_size)
+        c.drawString(x, y, left)
+        c.drawString(paper_width - margin - right_width, y, right)
+        y -= font_size + 1.5
+
+    # --- Encabezado ---
+    empresa_nombre = (company.razon_social if company else "EMPRESA").upper()
+    draw_line(empresa_nombre, font_size=8, bold=True, align="center")
+    if company and company.ruc:
+        draw_line(f"RUC: {company.ruc}", font_size=7, align="center")
+    if company and company.dir_matriz:
+        dir_text = company.dir_matriz
+        if len(dir_text) > 35:
+            dir_text = dir_text[:32] + "..."
+        draw_line(dir_text, font_size=6, align="center")
+
+    draw_line("TICKET DE VENTA", font_size=8, bold=True, align="center")
+    draw_separator()
+
+    # --- Info del ticket ---
+    draw_two_lines(f"Nro: {ticket.numero_ticket}", f"Caja: {numero_caja}")
+    draw_two_lines(
+        f"Fecha: {ticket.created_at.strftime('%d/%m/%Y %H:%M')}",
+        f"Cajero: {cajero_nombre}",
+        font_size=6,
+    )
+    draw_two_lines(f"Cliente: {ticket.cliente_nombre}", f"RUC/CI: {ticket.cliente_identificacion}")
+    draw_separator()
+
+    # --- Items ---
+    draw_two_lines("CANT DESCRIPCION", "P.UNIT  SUBTOTAL", font_size=6, bold=True)
+    draw_separator(char="~", font_size=6)
+
+    for det in ticket.detalles:
+        subtotal = det.precio_total_sin_impuestos
+        desc_line = f"{det.cantidad:.4f} {det.descripcion[:20]}"
+        price_line = f"{det.precio_unitario:.2f}  {subtotal:.2f}"
+        draw_two_lines(desc_line, price_line, font_size=6)
+        if det.descuento and det.descuento > 0:
+            draw_line(f"  (Desc: {det.descuento:.2f})", font_size=6)
+        if det.iva_porcentaje and det.iva_porcentaje > 0:
+            draw_line(f"  IVA {det.iva_porcentaje}%: {det.iva_valor:.2f}", font_size=6)
+
+    draw_separator()
+
+    # --- Totales ---
+    draw_two_lines("SUBTOTAL SIN IMPUESTOS:", f"{ticket.subtotal_sin_impuestos:.2f}", bold=True)
+    draw_two_lines("TOTAL IVA:", f"{ticket.total_iva:.2f}")
+    if ticket.total_descuento and ticket.total_descuento > 0:
+        draw_two_lines("DESCUENTOS:", f"-{ticket.total_descuento:.2f}")
+    draw_two_lines("TOTAL:", f"${ticket.total_con_impuestos:.2f}", font_size=9, bold=True)
+    draw_separator()
+
+    # --- Pago ---
+    tipo_venta_label = {
+        "efectivo": "EFECTIVO",
+        "tarjeta": "TARJETA",
+        "credito": "CREDITO",
+        "mixto": "MIXTO",
+        "otro": "OTRO",
+    }.get(ticket.tipo_venta, ticket.tipo_venta.upper())
+
+    draw_two_lines("Forma de pago:", tipo_venta_label)
+    if ticket.monto_efectivo > 0:
+        draw_two_lines("Efectivo recibido:", f"{ticket.monto_efectivo:.2f}")
+    if ticket.monto_tarjeta > 0:
+        draw_two_lines("Tarjeta:", f"{ticket.monto_tarjeta:.2f}")
+    if ticket.cambio > 0:
+        draw_two_lines("Cambio:", f"{ticket.cambio:.2f}", bold=True)
+    if ticket.propina and ticket.propina > 0:
+        draw_two_lines("Propina:", f"{ticket.propina:.2f}")
+
+    draw_separator()
+    draw_line("GRACIAS POR SU COMPRA", font_size=9, bold=True, align="center")
+    draw_line("", font_size=4)  # espacio extra
+
+    c.showPage()
+    c.save()
+
+    buffer.seek(0)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="ticket_{ticket.numero_ticket}.pdf"'},
+    )
+
+
+# ==========================================
+# Arqueo de Caja - endpoints adicionales
+# ==========================================
+
+@router.post("/arqueos/{arqueo_id}/cerrar", response_model=POSArqueoCerrarResponse)
+async def cerrar_arqueo(
+    arqueo_id: str,
+    data: POSArqueoCerrarRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Cerrar un arqueo con desglose detallado de denominaciones.
+    Calcula el efectivo real contado por billetes/monedas,
+    compara con el esperado por el sistema, y flag diferencias.
+    """
+    result = await db.execute(
+        select(POSArqueo).where(POSArqueo.id == arqueo_id)
+    )
+    arqueo = result.scalars().first()
+    if not arqueo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arqueo no encontrado.")
+
+    # Verificar acceso a la empresa
+    await _get_company_for_user(db, arqueo.company_id, current_user.id)
+
+    # Obtener sesion de caja para contexto
+    session_result = await db.execute(
+        select(POSCashSession).where(POSCashSession.id == arqueo.cash_session_id)
+    )
+    session = session_result.scalars().first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sesion de caja no encontrada.")
+
+    # --- Calcular total_efectivo_real desde desglose ---
+    billetes_detalle = {
+        "100": data.billetes_100,
+        "50": data.billetes_50,
+        "20": data.billetes_20,
+        "10": data.billetes_10,
+        "5": data.billetes_5,
+        "1": data.billetes_1,
+    }
+
+    total_billetes = sum(
+        Decimal(denom) * Decimal(cantidad)
+        for denom, cantidad in billetes_detalle.items()
+    )
+
+    total_efectivo_real = total_billetes + data.monedas
+
+    # --- Comparar con efectivo del sistema ---
+    total_efectivo_sistema = arqueo.total_efectivo_calculado
+    diferencia = total_efectivo_real - total_efectivo_sistema
+
+    # --- Determinar estado de diferencia ---
+    estado_diferencia = "OK"
+    if abs(diferencia) > data.umbral_diferencia:
+        estado_diferencia = "CON_DIFERENCIA"
+
+    # --- Actualizar arqueo con nuevos datos ---
+    arqueo.billetes = json.dumps(billetes_detalle)
+    arqueo.monedas = json.dumps({"total": str(data.monedas)})
+    arqueo.total_billetes = total_billetes
+    arqueo.total_monedas = data.monedas
+    arqueo.total_efectivo_contado = total_efectivo_real
+    arqueo.total_efectivo_calculado = total_efectivo_sistema
+    arqueo.diferencia = diferencia
+
+    # Guardar campos adicionales como JSON en observaciones
+    extras_info = {
+        "vales": str(data.vales),
+        "vouchers": str(data.vouchers),
+        "estado_diferencia": estado_diferencia,
+    }
+    if arqueo.observaciones:
+        extras_info["observaciones_originales"] = arqueo.observaciones
+    if data.observaciones:
+        extras_info["observaciones_cierre"] = data.observaciones
+    arqueo.observaciones = json.dumps(extras_info, ensure_ascii=False)
+
+    await db.flush()
+
+    await log_action(
+        db=db, user_id=current_user.id, user_email=current_user.email,
+        action="UPDATE", entity_type="pos_arqueo", entity_id=arqueo.id,
+        description=(
+            f"Arqueo cerrado: {arqueo.tipo}. "
+            f"Efectivo real: USD {total_efectivo_real}, "
+            f"Sistema: USD {total_efectivo_sistema}, "
+            f"Diferencia: USD {diferencia} ({estado_diferencia})"
+        ),
+        ip_address=request.client.host if request.client else None,
+    )
+
+    return POSArqueoCerrarResponse(
+        id=arqueo.id,
+        tipo=arqueo.tipo,
+        total_efectivo_sistema=total_efectivo_sistema,
+        total_efectivo_real=total_efectivo_real,
+        diferencia=diferencia,
+        estado_diferencia=estado_diferencia,
+        detalle_billetes=billetes_detalle,
+        total_monedas=data.monedas,
+        total_vales=data.vales,
+        total_vouchers=data.vouchers,
+        observaciones=data.observaciones,
+        created_at=arqueo.created_at,
+    )
+
+
+@router.get("/arqueos/resumen", response_model=POSArqueoResumenResponse)
+async def get_arqueos_resumen(
+    fecha_desde: datetime | None = Query(None, description="Fecha inicio (UTC)"),
+    fecha_hasta: datetime | None = Query(None, description="Fecha fin (UTC)"),
+    company_id: str | None = Query(None, description="ID de la empresa"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Resumen de todos los arqueos con filtro por rango de fechas.
+    Incluye totales de sobrante/faltante y lista detallada.
+    """
+    # Query base con join a sesion y company para filtrar por usuario
+    query = (
+        select(POSArqueo)
+        .join(POSCashSession, POSArqueo.cash_session_id == POSCashSession.id)
+        .join(Company, POSArqueo.company_id == Company.id)
+        .where(Company.user_id == current_user.id)
+    )
+
+    if company_id:
+        await _get_company_for_user(db, company_id, current_user.id)
+        query = query.where(POSArqueo.company_id == company_id)
+    if fecha_desde:
+        query = query.where(POSArqueo.created_at >= fecha_desde)
+    if fecha_hasta:
+        query = query.where(POSArqueo.created_at <= fecha_hasta)
+
+    # Contar total registros
+    count_query = select(func.count()).select_from(query.subquery())
+    count_result = await db.execute(count_query)
+    total_registros = count_result.scalar() or 0
+
+    # Obtener arqueos ordenados
+    query = query.order_by(POSArqueo.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    arqueos = result.scalars().all()
+
+    # Calcular totales y construir items
+    total_sobrante = Decimal("0")
+    total_faltante = Decimal("0")
+    items = []
+
+    for arqueo in arqueos:
+        dif = arqueo.diferencia or Decimal("0")
+        if dif > 0:
+            total_sobrante += dif
+        elif dif < 0:
+            total_faltante += abs(dif)
+
+        # Parsear estado_diferencia de observaciones si existe
+        estado_diferencia = None
+        if arqueo.observaciones:
+            try:
+                obs_data = json.loads(arqueo.observaciones)
+                estado_diferencia = obs_data.get("estado_diferencia")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Obtener email del cajero
+        user_result = await db.execute(
+            select(User).where(User.id == arqueo.user_id)
+        )
+        cajero_user = user_result.scalars().first()
+        cajero_email = cajero_user.email if cajero_user else "N/A"
+
+        # Obtener numero de caja
+        session_result = await db.execute(
+            select(POSCashSession).where(POSCashSession.id == arqueo.cash_session_id)
+        )
+        sesion = session_result.scalars().first()
+        numero_caja = sesion.numero_caja if sesion else "N/A"
+        fecha_apertura = sesion.fecha_apertura if sesion else arqueo.created_at
+
+        items.append(POSArqueoResumenItem(
+            id=arqueo.id,
+            numero_caja=numero_caja,
+            tipo=arqueo.tipo,
+            fecha_apertura=fecha_apertura,
+            fecha_arqueo=arqueo.created_at,
+            total_efectivo_sistema=arqueo.total_efectivo_calculado,
+            total_efectivo_contado=arqueo.total_efectivo_contado,
+            diferencia=dif,
+            estado_diferencia=estado_diferencia,
+            cajero_email=cajero_email,
+        ))
+
+    total_diferencia_neta = total_sobrante - total_faltante
+
+    return POSArqueoResumenResponse(
+        total_registros=total_registros,
+        total_sobrante=total_sobrante,
+        total_faltante=total_faltante,
+        total_diferencia_neta=total_diferencia_neta,
+        arqueos=items,
+    )
+
+
+@router.get("/arqueos/{arqueo_id}/reporte", response_model=POSArqueoReporteResponse)
+async def get_arqueo_reporte(
+    arqueo_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Obtener datos completos de un arqueo para generar reporte PDF.
+    Incluye info de sesion, tickets, y desglose de efectivo.
+    """
+    result = await db.execute(
+        select(POSArqueo).where(POSArqueo.id == arqueo_id)
+    )
+    arqueo = result.scalars().first()
+    if not arqueo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arqueo no encontrado.")
+    await _get_company_for_user(db, arqueo.company_id, current_user.id)
+
+    # Obtener sesion de caja
+    session_result = await db.execute(
+        select(POSCashSession).where(POSCashSession.id == arqueo.cash_session_id)
+    )
+    session = session_result.scalars().first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sesion de caja no encontrada.")
+
+    # Obtener cajero
+    user_result = await db.execute(
+        select(User).where(User.id == arqueo.user_id)
+    )
+    cajero_user = user_result.scalars().first()
+    cajero_nombre = cajero_user.email.split("@")[0] if cajero_user else "N/A"
+
+    # Parsear billetes de JSON si existe
+    detalle_billetes = None
+    if arqueo.billetes:
+        try:
+            detalle_billetes = json.loads(arqueo.billetes)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Parsear estado_diferencia de observaciones
+    estado_diferencia = None
+    if arqueo.observaciones:
+        try:
+            obs_data = json.loads(arqueo.observaciones)
+            estado_diferencia = obs_data.get("estado_diferencia")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Parsear vales/vouchers de observaciones
+    total_vales = Decimal("0")
+    total_vouchers = Decimal("0")
+    if arqueo.observaciones:
+        try:
+            obs_data = json.loads(arqueo.observaciones)
+            total_vales = Decimal(obs_data.get("vales", "0"))
+            total_vouchers = Decimal(obs_data.get("vouchers", "0"))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    return POSArqueoReporteResponse(
+        id=arqueo.id,
+        tipo=arqueo.tipo,
+        numero_caja=session.numero_caja,
+        fecha_apertura=session.fecha_apertura,
+        fecha_arqueo=arqueo.created_at,
+        cajero=cajero_nombre,
+        monto_apertura=session.monto_apertura,
+        total_ventas_efectivo=session.total_ventas_efectivo,
+        total_ventas_tarjeta=session.total_ventas_tarjeta,
+        total_ventas_credito=session.total_ventas_credito,
+        total_ventas=session.total_ventas,
+        total_efectivo_sistema=arqueo.total_efectivo_calculado,
+        detalle_billetes=detalle_billetes,
+        total_monedas=arqueo.total_monedas or Decimal("0"),
+        total_vales=total_vales,
+        total_vouchers=total_vouchers,
+        total_efectivo_real=arqueo.total_efectivo_contado,
+        diferencia=arqueo.diferencia,
+        estado_diferencia=estado_diferencia,
+        observaciones=arqueo.observaciones,
+    )
+
+
+@router.get("/arqueos/{arqueo_id}/pdf")
+async def get_arqueo_pdf(
+    arqueo_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generar PDF de reporte de arqueo de caja.
+    Formato carta con desglose detallado.
+    """
+    # Obtener datos del arqueo
+    result = await db.execute(
+        select(POSArqueo).where(POSArqueo.id == arqueo_id)
+    )
+    arqueo = result.scalars().first()
+    if not arqueo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arqueo no encontrado.")
+    await _get_company_for_user(db, arqueo.company_id, current_user.id)
+
+    # Obtener sesion y empresa
+    session_result = await db.execute(
+        select(POSCashSession).where(POSCashSession.id == arqueo.cash_session_id)
+    )
+    session = session_result.scalars().first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sesion de caja no encontrada.")
+
+    company_result = await db.execute(
+        select(Company).where(Company.id == arqueo.company_id)
+    )
+    company = company_result.scalars().first()
+
+    user_result = await db.execute(
+        select(User).where(User.id == arqueo.user_id)
+    )
+    cajero_user = user_result.scalars().first()
+    cajero_nombre = cajero_user.email if cajero_user else "N/A"
+
+    # Parsear datos
+    detalle_billetes = {}
+    if arqueo.billetes:
+        try:
+            detalle_billetes = json.loads(arqueo.billetes)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    estado_diferencia = None
+    total_vales = Decimal("0")
+    total_vouchers = Decimal("0")
+    if arqueo.observaciones:
+        try:
+            obs_data = json.loads(arqueo.observaciones)
+            estado_diferencia = obs_data.get("estado_diferencia")
+            total_vales = Decimal(obs_data.get("vales", "0"))
+            total_vouchers = Decimal(obs_data.get("vouchers", "0"))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    # Configuracion PDF carta
+    from reportlab.lib.pagesizes import letter
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    c.setTitle(f"Reporte Arqueo {arqueo.id}")
+
+    width, height = letter
+    margin = 40
+    y = height - 50
+
+    def draw_text(text: str, x: int = margin, font_size: int = 10, bold: bool = False) -> None:
+        nonlocal y
+        font_name = "Helvetica-Bold" if bold else "Helvetica"
+        c.setFont(font_name, font_size)
+        c.drawString(x, y, text)
+        y -= font_size + 4
+
+    def draw_line_full(text: str, font_size: int = 10, bold: bool = False) -> None:
+        draw_text(text, x=margin, font_size=font_size, bold=bold)
+
+    def draw_two_col(left: str, right: str, font_size: int = 10, bold: bool = False) -> None:
+        nonlocal y
+        font_name = "Helvetica-Bold" if bold else "Helvetica"
+        c.setFont(font_name, font_size)
+        c.drawString(margin, y, left)
+        right_width = c.stringWidth(right, font_name, font_size)
+        c.drawString(width - margin - right_width, y, right)
+        y -= font_size + 4
+
+    def draw_separator() -> None:
+        nonlocal y
+        c.setStrokeColorRGB(0, 0, 0)
+        c.setLineWidth(0.5)
+        c.line(margin, y, width - margin, y)
+        y -= 8
+
+    # --- Encabezado ---
+    empresa_nombre = company.razon_social if company else "EMPRESA"
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width / 2, y, "REPORTE DE ARQUEO DE CAJA")
+    y -= 18
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(width / 2, y, empresa_nombre)
+    y -= 14
+    if company and company.ruc:
+        c.drawCentredString(width / 2, y, f"RUC: {company.ruc}")
+        y -= 14
+    draw_separator()
+
+    # --- Info general ---
+    draw_line_full("INFORMACION GENERAL", font_size=12, bold=True)
+    draw_separator()
+    draw_two_col("Numero de caja:", session.numero_caja)
+    draw_two_col("Tipo de arqueo:", arqueo.tipo.upper())
+    draw_two_col("Fecha apertura:", session.fecha_apertura.strftime("%d/%m/%Y %H:%M"))
+    draw_two_col("Fecha arqueo:", arqueo.created_at.strftime("%d/%m/%Y %H:%M"))
+    draw_two_col("Cajero:", cajero_nombre)
+    y -= 4
+
+    # --- Resumen de ventas ---
+    draw_line_full("RESUMEN DE VENTAS", font_size=12, bold=True)
+    draw_separator()
+    draw_two_col("Ventas en efectivo:", f"$ {session.total_ventas_efectivo:.2f}")
+    draw_two_col("Ventas con tarjeta:", f"$ {session.total_ventas_tarjeta:.2f}")
+    draw_two_col("Ventas a credito:", f"$ {session.total_ventas_credito:.2f}")
+    draw_two_col("Total ventas:", f"$ {session.total_ventas:.2f}", bold=True)
+    draw_two_col("Monto apertura:", f"$ {session.monto_apertura:.2f}")
+    y -= 4
+
+    # --- Efectivo esperado vs real ---
+    draw_line_full("CONTEO DE EFECTIVO", font_size=12, bold=True)
+    draw_separator()
+    draw_two_col("Efectivo esperado (sistema):", f"$ {arqueo.total_efectivo_calculado:.2f}", bold=True)
+    y -= 4
+
+    # Billetes
+    draw_line_full("Desglose de billetes:", font_size=10, bold=True)
+    for denom in ["100", "50", "20", "10", "5", "1"]:
+        cantidad = detalle_billetes.get(denom, 0)
+        subtotal = Decimal(denom) * cantidad
+        if cantidad > 0:
+            draw_text(f"  Billetes ${denom}: {cantidad} = ${subtotal:.2f}", font_size=9)
+    draw_text(f"  Total billetes: $ {arqueo.total_billetes:.2f}", font_size=10, bold=True)
+    y -= 4
+
+    draw_two_col("Total monedas:", f"$ {arqueo.total_monedas:.2f}")
+    draw_two_col("Total vales:", f"$ {total_vales:.2f}")
+    draw_two_col("Total vouchers/tarjetas:", f"$ {total_vouchers:.2f}")
+    draw_separator()
+    draw_two_col("TOTAL EFECTIVO REAL:", f"$ {arqueo.total_efectivo_contado:.2f}", bold=True)
+    y -= 4
+
+    # --- Diferencia ---
+    draw_line_full("DIFERENCIA", font_size=12, bold=True)
+    draw_separator()
+    dif = arqueo.diferencia
+    dif_str = f"+${dif:.2f}" if dif >= 0 else f"-${abs(dif):.2f}"
+    draw_two_col("Diferencia:", dif_str, bold=True)
+    if estado_diferencia:
+        estado_text = "CON DIFERENCIA" if estado_diferencia == "CON_DIFERENCIA" else "OK"
+        c.setFont("Helvetica-Bold", 14)
+        if estado_diferencia == "CON_DIFERENCIA":
+            c.setFillColorRGB(0.8, 0, 0)
+        else:
+            c.setFillColorRGB(0, 0.6, 0)
+        c.drawCentredString(width / 2, y - 10, estado_text)
+        c.setFillColorRGB(0, 0, 0)
+        y -= 28
+
+    # --- Observaciones ---
+    if arqueo.observaciones:
+        draw_separator()
+        draw_line_full("OBSERVACIONES", font_size=12, bold=True)
+        try:
+            obs_data = json.loads(arqueo.observaciones)
+            obs_text = obs_data.get("observaciones_cierre", "")
+            if not obs_text:
+                obs_text = obs_data.get("observaciones_originales", "")
+        except (json.JSONDecodeError, TypeError):
+            obs_text = arqueo.observaciones
+        if obs_text:
+            words = obs_text.split()
+            lines = []
+            current_line = ""
+            for word in words:
+                test_line = f"{current_line} {word}".strip()
+                if len(test_line) <= 70:
+                    current_line = test_line
+                else:
+                    lines.append(current_line)
+                    current_line = word
+            if current_line:
+                lines.append(current_line)
+            for line in lines:
+                draw_text(line, font_size=9)
+
+    c.showPage()
+    c.save()
+
+    buffer.seek(0)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="arqueo_{arqueo_id}.pdf"'},
+    )
+
+
+# ==========================================
+# Busqueda de producto por codigo de barras
 # ==========================================
 
 @router.post("/tickets/search-barcode", response_model=POSProductSearchResponse)

@@ -77,6 +77,46 @@ async def _get_next_number(db: AsyncSession, company_id: str, prefix: str, table
     return f"{prefix}-{str(count + 1).zfill(6)}"
 
 
+def _build_codigo_ubicacion(
+    zona: str,
+    pasillo: str | None,
+    rack: str | None,
+    estante: str | None,
+    nivel: str | None,
+) -> str:
+    """Construye el código corto de ubicación a partir de sus componentes."""
+    parts = [zona]
+    if pasillo:
+        parts.append(f"P{pasillo}")
+    if rack:
+        parts.append(f"R{rack}")
+    if estante:
+        parts.append(f"E{estante}")
+    if nivel:
+        parts.append(f"N{nivel}")
+    return "-".join(parts)
+
+
+def _build_ubicacion_completa(
+    zona: str,
+    pasillo: str | None,
+    rack: str | None,
+    estante: str | None,
+    nivel: str | None,
+) -> str:
+    """Construye la descripción completa de la ubicación."""
+    parts = [f"Zona{zona}"]
+    if pasillo:
+        parts.append(f"Pasillo{pasillo}")
+    if rack:
+        parts.append(f"Rack{rack}")
+    if estante:
+        parts.append(f"Estante{estante}")
+    if nivel:
+        parts.append(f"Nivel{nivel}")
+    return "-".join(parts)
+
+
 # ==========================================
 # Almacenes - CRUD
 # ==========================================
@@ -314,7 +354,12 @@ async def list_warehouse_locations(
     if product_id:
         query = query.where(WarehouseLocation.producto_id == product_id)
 
-    query = query.order_by(WarehouseLocation.zona, WarehouseLocation.rack, WarehouseLocation.estante)
+    query = query.order_by(
+        WarehouseLocation.zona,
+        WarehouseLocation.pasillo.nulls_first(),
+        WarehouseLocation.rack.nulls_first(),
+        WarehouseLocation.estante.nulls_first(),
+    )
     result = await db.execute(query)
     locations = result.scalars().all()
     return [WarehouseLocationResponse.model_validate(loc) for loc in locations]
@@ -337,10 +382,13 @@ async def create_warehouse_location(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Almacén no encontrado.")
     await _get_company_for_user(db, warehouse.company_id, current_user.id)
 
-    # Generar código de ubicación
-    codigo_ubicacion = f"{data.zona}-{data.rack}-{data.estante}"
-    if data.nivel:
-        codigo_ubicacion += f"-{data.nivel}"
+    # Generar códigos de ubicación
+    codigo_ubicacion = _build_codigo_ubicacion(
+        data.zona, data.pasillo, data.rack, data.estante, data.nivel
+    )
+    ubicacion_completa = _build_ubicacion_completa(
+        data.zona, data.pasillo, data.rack, data.estante, data.nivel
+    )
 
     # Verificar que no exista una ubicación con el mismo código en el almacén
     existing = await db.execute(
@@ -360,12 +408,14 @@ async def create_warehouse_location(
         warehouse_id=warehouse_id,
         producto_id=data.producto_id,
         zona=data.zona,
+        pasillo=data.pasillo,
         rack=data.rack,
         estante=data.estante,
         nivel=data.nivel,
         codigo_ubicacion=codigo_ubicacion,
+        ubicacion_completa=ubicacion_completa,
         capacidad_maxima=data.capacidad_maxima,
-        cantidad_actual=data.cantidad_actual,
+        capacidad_actual=data.capacidad_actual,
     )
     db.add(location)
     await db.flush()
@@ -406,19 +456,33 @@ async def update_warehouse_location(
 
     update_data = data.model_dump(exclude_unset=True)
 
-    # Si se actualiza zona/rack/estante/nivel, regenerar código de ubicación
-    new_zona = update_data.get("zona", location.zona)
-    new_rack = update_data.get("rack", location.rack)
-    new_estante = update_data.get("estante", location.estante)
-    new_nivel = update_data.get("nivel", location.nivel)
+    # Validar capacidad si se actualiza
+    new_max = update_data.get("capacidad_maxima", location.capacidad_maxima)
+    new_actual = update_data.get("capacidad_actual", location.capacidad_actual)
+    if new_max is not None and new_actual > new_max:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"La ocupación actual ({new_actual}) no puede exceder "
+                f"la capacidad máxima ({new_max})."
+            ),
+        )
 
-    if any(k in update_data for k in ("zona", "rack", "estante", "nivel")):
-        new_codigo = f"{new_zona}-{new_rack}-{new_estante}"
-        if new_nivel:
-            new_codigo += f"-{new_nivel}"
-        update_data["codigo_ubicacion"] = new_codigo
+    # Si se actualizan componentes, regenerar códigos
+    if any(k in update_data for k in ("zona", "pasillo", "rack", "estante", "nivel")):
+        new_zona = update_data.get("zona", location.zona)
+        new_pasillo = update_data.get("pasillo", location.pasillo)
+        new_rack = update_data.get("rack", location.rack)
+        new_estante = update_data.get("estante", location.estante)
+        new_nivel = update_data.get("nivel", location.nivel)
 
-        # Verificar unicidad del nuevo código
+        new_codigo = _build_codigo_ubicacion(
+            new_zona, new_pasillo, new_rack, new_estante, new_nivel
+        )
+        new_completa = _build_ubicacion_completa(
+            new_zona, new_pasillo, new_rack, new_estante, new_nivel
+        )
+
         if new_codigo != location.codigo_ubicacion:
             existing = await db.execute(
                 select(WarehouseLocation).where(
@@ -433,6 +497,9 @@ async def update_warehouse_location(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Ya existe una ubicación con el código '{new_codigo}'.",
                 )
+
+        update_data["codigo_ubicacion"] = new_codigo
+        update_data["ubicacion_completa"] = new_completa
 
     for field, value in update_data.items():
         setattr(location, field, value)
@@ -862,7 +929,9 @@ async def receive_transfer(
             )
             loc_origen_obj = loc_origen.scalars().first()
             if loc_origen_obj:
-                loc_origen_obj.cantidad_actual -= det.cantidad
+                loc_origen_obj.capacidad_actual = max(
+                    0, loc_origen_obj.capacidad_actual - int(det.cantidad)
+                )
 
         if det.ubicacion_destino_id:
             loc_destino = await db.execute(
@@ -870,7 +939,7 @@ async def receive_transfer(
             )
             loc_destino_obj = loc_destino.scalars().first()
             if loc_destino_obj:
-                loc_destino_obj.cantidad_actual += det.cantidad
+                loc_destino_obj.capacidad_actual += int(det.cantidad)
 
     await db.flush()
 

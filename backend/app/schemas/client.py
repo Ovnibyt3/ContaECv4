@@ -3,11 +3,9 @@ ContaEC - Esquemas Pydantic de Cliente
 Schemas para creación, actualización y respuesta de clientes
 con tipos de identificación según catálogos del SRI (Tabla 7)
 """
-import re
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class ClientCreate(BaseModel):
@@ -35,17 +33,17 @@ class ClientCreate(BaseModel):
         description="Razón social o nombre completo del cliente",
         examples=["JUAN PÉREZ"],
     )
-    direccion: Optional[str] = Field(
+    direccion: str | None = Field(
         None,
         max_length=500,
         description="Dirección del cliente",
     )
-    email: Optional[str] = Field(
+    email: EmailStr | None = Field(
         None,
         max_length=255,
         description="Correo electrónico del cliente",
     )
-    telefono: Optional[str] = Field(
+    telefono: str | None = Field(
         None,
         max_length=20,
         description="Número de teléfono del cliente",
@@ -74,57 +72,54 @@ class ClientCreate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+    def validate_email(cls, v: str | None) -> str | None:
         """Validación básica del formato de correo electrónico"""
         if v is not None and v.strip():
-            # Validación simple de formato de email
-            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v.strip()):
-                raise ValueError("Formato de correo electrónico inválido")
             return v.strip()
         return v
 
 
 class ClientUpdate(BaseModel):
     """Esquema para actualizar un cliente"""
-    tipo_identificacion: Optional[str] = Field(
+    tipo_identificacion: str | None = Field(
         None,
         max_length=2,
         description="Tipo de identificación SRI",
     )
-    identificacion: Optional[str] = Field(
+    identificacion: str | None = Field(
         None,
         max_length=20,
         description="Número de identificación",
     )
-    razon_social: Optional[str] = Field(
+    razon_social: str | None = Field(
         None,
         min_length=1,
         max_length=255,
         description="Razón social o nombre completo",
     )
-    direccion: Optional[str] = Field(
+    direccion: str | None = Field(
         None,
         max_length=500,
         description="Dirección del cliente",
     )
-    email: Optional[str] = Field(
+    email: EmailStr | None = Field(
         None,
         max_length=255,
         description="Correo electrónico",
     )
-    telefono: Optional[str] = Field(
+    telefono: str | None = Field(
         None,
         max_length=20,
         description="Número de teléfono",
     )
-    is_active: Optional[bool] = Field(
+    is_active: bool | None = Field(
         None,
         description="Indica si el cliente está activo",
     )
 
     @field_validator("tipo_identificacion")
     @classmethod
-    def validate_tipo_identificacion(cls, v: Optional[str]) -> Optional[str]:
+    def validate_tipo_identificacion(cls, v: str | None) -> str | None:
         """Valida que el tipo de identificación sea válido"""
         if v is not None and v not in {"04", "05", "06", "07", "08"}:
             raise ValueError(
@@ -135,11 +130,9 @@ class ClientUpdate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+    def validate_email(cls, v: str | None) -> str | None:
         """Validación básica del formato de correo electrónico"""
         if v is not None and v.strip():
-            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v.strip()):
-                raise ValueError("Formato de correo electrónico inválido")
             return v.strip()
         return v
 
@@ -151,12 +144,12 @@ class ClientResponse(BaseModel):
     tipo_identificacion: str = Field(..., description="Tipo de identificación SRI")
     identificacion: str = Field(..., description="Número de identificación")
     razon_social: str = Field(..., description="Razón social o nombre completo")
-    direccion: Optional[str] = Field(None, description="Dirección del cliente")
-    email: Optional[str] = Field(None, description="Correo electrónico")
-    telefono: Optional[str] = Field(None, description="Número de teléfono")
+    direccion: str | None = Field(None, description="Dirección del cliente")
+    email: EmailStr | None = Field(None, description="Correo electrónico")
+    telefono: str | None = Field(None, description="Número de teléfono")
     is_default_consumer: bool = Field(..., description="Indica si es Consumidor Final por defecto")
     is_active: bool = Field(..., description="Indica si está activo")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

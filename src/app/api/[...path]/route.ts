@@ -16,12 +16,20 @@ let backendReady = false;
 
 // Resolve backend directory relative to project root
 const backendDir = path.resolve(process.cwd(), 'backend');
-const pythonPath = process.env.CONTAEC_PYTHON_PATH || 'python3';
+
+// Cross-platform Python detection
+function resolvePythonPath(): string {
+  if (process.env.CONTAEC_PYTHON_PATH) return process.env.CONTAEC_PYTHON_PATH;
+  // On Windows use 'python', on Unix use 'python3'
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+const pythonPath = resolvePythonPath();
 
 async function checkBackendHealth(): Promise<boolean> {
   try {
     const resp = await fetch(`${BACKEND_URL}/api/health`, {
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(5000), // 5s to avoid false negatives under load
     });
     return resp.ok;
   } catch {
@@ -162,14 +170,15 @@ async function proxyRequest(request: NextRequest, method: string) {
         config.body = await request.arrayBuffer();
         delete headers['content-type'];
       } else {
-        config.body = await request.text();
+        // Use arrayBuffer for all body types - handles JSON, text, and binary uniformly
+        config.body = await request.arrayBuffer();
       }
     }
 
     const response = await fetch(backendUrl, {
       ...config,
-      redirect: 'follow', // Follow 307/308 redirects from FastAPI (trailing slash redirects)
-      signal: AbortSignal.timeout(30000),
+      redirect: 'follow',
+      signal: AbortSignal.timeout(120000), // 2 min for file uploads, PDF gen, bulk ops
     });
 
     const responseHeaders = new Headers();
@@ -201,7 +210,11 @@ async function proxyRequest(request: NextRequest, method: string) {
     }
   } catch (error) {
     console.error('[ContaEC Proxy] Request error:', error);
-    backendReady = false;
+    // Don't mark backend as unhealthy on transient errors (network glitch, timeout)
+    // Only restart if the backend is actually unreachable
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('[ContaEC Proxy] Request timed out - backend may be under heavy load');
+    }
     return NextResponse.json(
       { detail: 'Error de conexion con el servidor backend' },
       { status: 502 }

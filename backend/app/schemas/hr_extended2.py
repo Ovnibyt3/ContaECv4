@@ -5,9 +5,8 @@ asistencia, liquidaciones laborales, utilidades e impuesto a la renta
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ==========================================
@@ -20,8 +19,8 @@ class CargaFamiliarCreate(BaseModel):
     nombres: str = Field(..., min_length=1, max_length=200, description="Nombres de la carga familiar")
     apellidos: str = Field(..., min_length=1, max_length=200, description="Apellidos de la carga familiar")
     parentesco: str = Field(..., description="Parentesco: hijo, conyuge, otro")
-    fecha_nacimiento: Optional[datetime] = Field(None, description="Fecha de nacimiento")
-    identificacion: Optional[str] = Field(None, max_length=20, description="Número de identificación")
+    fecha_nacimiento: datetime | None = Field(None, description="Fecha de nacimiento")
+    identificacion: str | None = Field(None, max_length=20, description="Número de identificación")
     discapacidad: bool = Field(default=False, description="Tiene discapacidad")
     es_estudiante: bool = Field(default=False, description="Es estudiante")
 
@@ -36,13 +35,13 @@ class CargaFamiliarCreate(BaseModel):
 
 class CargaFamiliarUpdate(BaseModel):
     """Esquema para actualizar una carga familiar"""
-    nombres: Optional[str] = Field(None, min_length=1, max_length=200, description="Nombres")
-    apellidos: Optional[str] = Field(None, min_length=1, max_length=200, description="Apellidos")
-    parentesco: Optional[str] = Field(None, description="Parentesco")
-    fecha_nacimiento: Optional[datetime] = Field(None, description="Fecha de nacimiento")
-    identificacion: Optional[str] = Field(None, max_length=20, description="Identificación")
-    discapacidad: Optional[bool] = Field(None, description="Tiene discapacidad")
-    es_estudiante: Optional[bool] = Field(None, description="Es estudiante")
+    nombres: str | None = Field(None, min_length=1, max_length=200, description="Nombres")
+    apellidos: str | None = Field(None, min_length=1, max_length=200, description="Apellidos")
+    parentesco: str | None = Field(None, description="Parentesco")
+    fecha_nacimiento: datetime | None = Field(None, description="Fecha de nacimiento")
+    identificacion: str | None = Field(None, max_length=20, description="Identificación")
+    discapacidad: bool | None = Field(None, description="Tiene discapacidad")
+    es_estudiante: bool | None = Field(None, description="Es estudiante")
 
     @field_validator("parentesco")
     @classmethod
@@ -61,15 +60,15 @@ class CargaFamiliarResponse(BaseModel):
     nombres: str = Field(..., description="Nombres")
     apellidos: str = Field(..., description="Apellidos")
     parentesco: str = Field(..., description="Parentesco")
-    fecha_nacimiento: Optional[datetime] = Field(None, description="Fecha de nacimiento")
-    identificacion: Optional[str] = Field(None, description="Identificación")
+    fecha_nacimiento: datetime | None = Field(None, description="Fecha de nacimiento")
+    identificacion: str | None = Field(None, description="Identificación")
     discapacidad: bool = Field(..., description="Tiene discapacidad")
     es_estudiante: bool = Field(..., description="Es estudiante")
     is_active: bool = Field(..., description="Activo en el sistema")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -79,16 +78,16 @@ class CargaFamiliarResponse(BaseModel):
 class EvaluacionDesempenoCreate(BaseModel):
     """Esquema para crear una evaluación de desempeño"""
     employee_id: str = Field(..., description="ID del empleado evaluado")
-    evaluador_id: Optional[str] = Field(None, description="ID del evaluador")
+    evaluador_id: str | None = Field(None, description="ID del evaluador")
     periodo: str = Field(..., min_length=1, max_length=10, description="Período (ej: 2024-Q1)")
     puntaje: int = Field(..., ge=0, le=100, description="Puntaje (0-100)")
-    objetivos: Optional[str] = Field(None, description="Objetivos en JSON")
-    comentarios: Optional[str] = Field(None, description="Comentarios")
-    fortalezas: Optional[str] = Field(None, description="Fortalezas")
-    areas_mejora: Optional[str] = Field(None, description="Áreas de mejora")
-    plan_accion: Optional[str] = Field(None, description="Plan de acción")
+    objetivos: str | None = Field(None, description="Objetivos en JSON")
+    comentarios: str | None = Field(None, description="Comentarios")
+    fortalezas: str | None = Field(None, description="Fortalezas")
+    areas_mejora: str | None = Field(None, description="Áreas de mejora")
+    plan_accion: str | None = Field(None, description="Plan de acción")
     estado: str = Field(default="pendiente", description="Estado: pendiente, en_proceso, completada")
-    fecha_evaluacion: Optional[datetime] = Field(None, description="Fecha de evaluación")
+    fecha_evaluacion: datetime | None = Field(None, description="Fecha de evaluación")
 
     @field_validator("estado")
     @classmethod
@@ -101,16 +100,16 @@ class EvaluacionDesempenoCreate(BaseModel):
 
 class EvaluacionDesempenoUpdate(BaseModel):
     """Esquema para actualizar una evaluación de desempeño"""
-    evaluador_id: Optional[str] = Field(None, description="ID del evaluador")
-    periodo: Optional[str] = Field(None, max_length=10, description="Período")
-    puntaje: Optional[int] = Field(None, ge=0, le=100, description="Puntaje (0-100)")
-    objetivos: Optional[str] = Field(None, description="Objetivos")
-    comentarios: Optional[str] = Field(None, description="Comentarios")
-    fortalezas: Optional[str] = Field(None, description="Fortalezas")
-    areas_mejora: Optional[str] = Field(None, description="Áreas de mejora")
-    plan_accion: Optional[str] = Field(None, description="Plan de acción")
-    estado: Optional[str] = Field(None, description="Estado")
-    fecha_evaluacion: Optional[datetime] = Field(None, description="Fecha de evaluación")
+    evaluador_id: str | None = Field(None, description="ID del evaluador")
+    periodo: str | None = Field(None, max_length=10, description="Período")
+    puntaje: int | None = Field(None, ge=0, le=100, description="Puntaje (0-100)")
+    objetivos: str | None = Field(None, description="Objetivos")
+    comentarios: str | None = Field(None, description="Comentarios")
+    fortalezas: str | None = Field(None, description="Fortalezas")
+    areas_mejora: str | None = Field(None, description="Áreas de mejora")
+    plan_accion: str | None = Field(None, description="Plan de acción")
+    estado: str | None = Field(None, description="Estado")
+    fecha_evaluacion: datetime | None = Field(None, description="Fecha de evaluación")
 
     @field_validator("estado")
     @classmethod
@@ -126,21 +125,21 @@ class EvaluacionDesempenoResponse(BaseModel):
     """Esquema de respuesta para evaluación de desempeño"""
     id: str = Field(..., description="ID único")
     employee_id: str = Field(..., description="ID del empleado")
-    evaluador_id: Optional[str] = Field(None, description="ID del evaluador")
+    evaluador_id: str | None = Field(None, description="ID del evaluador")
     periodo: str = Field(..., description="Período")
     puntaje: int = Field(..., description="Puntaje (0-100)")
-    objetivos: Optional[str] = Field(None, description="Objetivos")
-    comentarios: Optional[str] = Field(None, description="Comentarios")
-    fortalezas: Optional[str] = Field(None, description="Fortalezas")
-    areas_mejora: Optional[str] = Field(None, description="Áreas de mejora")
-    plan_accion: Optional[str] = Field(None, description="Plan de acción")
+    objetivos: str | None = Field(None, description="Objetivos")
+    comentarios: str | None = Field(None, description="Comentarios")
+    fortalezas: str | None = Field(None, description="Fortalezas")
+    areas_mejora: str | None = Field(None, description="Áreas de mejora")
+    plan_accion: str | None = Field(None, description="Plan de acción")
     estado: str = Field(..., description="Estado")
-    fecha_evaluacion: Optional[datetime] = Field(None, description="Fecha de evaluación")
+    fecha_evaluacion: datetime | None = Field(None, description="Fecha de evaluación")
     is_active: bool = Field(..., description="Activo en el sistema")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -151,14 +150,14 @@ class AsistenciaCreate(BaseModel):
     """Esquema para registrar asistencia"""
     employee_id: str = Field(..., description="ID del empleado")
     fecha: datetime = Field(..., description="Fecha de la asistencia")
-    hora_entrada: Optional[datetime] = Field(None, description="Hora de entrada")
-    hora_salida: Optional[datetime] = Field(None, description="Hora de salida")
+    hora_entrada: datetime | None = Field(None, description="Hora de entrada")
+    hora_salida: datetime | None = Field(None, description="Hora de salida")
     horas_trabajadas: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Horas trabajadas")
     horas_extras: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Horas extras")
     tipo: str = Field(default="normal", description="Tipo: normal, descanso, festivo, vacacion, permiso, enfermedad")
-    dispositivo_entrada: Optional[str] = Field(None, max_length=100, description="Dispositivo de entrada")
-    dispositivo_salida: Optional[str] = Field(None, max_length=100, description="Dispositivo de salida")
-    observacion: Optional[str] = Field(None, description="Observaciones")
+    dispositivo_entrada: str | None = Field(None, max_length=100, description="Dispositivo de entrada")
+    dispositivo_salida: str | None = Field(None, max_length=100, description="Dispositivo de salida")
+    observacion: str | None = Field(None, description="Observaciones")
 
     @field_validator("tipo")
     @classmethod
@@ -171,14 +170,14 @@ class AsistenciaCreate(BaseModel):
 
 class AsistenciaUpdate(BaseModel):
     """Esquema para actualizar asistencia"""
-    hora_entrada: Optional[datetime] = Field(None, description="Hora de entrada")
-    hora_salida: Optional[datetime] = Field(None, description="Hora de salida")
-    horas_trabajadas: Optional[Decimal] = Field(None, decimal_places=2, description="Horas trabajadas")
-    horas_extras: Optional[Decimal] = Field(None, decimal_places=2, description="Horas extras")
-    tipo: Optional[str] = Field(None, description="Tipo de día")
-    dispositivo_entrada: Optional[str] = Field(None, max_length=100, description="Dispositivo entrada")
-    dispositivo_salida: Optional[str] = Field(None, max_length=100, description="Dispositivo salida")
-    observacion: Optional[str] = Field(None, description="Observaciones")
+    hora_entrada: datetime | None = Field(None, description="Hora de entrada")
+    hora_salida: datetime | None = Field(None, description="Hora de salida")
+    horas_trabajadas: Decimal | None = Field(None, decimal_places=2, description="Horas trabajadas")
+    horas_extras: Decimal | None = Field(None, decimal_places=2, description="Horas extras")
+    tipo: str | None = Field(None, description="Tipo de día")
+    dispositivo_entrada: str | None = Field(None, max_length=100, description="Dispositivo entrada")
+    dispositivo_salida: str | None = Field(None, max_length=100, description="Dispositivo salida")
+    observacion: str | None = Field(None, description="Observaciones")
 
 
 class AsistenciaResponse(BaseModel):
@@ -186,19 +185,19 @@ class AsistenciaResponse(BaseModel):
     id: str = Field(..., description="ID único")
     employee_id: str = Field(..., description="ID del empleado")
     fecha: datetime = Field(..., description="Fecha")
-    hora_entrada: Optional[datetime] = Field(None, description="Hora de entrada")
-    hora_salida: Optional[datetime] = Field(None, description="Hora de salida")
+    hora_entrada: datetime | None = Field(None, description="Hora de entrada")
+    hora_salida: datetime | None = Field(None, description="Hora de salida")
     horas_trabajadas: Decimal = Field(..., description="Horas trabajadas")
     horas_extras: Decimal = Field(..., description="Horas extras")
     tipo: str = Field(..., description="Tipo de día")
-    dispositivo_entrada: Optional[str] = Field(None, description="Dispositivo entrada")
-    dispositivo_salida: Optional[str] = Field(None, description="Dispositivo salida")
-    observacion: Optional[str] = Field(None, description="Observaciones")
+    dispositivo_entrada: str | None = Field(None, description="Dispositivo entrada")
+    dispositivo_salida: str | None = Field(None, description="Dispositivo salida")
+    observacion: str | None = Field(None, description="Observaciones")
     is_active: bool = Field(..., description="Activo en el sistema")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class AsistenciaResumenResponse(BaseModel):
@@ -231,7 +230,7 @@ class LiquidacionLaboralCreate(BaseModel):
     anticipos_pendientes: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Anticipos pendientes")
     prestamos_pendientes: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Préstamos pendientes")
     otros_descuentos: Decimal = Field(default=Decimal("0.00"), decimal_places=2, description="Otros descuentos")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
 
     @field_validator("tipo")
     @classmethod
@@ -244,12 +243,12 @@ class LiquidacionLaboralCreate(BaseModel):
 
 class LiquidacionLaboralUpdate(BaseModel):
     """Esquema para actualizar una liquidación laboral"""
-    otros_ingresos: Optional[Decimal] = Field(None, decimal_places=2, description="Otros ingresos")
-    iess_pendiente: Optional[Decimal] = Field(None, decimal_places=2, description="IESS pendiente")
-    anticipos_pendientes: Optional[Decimal] = Field(None, decimal_places=2, description="Anticipos pendientes")
-    prestamos_pendientes: Optional[Decimal] = Field(None, decimal_places=2, description="Préstamos pendientes")
-    otros_descuentos: Optional[Decimal] = Field(None, decimal_places=2, description="Otros descuentos")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    otros_ingresos: Decimal | None = Field(None, decimal_places=2, description="Otros ingresos")
+    iess_pendiente: Decimal | None = Field(None, decimal_places=2, description="IESS pendiente")
+    anticipos_pendientes: Decimal | None = Field(None, decimal_places=2, description="Anticipos pendientes")
+    prestamos_pendientes: Decimal | None = Field(None, decimal_places=2, description="Préstamos pendientes")
+    otros_descuentos: Decimal | None = Field(None, decimal_places=2, description="Otros descuentos")
+    observaciones: str | None = Field(None, description="Observaciones")
 
 
 class LiquidacionLaboralResponse(BaseModel):
@@ -276,14 +275,14 @@ class LiquidacionLaboralResponse(BaseModel):
     total_descuentos: Decimal = Field(..., description="Total descuentos")
     total_liquidacion: Decimal = Field(..., description="Total liquidación neta")
     estado: str = Field(..., description="Estado")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
-    aprobado_por: Optional[str] = Field(None, description="ID del aprobador")
-    fecha_aprobacion: Optional[datetime] = Field(None, description="Fecha de aprobación")
+    observaciones: str | None = Field(None, description="Observaciones")
+    aprobado_por: str | None = Field(None, description="ID del aprobador")
+    fecha_aprobacion: datetime | None = Field(None, description="Fecha de aprobación")
     is_active: bool = Field(..., description="Activo en el sistema")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -317,7 +316,7 @@ class UtilidadesParticipacionResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class UtilidadesDetalleResponse(BaseModel):
@@ -332,7 +331,7 @@ class UtilidadesDetalleResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class UtilidadesParticipacionFullResponse(UtilidadesParticipacionResponse):

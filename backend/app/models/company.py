@@ -475,6 +475,9 @@ class Company(Base):
         Obtiene e incrementa el siguiente número secuencial para un tipo de comprobante.
         Retorna el número secuencial como cadena de 9 dígitos rellenada con ceros.
 
+        WARNING: This method is NOT thread-safe. Use `get_next_secuencial_async`
+        in production endpoints for proper row-level locking.
+
         Args:
             tipo_comprobante: Código de tipo de comprobante según Tabla 1 del SRI
                 "01" = Factura, "03" = Liquidación, "04" = Nota de Crédito,
@@ -498,15 +501,76 @@ class Company(Base):
         setattr(self, field, current + 1)
         return str(current).zfill(9)
 
+    async def get_next_secuencial_async(
+        self, db, tipo_comprobante: str
+    ) -> str:
+        """
+        Thread-safe version using SELECT ... FOR UPDATE for row-level locking.
+
+        Args:
+            db: AsyncSession for database operations
+            tipo_comprobante: Código de tipo de comprobante
+
+        Returns:
+            str: Número secuencial de 9 dígitos (ej: "000000001")
+        """
+        from sqlalchemy import select, with_for_update
+
+        # Lock the company row to prevent concurrent secuencial updates
+        result = await db.execute(
+            select(Company).where(Company.id == self.id).with_for_update()
+        )
+        locked_company = result.scalars().first()
+        if not locked_company:
+            raise ValueError(f"Company {self.id} not found")
+
+        field_map = {
+            "01": "secuencial_factura",
+            "02": "secuencial_nota_venta",
+            "03": "secuencial_liquidacion",
+            "04": "secuencial_nota_credito",
+            "05": "secuencial_nota_debito",
+            "06": "secuencial_guia_remision",
+            "07": "secuencial_retencion",
+            "08": "secuencial_proforma",
+        }
+        field = field_map.get(tipo_comprobante, "secuencial_factura")
+        current = getattr(locked_company, field)
+        setattr(locked_company, field, current + 1)
+        await db.flush()
+        # Sync the value back to self
+        setattr(self, field, current + 1)
+        return str(current).zfill(9)
+
     def get_next_secuencial_proforma(self) -> str:
         """
         Obtiene e incrementa el siguiente número secuencial para proformas.
         Retorna el número secuencial en formato PRO-XXXXXX (6 dígitos, zero-padded).
 
+        WARNING: This method is NOT thread-safe. Use `get_next_secuencial_proforma_async`
+        in production endpoints for proper row-level locking.
+
         Returns:
             str: Número secuencial de proforma (ej: "PRO-000001")
         """
         current = self.secuencial_proforma
+        self.secuencial_proforma = current + 1
+        return f"PRO-{str(current).zfill(6)}"
+
+    async def get_next_secuencial_proforma_async(self, db) -> str:
+        """Thread-safe version using SELECT ... FOR UPDATE for row-level locking."""
+        from sqlalchemy import select, with_for_update
+
+        result = await db.execute(
+            select(Company).where(Company.id == self.id).with_for_update()
+        )
+        locked_company = result.scalars().first()
+        if not locked_company:
+            raise ValueError(f"Company {self.id} not found")
+
+        current = locked_company.secuencial_proforma
+        locked_company.secuencial_proforma = current + 1
+        await db.flush()
         self.secuencial_proforma = current + 1
         return f"PRO-{str(current).zfill(6)}"
 

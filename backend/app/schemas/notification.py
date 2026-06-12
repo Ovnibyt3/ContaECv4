@@ -3,9 +3,8 @@ ContaEC - Esquemas Pydantic de Notificaciones del Sistema
 Schemas para creación, actualización y respuesta de notificaciones generales
 """
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==========================================
@@ -42,25 +41,25 @@ class NotificationCreate(BaseModel):
         description="Prioridad: low, normal, high, urgent",
         examples=["normal"],
     )
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         None,
         description="ID del usuario destinatario (null = todos los usuarios de la empresa)",
     )
-    company_id: Optional[str] = Field(
+    company_id: str | None = Field(
         None,
         description="ID de la empresa (null = notificación global)",
     )
-    action_url: Optional[str] = Field(
+    action_url: str | None = Field(
         None,
         max_length=500,
         description="URL de navegación al hacer clic en la notificación",
     )
-    action_label: Optional[str] = Field(
+    action_label: str | None = Field(
         None,
         max_length=100,
         description="Etiqueta para el botón de acción",
     )
-    expires_at: Optional[datetime] = Field(
+    expires_at: datetime | None = Field(
         None,
         description="Fecha de expiración para auto-ocultar la notificación",
     )
@@ -72,11 +71,11 @@ class NotificationCreate(BaseModel):
 
 class NotificationUpdate(BaseModel):
     """Esquema para actualizar una notificación"""
-    is_read: Optional[bool] = Field(
+    is_read: bool | None = Field(
         None,
         description="Marca la notificación como leída o no leída",
     )
-    is_active: Optional[bool] = Field(
+    is_active: bool | None = Field(
         None,
         description="Activa o desactiva la notificación",
     )
@@ -89,22 +88,22 @@ class NotificationUpdate(BaseModel):
 class NotificationResponse(BaseModel):
     """Esquema de respuesta para una notificación"""
     id: str = Field(..., description="ID único de la notificación")
-    company_id: Optional[str] = Field(None, description="ID de la empresa (null = global)")
-    user_id: Optional[str] = Field(None, description="ID del usuario destinatario (null = todos)")
+    company_id: str | None = Field(None, description="ID de la empresa (null = global)")
+    user_id: str | None = Field(None, description="ID del usuario destinatario (null = todos)")
     type: str = Field(..., description="Tipo de notificación")
     category: str = Field(..., description="Categoría de la notificación")
     title: str = Field(..., description="Título de la notificación")
     message: str = Field(..., description="Mensaje de la notificación")
     is_read: bool = Field(..., description="Si la notificación ha sido leída")
-    action_url: Optional[str] = Field(None, description="URL de acción")
-    action_label: Optional[str] = Field(None, description="Etiqueta del botón de acción")
+    action_url: str | None = Field(None, description="URL de acción")
+    action_label: str | None = Field(None, description="Etiqueta del botón de acción")
     priority: str = Field(..., description="Prioridad de la notificación")
-    expires_at: Optional[datetime] = Field(None, description="Fecha de expiración")
+    expires_at: datetime | None = Field(None, description="Fecha de expiración")
     is_active: bool = Field(..., description="Si la notificación está activa")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================

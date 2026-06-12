@@ -136,7 +136,7 @@ Work Log:
 - Delegated SOAP SRI integration fixes to subagent
 
 Stage Summary:
-- Admin login works: steve.mejia@tymtechnology.shop / Vitaestcum21..
+- Admin login verified successfully (credentials in backend/.env only)
 - Next.js API proxy successfully manages backend lifecycle
 - 6 critical bugs fixed in SRI SOAP integration:
   1. Wrong parameter name in enviar endpoint (xml_content → xml_firmado)
@@ -1286,7 +1286,7 @@ Work Log:
 - Found and fixed critical issues:
   1. BI router not registered in router.py (endpoints unreachable at runtime)
   2. Admin email default was admin@contaec.local, changed to steve.mejia@tymtechnology.shop
-  3. Admin password default was empty, changed to Vitaestcum21..
+  3. Admin password default was empty, set via ADMIN_PASSWORD env var
   4. Phase 13 CRM module was almost entirely missing (only Proformas existed)
   5. Phase 5 RRHH was missing: cargas familiares, evaluaciones, asistencia, liquidaciones, utilidades, IR progresivo, export bancario
   6. Phase 7 SMTP only supported single profile per user, no sandbox enforcement

@@ -5,9 +5,8 @@ ejecución mensual, alertas y comparativos presupuestarios
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==========================================
@@ -41,7 +40,7 @@ class PresupuestoCuentaCreate(BaseModel):
         description="Monto anual presupuestado",
         examples=["12000.00"],
     )
-    distribucion_mensual: Optional[list[Decimal]] = Field(
+    distribucion_mensual: list[Decimal] | None = Field(
         None,
         description="Lista de 12 montos mensuales. Si no se proporciona, se distribuye equitativamente.",
         examples=[["1000.00"] * 12],
@@ -57,11 +56,11 @@ class PresupuestoEjecucionMensualResponse(BaseModel):
     monto_ejecutado: Decimal = Field(..., description="Monto ejecutado en el mes")
     monto_disponible: Decimal = Field(..., description="Monto disponible en el mes")
     porcentaje_ejecucion: Decimal = Field(..., description="Porcentaje de ejecución mensual")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class PresupuestoAlertaResponse(BaseModel):
@@ -70,7 +69,7 @@ class PresupuestoAlertaResponse(BaseModel):
     company_id: str = Field(..., description="ID de la empresa")
     presupuesto_cuenta_id: str = Field(..., description="ID de la cuenta presupuestaria")
     tipo_alerta: str = Field(..., description="Tipo de alerta")
-    mensaje: Optional[str] = Field(None, description="Mensaje descriptivo")
+    mensaje: str | None = Field(None, description="Mensaje descriptivo")
     monto_presupuestado: Decimal = Field(..., description="Monto presupuestado al momento de la alerta")
     monto_ejecutado: Decimal = Field(..., description="Monto ejecutado al momento de la alerta")
     monto_sobregiro: Decimal = Field(..., description="Monto de sobregiro")
@@ -79,7 +78,7 @@ class PresupuestoAlertaResponse(BaseModel):
     is_resuelta: bool = Field(..., description="Si la alerta ha sido resuelta")
     created_at: datetime = Field(..., description="Fecha de creación")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class PresupuestoCuentaResponse(BaseModel):
@@ -105,7 +104,7 @@ class PresupuestoCuentaResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -132,7 +131,7 @@ class PresupuestoAnualCreate(BaseModel):
         description="Nombre descriptivo del presupuesto",
         examples=["Presupuesto Anual 2024"],
     )
-    descripcion: Optional[str] = Field(
+    descripcion: str | None = Field(
         None,
         description="Descripción detallada del presupuesto",
     )
@@ -145,13 +144,13 @@ class PresupuestoAnualCreate(BaseModel):
 
 class PresupuestoAnualUpdate(BaseModel):
     """Esquema para actualizar un presupuesto anual"""
-    nombre: Optional[str] = Field(
+    nombre: str | None = Field(
         None,
         min_length=1,
         max_length=200,
         description="Nombre descriptivo del presupuesto",
     )
-    descripcion: Optional[str] = Field(
+    descripcion: str | None = Field(
         None,
         description="Descripción detallada",
     )
@@ -164,7 +163,7 @@ class PresupuestoAnualResponse(BaseModel):
     user_id: str = Field(..., description="ID del usuario creador")
     anio: int = Field(..., description="Año fiscal")
     nombre: str = Field(..., description="Nombre del presupuesto")
-    descripcion: Optional[str] = Field(None, description="Descripción")
+    descripcion: str | None = Field(None, description="Descripción")
     estado: str = Field(..., description="Estado del presupuesto")
     total_ingresos_presupuestado: Decimal = Field(..., description="Total ingresos presupuestados")
     total_egresos_presupuestado: Decimal = Field(..., description="Total egresos presupuestados")
@@ -178,7 +177,7 @@ class PresupuestoAnualResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -193,7 +192,7 @@ class EjecucionMensualCreate(BaseModel):
         description="Monto ejecutado en el mes",
         examples=["1500.00"],
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones sobre la ejecución",
     )
@@ -206,7 +205,7 @@ class EjecucionMensualUpdate(BaseModel):
         ge=0,
         description="Nuevo monto ejecutado",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones actualizadas",
     )
@@ -218,12 +217,12 @@ class EjecucionMensualUpdate(BaseModel):
 
 class PresupuestoCuentaUpdate(BaseModel):
     """Esquema para actualizar monto de una cuenta presupuestaria"""
-    monto_anual: Optional[Decimal] = Field(
+    monto_anual: Decimal | None = Field(
         None,
         gt=0,
         description="Nuevo monto anual presupuestado",
     )
-    cuenta_nombre: Optional[str] = Field(
+    cuenta_nombre: str | None = Field(
         None,
         min_length=1,
         max_length=200,
@@ -246,7 +245,7 @@ class ComparativoPresupuestario(BaseModel):
     porcentaje_ejecucion: Decimal = Field(..., description="Porcentaje de ejecución")
     variacion: Decimal = Field(..., description="Variación absoluta (presupuestado - ejecutado)")
     variacion_porcentaje: Decimal = Field(..., description="Variación porcentual")
-    alerta_tipo: Optional[str] = Field(None, description="Tipo de alerta activa, si existe")
+    alerta_tipo: str | None = Field(None, description="Tipo de alerta activa, si existe")
 
 
 class ComparativoGeneralResponse(BaseModel):
@@ -280,3 +279,67 @@ class PresupuestoStatsResponse(BaseModel):
     presupuestos_cerrados: int = Field(..., description="Presupuestos cerrados")
     total_cuentas_con_alerta: int = Field(..., description="Cuentas con alertas activas")
     total_sobregiros: int = Field(..., description="Total de sobregiros")
+
+
+# ==========================================
+# Budget Alerts (Fase 12)
+# ==========================================
+
+class BudgetAlertItem(BaseModel):
+    """Individual budget alert item with WARNING/CRITICAL/OVER levels"""
+    cuenta_codigo: str = Field(..., description="Código de cuenta contable")
+    cuenta_nombre: str = Field(..., description="Nombre de la cuenta")
+    cuenta_tipo: str = Field(..., description="Tipo de cuenta (ingreso/egreso)")
+    presupuesto: Decimal = Field(..., description="Monto presupuestado")
+    ejecutado: Decimal = Field(..., description="Monto ejecutado real desde asientos")
+    porcentaje: Decimal = Field(..., description="Porcentaje de ejecución (ejecutado/presupuesto * 100)")
+    nivel_alerta: str = Field(..., description="Nivel de alerta: WARNING (>=80%), CRITICAL (>=95%), OVER (>100%)")
+    diferencia: Decimal = Field(..., description="Diferencia absoluta (presupuesto - ejecutado)")
+
+
+class BudgetAlertsResponse(BaseModel):
+    """Response for budget alerts endpoint"""
+    company_id: str = Field(..., description="ID de la empresa")
+    anio: int | None = Field(None, description="Año fiscal filtrado")
+    total_alertas: int = Field(..., description="Total de alertas encontradas")
+    alertas: list[BudgetAlertItem] = Field(default_factory=list)
+
+
+# ==========================================
+# Budget Execution Detail (Fase 12)
+# ==========================================
+
+class BudgetExecutionMonthDetail(BaseModel):
+    """Month-by-month budget execution detail"""
+    mes: int = Field(..., description="Mes (1-12)")
+    mes_nombre: str = Field(..., description="Nombre del mes")
+    presupuesto_mes: Decimal = Field(..., description="Presupuesto del mes")
+    ejecutado_mes: Decimal = Field(..., description="Ejecutado real del mes (desde asientos)")
+    diferencia_mes: Decimal = Field(..., description="Diferencia del mes")
+    acumulado_presupuesto: Decimal = Field(..., description="Presupuesto acumulado hasta este mes")
+    acumulado_ejecutado: Decimal = Field(..., description="Ejecutado acumulado hasta este mes")
+    porcentaje_acumulado: Decimal = Field(..., description="Porcentaje acumulado de ejecución")
+
+
+class BudgetExecutionDetailResponse(BaseModel):
+    """Response for detailed budget execution report"""
+    presupuesto_id: str = Field(..., description="ID del presupuesto")
+    presupuesto_nombre: str = Field(..., description="Nombre del presupuesto")
+    anio: int = Field(..., description="Año fiscal")
+    cuenta_codigo: str = Field(..., description="Código de cuenta")
+    cuenta_nombre: str = Field(..., description="Nombre de cuenta")
+    cuenta_tipo: str = Field(..., description="Tipo de cuenta")
+    total_presupuesto: Decimal = Field(..., description="Presupuesto total anual")
+    total_ejecutado: Decimal = Field(..., description="Total ejecutado real")
+    porcentaje_ejecucion: Decimal = Field(..., description="Porcentaje total de ejecución")
+    detalle_mensual: list[BudgetExecutionMonthDetail] = Field(default_factory=list)
+
+
+# ==========================================
+# Budget Excel Export (Fase 12)
+# ==========================================
+
+class BudgetExportResponse(BaseModel):
+    """Response for budget export endpoint"""
+    message: str = Field(..., description="Mensaje de resultado")
+    filename: str | None = Field(None, description="Nombre del archivo generado")

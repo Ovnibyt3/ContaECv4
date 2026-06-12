@@ -3,9 +3,8 @@ ContaEC - Esquemas Pydantic de Perfil SMTP
 Schemas para creación, actualización, respuesta y prueba de perfiles SMTP
 """
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ==========================================
@@ -75,26 +74,26 @@ class SMTPProfileCreate(BaseModel):
         description="Protocolo de conexión: SMTP, SMTP_SSL, STARTTLS",
         examples=["STARTTLS"],
     )
-    imap_host: Optional[str] = Field(
+    imap_host: str | None = Field(
         None,
         max_length=255,
         description="Servidor IMAP (opcional)",
         examples=["imap.gmail.com"],
     )
-    imap_port: Optional[int] = Field(
+    imap_port: int | None = Field(
         None,
         ge=1,
         le=65535,
         description="Puerto del servidor IMAP",
         examples=[993],
     )
-    pop3_host: Optional[str] = Field(
+    pop3_host: str | None = Field(
         None,
         max_length=255,
         description="Servidor POP3 (opcional)",
         examples=["pop.gmail.com"],
     )
-    pop3_port: Optional[int] = Field(
+    pop3_port: int | None = Field(
         None,
         ge=1,
         le=65535,
@@ -143,84 +142,84 @@ class SMTPProfileCreate(BaseModel):
 
 class SMTPProfileUpdate(BaseModel):
     """Esquema para actualizar un perfil SMTP"""
-    nombre: Optional[str] = Field(
+    nombre: str | None = Field(
         None,
         min_length=1,
         max_length=200,
         description="Nombre descriptivo del perfil",
     )
-    provider_type: Optional[str] = Field(
+    provider_type: str | None = Field(
         None,
         max_length=20,
         description="Tipo de proveedor",
     )
-    host: Optional[str] = Field(
+    host: str | None = Field(
         None,
         min_length=1,
         max_length=255,
         description="Servidor SMTP",
     )
-    port: Optional[int] = Field(
+    port: int | None = Field(
         None,
         ge=1,
         le=65535,
         description="Puerto del servidor SMTP",
     )
-    username: Optional[str] = Field(
+    username: str | None = Field(
         None,
         min_length=1,
         max_length=255,
         description="Usuario SMTP",
     )
-    password: Optional[str] = Field(
+    password: str | None = Field(
         None,
         min_length=1,
         description="Contraseña SMTP (se cifrará automáticamente)",
     )
-    use_ssl: Optional[bool] = Field(
+    use_ssl: bool | None = Field(
         None,
         description="Usar SSL",
     )
-    use_tls: Optional[bool] = Field(
+    use_tls: bool | None = Field(
         None,
         description="Usar TLS",
     )
-    protocol: Optional[str] = Field(
+    protocol: str | None = Field(
         None,
         max_length=20,
         description="Protocolo de conexión",
     )
-    imap_host: Optional[str] = Field(
+    imap_host: str | None = Field(
         None,
         max_length=255,
         description="Servidor IMAP",
     )
-    imap_port: Optional[int] = Field(
+    imap_port: int | None = Field(
         None,
         ge=1,
         le=65535,
         description="Puerto IMAP",
     )
-    pop3_host: Optional[str] = Field(
+    pop3_host: str | None = Field(
         None,
         max_length=255,
         description="Servidor POP3",
     )
-    pop3_port: Optional[int] = Field(
+    pop3_port: int | None = Field(
         None,
         ge=1,
         le=65535,
         description="Puerto POP3",
     )
-    is_default: Optional[bool] = Field(
+    is_default: bool | None = Field(
         None,
         description="Establecer como perfil por defecto",
     )
-    is_active: Optional[bool] = Field(
+    is_active: bool | None = Field(
         None,
         description="Activar/desactivar perfil",
     )
-    daily_limit: Optional[int] = Field(
+    daily_limit: int | None = Field(
         None,
         ge=1,
         le=10000,
@@ -229,7 +228,7 @@ class SMTPProfileUpdate(BaseModel):
 
     @field_validator("provider_type")
     @classmethod
-    def validate_provider_type(cls, v: Optional[str]) -> Optional[str]:
+    def validate_provider_type(cls, v: str | None) -> str | None:
         """Valida que el tipo de proveedor sea válido"""
         if v is not None:
             v_upper = v.upper()
@@ -243,7 +242,7 @@ class SMTPProfileUpdate(BaseModel):
 
     @field_validator("protocol")
     @classmethod
-    def validate_protocol(cls, v: Optional[str]) -> Optional[str]:
+    def validate_protocol(cls, v: str | None) -> str | None:
         """Valida que el protocolo sea válido"""
         if v is not None:
             v_upper = v.upper()
@@ -272,19 +271,19 @@ class SMTPProfileResponse(BaseModel):
     use_ssl: bool = Field(..., description="Usa SSL")
     use_tls: bool = Field(..., description="Usa TLS")
     protocol: str = Field(..., description="Protocolo de conexión")
-    imap_host: Optional[str] = Field(None, description="Servidor IMAP")
-    imap_port: Optional[int] = Field(None, description="Puerto IMAP")
-    pop3_host: Optional[str] = Field(None, description="Servidor POP3")
-    pop3_port: Optional[int] = Field(None, description="Puerto POP3")
+    imap_host: str | None = Field(None, description="Servidor IMAP")
+    imap_port: int | None = Field(None, description="Puerto IMAP")
+    pop3_host: str | None = Field(None, description="Servidor POP3")
+    pop3_port: int | None = Field(None, description="Puerto POP3")
     is_default: bool = Field(..., description="Es perfil por defecto")
     is_active: bool = Field(..., description="Está activo")
     daily_limit: int = Field(..., description="Límite diario de envíos")
     sent_today: int = Field(..., description="Correos enviados hoy")
-    last_sent_at: Optional[datetime] = Field(None, description="Último envío")
+    last_sent_at: datetime | None = Field(None, description="Último envío")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -293,7 +292,7 @@ class SMTPProfileResponse(BaseModel):
 
 class SMTPTestRequest(BaseModel):
     """Esquema para probar la conexión SMTP de un perfil"""
-    to_email: Optional[str] = Field(
+    to_email: str | None = Field(
         None,
         max_length=255,
         description="Correo destino para la prueba (si no se especifica, usa el username del perfil)",

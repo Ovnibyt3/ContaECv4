@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(move *)"
+      "Bash(move *)",
+      "Bash(del *)",
+      "Skill(python-pro)",
+      "Skill(fastapi-expert)",
+      "Skill(nextjs-developer-frontend)",
+      "Skill(security-review)",
+      "Skill(token-efficiency)",
+      "Agent(Explore)",
+      "Bash(python *)",
+      "Bash(findstr *)",
+      "Bash(type *)",
+      "Bash(npx *)",
+      "Bash(node *)"
     ]
   },
   "$version": 4

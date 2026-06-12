@@ -5,9 +5,8 @@ cuentas por pagar y retenciones de compra
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==========================================
@@ -16,7 +15,7 @@ from pydantic import BaseModel, Field
 
 class OrdenCompraDetalleCreate(BaseModel):
     """Esquema para crear una línea de detalle de orden de compra"""
-    product_id: Optional[str] = Field(
+    product_id: str | None = Field(
         None,
         description="ID del producto (FK opcional al catálogo)",
     )
@@ -69,7 +68,7 @@ class OrdenCompraDetalleResponse(BaseModel):
     """Esquema de respuesta para una línea de detalle de orden de compra"""
     id: str = Field(..., description="ID único del detalle")
     orden_compra_id: str = Field(..., description="ID de la orden de compra")
-    product_id: Optional[str] = Field(None, description="ID del producto")
+    product_id: str | None = Field(None, description="ID del producto")
     codigo_principal: str = Field(..., description="Código principal")
     descripcion: str = Field(..., description="Descripción")
     cantidad: Decimal = Field(..., description="Cantidad solicitada")
@@ -82,7 +81,7 @@ class OrdenCompraDetalleResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class OrdenCompraCreate(BaseModel):
@@ -99,7 +98,7 @@ class OrdenCompraCreate(BaseModel):
         ...,
         description="Fecha de emisión de la orden",
     )
-    fecha_entrega_estimada: Optional[datetime] = Field(
+    fecha_entrega_estimada: datetime | None = Field(
         None,
         description="Fecha estimada de entrega",
     )
@@ -108,7 +107,7 @@ class OrdenCompraCreate(BaseModel):
         min_length=1,
         description="Lista de líneas de detalle",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -116,16 +115,16 @@ class OrdenCompraCreate(BaseModel):
 
 class OrdenCompraUpdate(BaseModel):
     """Esquema para actualizar una orden de compra"""
-    fecha_entrega_estimada: Optional[datetime] = Field(
+    fecha_entrega_estimada: datetime | None = Field(
         None,
         description="Fecha estimada de entrega",
     )
-    estado: Optional[str] = Field(
+    estado: str | None = Field(
         None,
         max_length=20,
         description="Estado: borrador, enviada, parcial, recibida, anulada",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -139,18 +138,18 @@ class OrdenCompraResponse(BaseModel):
     user_id: str = Field(..., description="ID del usuario creador")
     numero: str = Field(..., description="Número de orden de compra")
     fecha_emision: datetime = Field(..., description="Fecha de emisión")
-    fecha_entrega_estimada: Optional[datetime] = Field(None, description="Fecha estimada de entrega")
+    fecha_entrega_estimada: datetime | None = Field(None, description="Fecha estimada de entrega")
     estado: str = Field(..., description="Estado de la orden")
     subtotal_sin_impuestos: Decimal = Field(..., description="Subtotal sin impuestos")
     total_iva: Decimal = Field(..., description="Total del IVA")
     total_con_impuestos: Decimal = Field(..., description="Total con impuestos")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
     is_active: bool = Field(..., description="Está activa")
     detalles: list[OrdenCompraDetalleResponse] = Field(..., description="Líneas de detalle")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -159,11 +158,11 @@ class OrdenCompraResponse(BaseModel):
 
 class RecepcionMercaderiaDetalleCreate(BaseModel):
     """Esquema para crear una línea de detalle de recepción de mercadería"""
-    product_id: Optional[str] = Field(
+    product_id: str | None = Field(
         None,
         description="ID del producto (FK opcional)",
     )
-    orden_compra_detalle_id: Optional[str] = Field(
+    orden_compra_detalle_id: str | None = Field(
         None,
         description="ID del detalle de orden de compra asociado",
     )
@@ -200,8 +199,8 @@ class RecepcionMercaderiaDetalleResponse(BaseModel):
     """Esquema de respuesta para una línea de detalle de recepción"""
     id: str = Field(..., description="ID único del detalle")
     recepcion_id: str = Field(..., description="ID de la recepción")
-    product_id: Optional[str] = Field(None, description="ID del producto")
-    orden_compra_detalle_id: Optional[str] = Field(None, description="ID del detalle de OC")
+    product_id: str | None = Field(None, description="ID del producto")
+    orden_compra_detalle_id: str | None = Field(None, description="ID del detalle de OC")
     codigo_principal: str = Field(..., description="Código principal")
     descripcion: str = Field(..., description="Descripción")
     cantidad_recibida: Decimal = Field(..., description="Cantidad recibida")
@@ -211,7 +210,7 @@ class RecepcionMercaderiaDetalleResponse(BaseModel):
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 class RecepcionMercaderiaCreate(BaseModel):
@@ -220,7 +219,7 @@ class RecepcionMercaderiaCreate(BaseModel):
         ...,
         description="ID de la empresa",
     )
-    orden_compra_id: Optional[str] = Field(
+    orden_compra_id: str | None = Field(
         None,
         description="ID de la orden de compra asociada (opcional)",
     )
@@ -237,7 +236,7 @@ class RecepcionMercaderiaCreate(BaseModel):
         min_length=1,
         description="Lista de líneas de detalle",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -245,12 +244,12 @@ class RecepcionMercaderiaCreate(BaseModel):
 
 class RecepcionMercaderiaUpdate(BaseModel):
     """Esquema para actualizar una recepción de mercadería"""
-    estado: Optional[str] = Field(
+    estado: str | None = Field(
         None,
         max_length=20,
         description="Estado: pendiente, conformada, rechazada",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -260,19 +259,19 @@ class RecepcionMercaderiaResponse(BaseModel):
     """Esquema de respuesta para una recepción de mercadería"""
     id: str = Field(..., description="ID único de la recepción")
     company_id: str = Field(..., description="ID de la empresa")
-    orden_compra_id: Optional[str] = Field(None, description="ID de la orden de compra")
+    orden_compra_id: str | None = Field(None, description="ID de la orden de compra")
     supplier_id: str = Field(..., description="ID del proveedor")
     user_id: str = Field(..., description="ID del usuario")
     numero: str = Field(..., description="Número de recepción")
     fecha_recepcion: datetime = Field(..., description="Fecha de recepción")
     estado: str = Field(..., description="Estado")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
     is_active: bool = Field(..., description="Está activa")
     detalles: list[RecepcionMercaderiaDetalleResponse] = Field(..., description="Líneas de detalle")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -289,15 +288,15 @@ class CuentaPorPagarCreate(BaseModel):
         ...,
         description="ID del proveedor",
     )
-    comprobante_id: Optional[str] = Field(
+    comprobante_id: str | None = Field(
         None,
         description="ID del comprobante electrónico asociado",
     )
-    orden_compra_id: Optional[str] = Field(
+    orden_compra_id: str | None = Field(
         None,
         description="ID de la orden de compra asociada",
     )
-    numero_factura: Optional[str] = Field(
+    numero_factura: str | None = Field(
         None,
         max_length=20,
         description="Número de factura del proveedor",
@@ -306,7 +305,7 @@ class CuentaPorPagarCreate(BaseModel):
         ...,
         description="Fecha de emisión de la factura",
     )
-    fecha_vencimiento: Optional[datetime] = Field(
+    fecha_vencimiento: datetime | None = Field(
         None,
         description="Fecha de vencimiento del pago",
     )
@@ -320,7 +319,7 @@ class CuentaPorPagarCreate(BaseModel):
         ge=0,
         description="Días de crédito concedidos",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -328,21 +327,21 @@ class CuentaPorPagarCreate(BaseModel):
 
 class CuentaPorPagarUpdate(BaseModel):
     """Esquema para actualizar una cuenta por pagar"""
-    monto_pagado: Optional[Decimal] = Field(
+    monto_pagado: Decimal | None = Field(
         None,
         ge=0,
         description="Monto pagado adicional",
     )
-    estado: Optional[str] = Field(
+    estado: str | None = Field(
         None,
         max_length=20,
         description="Estado: pendiente, parcial, pagada, vencida, anulada",
     )
-    fecha_vencimiento: Optional[datetime] = Field(
+    fecha_vencimiento: datetime | None = Field(
         None,
         description="Fecha de vencimiento del pago",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -354,22 +353,79 @@ class CuentaPorPagarResponse(BaseModel):
     company_id: str = Field(..., description="ID de la empresa")
     supplier_id: str = Field(..., description="ID del proveedor")
     user_id: str = Field(..., description="ID del usuario")
-    comprobante_id: Optional[str] = Field(None, description="ID del comprobante")
-    orden_compra_id: Optional[str] = Field(None, description="ID de la orden de compra")
-    numero_factura: Optional[str] = Field(None, description="Número de factura")
+    comprobante_id: str | None = Field(None, description="ID del comprobante")
+    orden_compra_id: str | None = Field(None, description="ID de la orden de compra")
+    numero_factura: str | None = Field(None, description="Número de factura")
     fecha_emision: datetime = Field(..., description="Fecha de emisión")
-    fecha_vencimiento: Optional[datetime] = Field(None, description="Fecha de vencimiento")
+    fecha_vencimiento: datetime | None = Field(None, description="Fecha de vencimiento")
     monto_total: Decimal = Field(..., description="Monto total")
     monto_pagado: Decimal = Field(..., description="Monto pagado")
     monto_pendiente: Decimal = Field(..., description="Monto pendiente")
     estado: str = Field(..., description="Estado")
     dias_credito: int = Field(..., description="Días de crédito")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
     is_active: bool = Field(..., description="Está activa")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
+
+
+class CuentaPorPagarPayment(BaseModel):
+    """Esquema para registrar un pago parcial o total"""
+    monto: Decimal = Field(
+        ...,
+        gt=0,
+        description="Monto a pagar",
+    )
+    metodo_pago: str | None = Field(
+        None,
+        max_length=50,
+        description="Forma de pago (transferencia, cheque, efectivo, etc.)",
+    )
+    referencia: str | None = Field(
+        None,
+        max_length=50,
+        description="Número de referencia del pago",
+    )
+    observaciones: str | None = Field(
+        None,
+        description="Notas adicionales sobre el pago",
+    )
+
+
+class CuentaPorPagarRenegotiation(BaseModel):
+    """Esquema para renegociar los plazos de pago"""
+    nueva_fecha_vencimiento: datetime | None = Field(
+        None,
+        description="Nueva fecha de vencimiento",
+    )
+    dias_extension: int | None = Field(
+        None,
+        gt=0,
+        description="Días a extender desde la fecha de vencimiento actual",
+    )
+    motivo: str | None = Field(
+        None,
+        max_length=500,
+        description="Motivo de la renegociación",
+    )
+
+
+class CuentaPorPagarSummary(BaseModel):
+    """Esquema de resumen de cuentas por pagar"""
+    total_pendiente: Decimal = Field(..., description="Total pendiente (saldo pendiente de cuentas activas)")
+    total_vencidas: Decimal = Field(..., description="Total de cuentas vencidas (saldo pendiente)")
+    total_proximas_a_vencer: Decimal = Field(..., description="Total próximo a vencer (dentro de dias_proximos días)")
+    cuentas_por_estado: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cantidad de cuentas agrupadas por estado",
+    )
+    total_cuentas: int = Field(..., description="Total de cuentas pendientes/parciales/vencidas")
+    dias_proximos: int = Field(..., description="Días usados para calcular 'próximo a vencer'")
+    generado_en: datetime = Field(..., description="Fecha de generación del resumen")
+
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
 
 # ==========================================
@@ -386,7 +442,7 @@ class RetencionCompraCreate(BaseModel):
         ...,
         description="ID del proveedor",
     )
-    cuenta_por_pagar_id: Optional[str] = Field(
+    cuenta_por_pagar_id: str | None = Field(
         None,
         description="ID de la cuenta por pagar asociada",
     )
@@ -426,7 +482,7 @@ class RetencionCompraCreate(BaseModel):
         ge=0,
         description="Porcentaje de retención de Renta",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -434,12 +490,12 @@ class RetencionCompraCreate(BaseModel):
 
 class RetencionCompraUpdate(BaseModel):
     """Esquema para actualizar una retención de compra"""
-    estado: Optional[str] = Field(
+    estado: str | None = Field(
         None,
         max_length=20,
         description="Estado: borrador, firmado, enviado, autorizado, rechazado",
     )
-    observaciones: Optional[str] = Field(
+    observaciones: str | None = Field(
         None,
         description="Observaciones adicionales",
     )
@@ -451,9 +507,9 @@ class RetencionCompraResponse(BaseModel):
     company_id: str = Field(..., description="ID de la empresa")
     supplier_id: str = Field(..., description="ID del proveedor")
     user_id: str = Field(..., description="ID del usuario")
-    comprobante_id: Optional[str] = Field(None, description="ID del comprobante de retención")
-    cuenta_por_pagar_id: Optional[str] = Field(None, description="ID de la cuenta por pagar")
-    numero_retencion: Optional[str] = Field(None, description="Número de retención")
+    comprobante_id: str | None = Field(None, description="ID del comprobante de retención")
+    cuenta_por_pagar_id: str | None = Field(None, description="ID de la cuenta por pagar")
+    numero_retencion: str | None = Field(None, description="Número de retención")
     fecha_emision: datetime = Field(..., description="Fecha de emisión")
     base_imponible_iva: Decimal = Field(..., description="Base imponible IVA")
     retencion_iva_codigo: str = Field(..., description="Código retención IVA")
@@ -464,9 +520,9 @@ class RetencionCompraResponse(BaseModel):
     retencion_renta_porcentaje: Decimal = Field(..., description="% retención Renta")
     retencion_renta_valor: Decimal = Field(..., description="Valor retención Renta")
     estado: str = Field(..., description="Estado")
-    observaciones: Optional[str] = Field(None, description="Observaciones")
+    observaciones: str | None = Field(None, description="Observaciones")
     is_active: bool = Field(..., description="Está activa")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)

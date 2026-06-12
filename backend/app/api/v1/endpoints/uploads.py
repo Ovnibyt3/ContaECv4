@@ -212,13 +212,12 @@ async def upload_file(
         for r in scan_results
     ] if scan_results else [{"scanner": "none", "is_clean": True, "details": "Escaneo deshabilitado"}]
 
-    logger.info(f"Archivo subido: {file.filename} -> {file_path} ({file_size} bytes)")
+    logger.info(f"Archivo subido: {file.filename} -> {safe_filename} ({file_size} bytes)")
 
     return {
         "message": "Archivo subido exitosamente.",
         "filename": file.filename,
         "stored_filename": safe_filename,
-        "file_path": file_path,
         "file_size": file_size,
         "file_hash": file_hash,
         "category": file_category,

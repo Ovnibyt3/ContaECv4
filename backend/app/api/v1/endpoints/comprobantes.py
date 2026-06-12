@@ -769,7 +769,16 @@ async def firmar_comprobante(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al generar el XML del comprobante: {str(e)}",
         )
-    
+
+    # 3b. Validate XML against SRI XSD schema
+    from app.core.xml_generator import validate_xml_against_xsd
+    xsd_errors = validate_xml_against_xsd(xml_content, tipo)
+    if xsd_errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"XML no valida contra el esquema SRI: {'; '.join(xsd_errors)}",
+        )
+
     # 4. Firmar el XML
     try:
         signed_xml = await sign_xml(
@@ -1666,7 +1675,7 @@ async def download_ride_pdf(
 # SRI Pre-validación
 # ==========================================
 
-VALID_IVA_CODES = {"0", "2", "3", "4", "5", "6", "7", "8", "10"}
+VALID_IVA_CODES = {"0", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
 VALID_FORMAS_PAGO = {"01", "15", "16", "17", "18", "19", "20", "21"}
 # tipo_identificacion -> expected length of identificacion
 IDENT_LENGTH_MAP = {

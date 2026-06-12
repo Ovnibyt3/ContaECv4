@@ -31,6 +31,7 @@ class ComprobanteEstado(str, enum.Enum):
     DEVUELTA = "devuelta"            # Devuelto por el SRI para corrección
     CADUCADA = "caducada"            # Comprobante caducado (excedió tiempo de autorización)
     CONTINGENCIA = "contingencia"    # Modo contingencia fuera de línea
+    ANULADO = "anulado"             # Anulado por el emisor
 
 
 class ComprobanteTipo(str, enum.Enum):

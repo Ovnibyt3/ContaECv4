@@ -4,6 +4,8 @@ Firma electrónica, SMTP, modo sandbox/producción, VirusTotal, perfil
 """
 import os
 import logging
+import asyncio
+import aiofiles
 from datetime import datetime, timezone
 from uuid import UUID
 from typing import Optional
@@ -138,8 +140,8 @@ async def upload_digital_signature(
             detail="Archivo rechazado: se detectó malware en la firma electrónica.",
         )
 
-    # Guardar archivo en ubicación segura
-    upload_dir = os.path.join(settings.UPLOAD_DIR, str(current_user.id), "signatures")
+    # Guardar archivo en ubicación segura (fuera del directorio público de uploads)
+    upload_dir = os.path.join(settings.SIGNATURES_DIR, str(current_user.id))
     os.makedirs(upload_dir, exist_ok=True)
 
     # Eliminar firma anterior si existe
@@ -150,8 +152,8 @@ async def upload_digital_signature(
 
     file_path = os.path.join(upload_dir, f"firma_{datetime.now().strftime('%Y%m%d%H%M%S')}.p12")
 
-    with open(file_path, "wb") as f:
-        f.write(content)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
 
     # Validar certificado y extraer información
     expiry_date = None
@@ -621,8 +623,8 @@ async def upload_company_logo(
     ext = os.path.splitext(file.filename or "logo.png")[1] if file.filename else ".png"
     file_path = os.path.join(upload_dir, f"logo_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}")
 
-    with open(file_path, "wb") as f:
-        f.write(content)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
 
     result = await db.execute(
         select(UserConfig).where(UserConfig.user_id == current_user.id)

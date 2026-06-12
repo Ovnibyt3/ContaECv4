@@ -15,9 +15,8 @@ Incluye:
 - Tipos de Régimen
 """
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==========================================
@@ -65,11 +64,11 @@ class ICETarifa(BaseModel):
     """
     codigo: str = Field(..., description="Código de la tarifa de ICE")
     descripcion: str = Field(..., description="Descripción del producto sujeto a ICE")
-    tarifa_ad_valorem: Optional[Decimal] = Field(
+    tarifa_ad_valorem: Decimal | None = Field(
         None,
         description="Tarifa ad valorem (porcentaje sobre el valor)",
     )
-    tarifa_especifica: Optional[Decimal] = Field(
+    tarifa_especifica: Decimal | None = Field(
         None,
         description="Tarifa específica (valor fijo por unidad)",
     )
@@ -405,6 +404,8 @@ ESTADOS_COMPROBANTE: list[EstadoComprobante] = [
     EstadoComprobante(siglas="NAT", nombre="No autorizado - Comprobante rechazado por el SRI"),
     EstadoComprobante(siglas="DEV", nombre="Devuelto - Comprobante devuelto por el SRI para corrección"),
     EstadoComprobante(siglas="CAD", nombre="Caducado - Comprobante que excedió el tiempo para autorización"),
+    EstadoComprobante(siglas="ANU", nombre="Anulado - Comprobante anulado por el emisor"),
+    EstadoComprobante(siglas="CON", nombre="Contingencia - Comprobante generado en modo contingencia"),
 ]
 
 # Tipos de Contribuyente

@@ -89,23 +89,45 @@ class InputSanitizationMiddleware(BaseHTTPMiddleware):
         "/api/v1/accounting",
     }
 
+    # Sensitive field names to redact from logged payloads
+    SENSITIVE_FIELDS = [
+        "password", "hashed_password", "token", "secret", "key",
+        "authorization", "api_key", "api_secret", "access_token",
+        "refresh_token", "jwt", "cookie", "session_id",
+    ]
+
+    def _redact_sensitive(self, value: str) -> str:
+        """Redact sensitive field values from a logged payload string."""
+        redacted = value
+        for field in self.SENSITIVE_FIELDS:
+            # Match JSON-style "field": "value" patterns
+            import re as _re
+            pattern = _re.compile(
+                rf'("{_re.escape(field)}"\s*:\s*")[^"]*(")',
+                _re.IGNORECASE,
+            )
+            redacted = pattern.sub(r'\1[REDACTED]\2', redacted)
+        return redacted
+
     def _check_patterns(self, value: str, source: str, client_ip: str) -> None:
         """Valida un string contra todos los patrones peligrosos."""
         # SQL Injection
         for pattern in self.SQL_INJECTION_PATTERNS:
             if re.search(pattern, value):
+                safe_value = self._redact_sensitive(value[:200])
                 logger.warning(
                     f"SQL Injection detectado desde {client_ip} en {source}: "
-                    f"{value[:200]}"
+                    f"{safe_value}"
                 )
                 raise HTTPException(status_code=400, detail="Solicitud inválida")
-        
+
         # XSS
         for pattern in self.XSS_PATTERNS:
             if re.search(pattern, value, re.IGNORECASE | re.DOTALL):
+                safe_value = self._redact_sensitive(value[:200])
                 logger.warning(
                     f"XSS detectado desde {client_ip} en {source}: "
-                    f"{value[:200]}"
+                    f"{safe_value}"
                 )
                 raise HTTPException(status_code=400, detail="Solicitud inválida")
     
