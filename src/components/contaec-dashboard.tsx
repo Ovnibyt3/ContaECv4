@@ -148,6 +148,8 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
     dir_matriz: '',
     cod_establecimiento: '001',
     cod_punto_emision: '001',
+    obligado_contabilidad: '',
+    contribuyente_especial: '',
   });
   const [creatingCompany, setCreatingCompany] = useState(false);
 
@@ -200,6 +202,8 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
         dir_matriz: '',
         cod_establecimiento: '001',
         cod_punto_emision: '001',
+        obligado_contabilidad: '',
+        contribuyente_especial: '',
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear empresa');

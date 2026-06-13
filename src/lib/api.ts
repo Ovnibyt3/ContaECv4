@@ -258,8 +258,20 @@ async function deleteCompany(id: string): Promise<void> {
   return apiDelete<void>(`/v1/companies/${id}`);
 }
 
-async function lookupRuc(ruc: string): Promise<Record<string, string>> {
-  return apiGet<Record<string, string>>(`/v1/companies/ruc/${ruc}`);
+interface SRICompanyData {
+  ruc: string;
+  razon_social: string;
+  nombre_comercial: string;
+  dir_matriz: string;
+  cod_establecimiento: string;
+  cod_punto_emision: string;
+  obligado_contabilidad: string;
+  contribuyente_especial: string;
+  message?: string;
+}
+
+async function lookupRuc(ruc: string): Promise<SRICompanyData> {
+  return apiGet<SRICompanyData>(`/v1/companies/ruc/${ruc}`);
 }
 
 // SRI Catalog functions

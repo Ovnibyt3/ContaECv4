@@ -326,6 +326,8 @@ cd /opt/contaec
 
 # Instalar dependencias del frontend
 bun install
+bun add socket.io-client
+bun add socket.io
 
 # Construir el frontend para producción
 bun run build
