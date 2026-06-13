@@ -531,7 +531,18 @@ journalctl -u caddy --no-pager | tail -20
 apt install -y clamav clamav-daemon
 
 # Actualizar base de datos de virus
-freshclam
+# 1. Detener clamav-daemon
+sudo systemctl stop clamav-daemon
+# 2. Detener clamav-freshclam
+sudo systemctl stop clamav-freshclam
+# 3. Actualizar base de firmas
+sudo freshclam
+# 4. Reiniciar servicios
+sudo systemctl start clamav-daemon
+sudo systemctl start clamav-freshclam
+# 5. Verificar estado
+sudo systemctl status clamav-daemon
+sudo systemctl status clamav-freshclam
 
 # Configurar clamd para socket TCP (más compatible con Python)
 # Editar /etc/clamav/clamd.conf
@@ -540,17 +551,6 @@ freshclam
 # TCPAddr 127.0.0.1
 # o usar socket Unix:
 # LocalSocket /var/run/clamav/clamd.ctl
-
-# Habilitar y arrancar el daemon
-systemctl enable clamav-daemon
-systemctl start clamav-daemon
-
-# Verificar que está corriendo
-systemctl status clamav-daemon
-
-# Configurar actualización automática de la base de datos
-systemctl enable clamav-freshclam
-systemctl start clamav-freshclam
 ```
 
 ---
