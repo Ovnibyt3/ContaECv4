@@ -4473,7 +4473,6 @@ export {
   createCompany,
   updateCompany,
   deleteCompany,
-  lookupRuc,
   getSRITipoImpuesto,
   getSRIIVARates,
   getSRIDocumentTypes,
