@@ -341,8 +341,8 @@ Requires=contaec-backend.service
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=root
+Group=root
 WorkingDirectory=/opt/contaec
 ExecStart=/root/.bun/bin/bun .next/standalone/server.js
 Restart=always
@@ -358,6 +358,11 @@ EOF
 systemctl daemon-reload
 systemctl enable contaec-frontend
 systemctl start contaec-frontend
+
+# Ver logs del frontend
+sudo journalctl -u contaec-frontend -n 100 --no-pager | tail -50
+# Ver estado
+sudo systemctl status contaec-frontend
 
 # Verificar que el frontend responde
 curl http://localhost:3000
