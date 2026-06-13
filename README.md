@@ -118,7 +118,7 @@ Internet (DNS: conta.tymtechnology.shop)
 apt update && apt upgrade -y
 
 # Instalar herramientas esenciales
-apt install -y curl wget git unzip htop nano sudo gnupg2 lsb-release
+apt install -y curl wget git unzip htop nano sudo gnupg2 lsb-release net-tools
 
 # Instalar certificados CA
 apt install -y ca-certificates
@@ -137,30 +137,35 @@ sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail htt
 # Overwrite your existing list file to include the signed-by directive:
 sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'   
 
-# Instalar PostgreSQL 16
+# Instalar PostgreSQL 17
 apt update
 apt install -y postgresql-17 postgresql-contrib-17
 
+# Crear el cluster
+sudo pg_createcluster 17 main
+
 # Habilitar y arrancar el servicio
-systemctl enable postgresql
-systemctl start postgresql
+sudo systemctl enable postgresql@17-main
+sudo systemctl start postgresql@17-main
+
+# Verifica que arrancó
+sudo systemctl status postgresql@17-main
+sudo ss -tlnp | grep 5432
+pg_isready -h localhost -p 5432
 ```
 
 ### 4.3 Configuración de la Base de Datos
 
 ```bash
-# Cambiar al usuario postgres
-sudo -u postgres psql
-
-# Ejecutar los siguientes comandos SQL:
-CREATE USER contaec_user WITH PASSWORD 'd';
+# Cambiar al usuario postgres y ejecutar SQL
+sudo -u postgres psql << 'EOF'
+CREATE USER contaec_user WITH PASSWORD 'EvJcqP2z4zoryZ5';
 CREATE DATABASE contaec_db OWNER contaec_user;
 GRANT ALL PRIVILEGES ON DATABASE contaec_db TO contaec_user;
-
-# Habilitar extensión UUID (requerida por los modelos)
 \c contaec_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 \q
+EOF
 ```
 
 **Configuración de PostgreSQL** (`/etc/postgresql/17/main/postgresql.conf`):
@@ -173,6 +178,7 @@ work_mem = 16MB
 maintenance_work_mem = 128MB
 
 # Conexiones
+listen_addresses = 'localhost'
 max_connections = 100
 superuser_reserved_connections = 3
 
@@ -202,20 +208,32 @@ lc_time = 'es_EC.UTF-8'
 local   contaec_db      contaec_user                    md5
 host    contaec_db      contaec_user    127.0.0.1/32    md5
 host    contaec_db      contaec_user    ::1/128         md5
+
+# Database administrative login by Unix domain socket
 ```
 
 ```bash
 # Reiniciar PostgreSQL para aplicar cambios
-systemctl restart postgresql
+sudo systemctl restart postgresql@17-main
+
+# Verifica que reinició correctamente
+sudo systemctl status postgresql@17-main
+pg_isready -h localhost -p 5432
 
 # Verificar conexión
 psql -U contaec_user -d contaec_db -h localhost -c "SELECT version();"
+
+# Test adicional por IP explícita
+psql -U contaec_user -d contaec_db -h 127.0.0.1 -c "SELECT version();"
+
+# Verificar extensión UUID
+psql -U contaec_user -d contaec_db -c "\dx"
 ```
 
 ### 4.4 Instalación de Python y Dependencias
 
 ```bash
-# Instalar Python 3.12 y herramientas de compilación
+# Instalar Python 3 y herramientas de compilación
 apt install -y python3 python3-venv python3-dev python3-pip build-essential libpq-dev
 # Crear entorno virtual
 cd /opt
