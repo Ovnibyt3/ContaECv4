@@ -318,11 +318,47 @@ async def toggle_user_active(
     
     action = "activado" if is_active else "desactivado"
     logger.info(f"Usuario {user.email} {action} por {current_user.email}")
-    
+
     return {
         "message": f"Usuario {action} exitosamente.",
         "user_id": str(user.id),
         "is_active": user.is_active,
+    }
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: UUID,
+    current_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Eliminar un usuario y toda su información asociada.
+    Las relaciones con CASCADE eliminan: UserConfig, Companies (y todo su contenido),
+    UserCompanyRole, EmailTemplates, Employees, RolPago, Notifications, SMTPProfiles.
+    Las relaciones con SET NULL mantienen los datos pero eliminan la referencia al usuario.
+    """
+    # No permitir auto-eliminación
+    if str(user_id) == str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puede eliminar su propia cuenta."
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    email = user.email
+    await db.delete(user)
+    await db.flush()
+
+    logger.info(f"Admin {current_user.email} deleted user {email}")
+
+    return {
+        "message": f"Usuario {email} eliminado exitosamente con toda su información asociada.",
+        "user_id": str(user_id),
     }
 
 
