@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -90,7 +91,73 @@ const SMTP_PRESETS: Record<string, { host: string; port: number; protocol: strin
   office365: { host: 'smtp.office365.com', port: 587, protocol: 'TLS', ssl: false },
 };
 
-export function ContaECSettings() {
+export function ContaECSettings({ user }: { user?: { is_admin: boolean; email: string; full_name: string } }) {
+  const isAdmin = user?.is_admin ?? false;
+
+  // Admin users see only the Admin Panel shortcut, not regular settings
+  if (isAdmin) {
+    return <AdminSettingsView user={user} />;
+  }
+
+  return <RegularUserSettings />;
+}
+
+// ─── Admin Settings View ────────────────────────────────────────
+function AdminSettingsView({ user }: { user?: { email: string; full_name: string } }) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Image
+          src="/logo.svg"
+          alt="ContaEC"
+          width={32}
+          height={32}
+          className="h-8 w-8"
+          priority
+        />
+        <div>
+          <h2 className="text-2xl font-bold">Configuracion</h2>
+          <p className="text-muted-foreground">
+            Panel de administracion
+          </p>
+        </div>
+      </div>
+
+      <Card className="border-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            Admin Panel
+          </CardTitle>
+          <CardDescription>
+            Como administrador, gestione usuarios, licencias y configuracion del sistema desde el panel de administracion.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Administrador:</span>
+              <span className="font-medium">{user?.full_name || user?.email}</span>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Use el boton <strong>&quot;Admin Panel&quot;</strong> en la barra lateral para acceder a:
+          </p>
+          <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+            <li>Resumen general del sistema</li>
+            <li>Gestion de usuarios y licencias</li>
+            <li>Salud del sistema (CPU, memoria, disco)</li>
+            <li>Problemas de seguridad</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Regular User Settings (original full settings) ─────────────
+function RegularUserSettings() {
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,11 +207,21 @@ export function ContaECSettings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Configuracion</h2>
-        <p className="text-muted-foreground">
-          Administre su perfil, firma electronica, ambiente y seguridad
-        </p>
+      <div className="flex items-center gap-3">
+        <Image
+          src="/logo.svg"
+          alt="ContaEC"
+          width={32}
+          height={32}
+          className="h-8 w-8"
+          priority
+        />
+        <div>
+          <h2 className="text-2xl font-bold">Configuracion</h2>
+          <p className="text-muted-foreground">
+            Administre su perfil, firma electronica, ambiente y seguridad
+          </p>
+        </div>
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4">

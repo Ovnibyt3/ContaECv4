@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,12 +34,16 @@ import {
   ShieldAlert,
   ShieldCheck,
   Users,
-  Settings,
   Key,
   Activity,
   RefreshCw,
   UserCheck,
   UserX,
+  Globe,
+  TestTube,
+  Server,
+  DollarSign,
+  Edit2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -64,6 +69,7 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
     system: Record<string, unknown>;
     database: Record<string, unknown>;
     application: Record<string, unknown>;
+    environment_toggle_available?: boolean;
   } | null>(null);
   const [securityData, setSecurityData] = useState<{
     expired_active_licenses: Array<{ user_id: string; email: string; full_name: string; license_end_date: string | null; days_expired: number | null }>;
@@ -77,6 +83,23 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
   const [licenseForm, setLicenseForm] = useState({ license_type: '' });
   const [modifying, setModifying] = useState(false);
 
+  // Environment toggle
+  const [envToggleLoading, setEnvToggleLoading] = useState(false);
+  const [envInfo, setEnvInfo] = useState<{
+    current_environment: string;
+    target_environment: string;
+    is_production: boolean;
+    message: string;
+  } | null>(null);
+
+  // License prices management
+  const [licensePrices] = useState([
+    { type: 'Mensual', key: 'monthly', price: 15.00, months: 1, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+    { type: 'Trimestral', key: 'quarterly', price: 40.00, months: 3, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+    { type: 'Semestral', key: 'semiannual', price: 75.00, months: 6, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+    { type: 'Anual', key: 'annual', price: 130.00, months: 12, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+  ]);
+
   const loadAdminData = useCallback(async () => {
     setLoading(true);
     try {
@@ -89,7 +112,19 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
 
       if (results[0].status === 'fulfilled') setStats(results[0].value);
       if (results[1].status === 'fulfilled') setUsers(results[1].value);
-      if (results[2].status === 'fulfilled') setHealth(results[2].value);
+      if (results[2].status === 'fulfilled') {
+        setHealth(results[2].value);
+        // Extract environment info from health response
+        const app = results[2].value.application as Record<string, string>;
+        if (app?.environment) {
+          setEnvInfo({
+            current_environment: app.environment,
+            target_environment: app.environment === 'production' ? 'development' : 'production',
+            is_production: app.environment === 'production',
+            message: 'Actualice APP_ENV en .env y reinicie para aplicar cambios.',
+          });
+        }
+      }
       if (results[3].status === 'fulfilled') setSecurityData(results[3].value);
     } catch {
       toast.error('Error al cargar datos de administracion');
@@ -97,6 +132,29 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
       setLoading(false);
     }
   }, []);
+
+  const handleToggleEnvironment = async () => {
+    setEnvToggleLoading(true);
+    try {
+      const response = await fetch('/api/v1/admin/environment/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error('Error al cambiar ambiente');
+      const data = await response.json();
+      setEnvInfo({
+        current_environment: data.current_environment,
+        target_environment: data.target_environment,
+        is_production: data.is_production,
+        message: data.message,
+      });
+      toast.success(`Ambiente actual: ${data.current_environment}. ${data.message}`);
+    } catch (error) {
+      toast.error('Error al cambiar ambiente. Verifique los logs del servidor.');
+    } finally {
+      setEnvToggleLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadAdminData();
@@ -155,14 +213,23 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Settings className="h-6 w-6 text-primary" />
-            Panel de Administracion
-          </h2>
-          <p className="text-muted-foreground">
-            Gestion del sistema ContaEC
-          </p>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.svg"
+            alt="ContaEC"
+            width={36}
+            height={36}
+            className="h-9 w-9"
+            priority
+          />
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              Panel de Administracion
+            </h2>
+            <p className="text-muted-foreground">
+              Gestion del sistema ContaEC
+            </p>
+          </div>
         </div>
       </div>
 
@@ -178,8 +245,12 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
             Usuarios
           </TabsTrigger>
           <TabsTrigger value="health" className="gap-2">
-            <Heart className="h-4 w-4" />
+            <Server className="h-4 w-4" />
             Sistema
+          </TabsTrigger>
+          <TabsTrigger value="licenses" className="gap-2">
+            <Key className="h-4 w-4" />
+            Licencias
           </TabsTrigger>
           <TabsTrigger value="security" className="gap-2">
             <Shield className="h-4 w-4" />
@@ -376,12 +447,13 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
 
         {/* Health Tab */}
         <TabsContent value="health">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Application Info */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Heart className="h-4 w-4 text-primary" />
-                  Estado del Sistema
+                  <Server className="h-4 w-4 text-primary" />
+                  Aplicacion
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -389,42 +461,149 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Version</span>
-                      <span className="text-sm font-mono">{(health.application as Record<string, string>)?.version ?? 'N/A'}</span>
+                      <Badge variant="outline" className="font-mono">{(health.application as Record<string, string>)?.version ?? 'N/A'}</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Ambiente</span>
-                      <span className="text-sm font-medium">{(health.application as Record<string, string>)?.environment ?? 'N/A'}</span>
+                      <Badge variant={envInfo?.is_production ? 'destructive' : 'default'}>
+                        {(health.application as Record<string, string>)?.environment ?? 'N/A'}
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">CPU</span>
-                      <span className="text-sm font-medium">
-                        {String((health.system as Record<string, unknown>)?.cpu_percent ?? 'N/A')}
-                        {typeof (health.system as Record<string, unknown>)?.cpu_percent === 'number' ? '%' : ''}
-                      </span>
+                      <span className="text-sm text-muted-foreground">Uptime</span>
+                      <span className="text-sm font-medium">{(health.application as Record<string, string>)?.uptime ?? 'N/A'}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Memoria</span>
-                      <span className="text-sm font-medium">
-                        {String((health.system as Record<string, unknown>)?.memory_percent ?? 'N/A')}
-                        {typeof (health.system as Record<string, unknown>)?.memory_percent === 'number' ? '%' : ''}
-                      </span>
+                      <span className="text-sm text-muted-foreground">Python</span>
+                      <span className="text-sm font-mono">{(health.application as Record<string, string>)?.python_version ?? ''}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Disco</span>
-                      <span className="text-sm font-medium">
-                        {String((health.system as Record<string, unknown>)?.disk_percent ?? 'N/A')}
-                        {typeof (health.system as Record<string, unknown>)?.disk_percent === 'number' ? '%' : ''}
-                      </span>
+                      <span className="text-sm text-muted-foreground">SO</span>
+                      <span className="text-sm font-medium">{(health.application as Record<string, string>)?.system ?? ''}</span>
+                    </div>
+
+                    {/* Environment Toggle */}
+                    <Separator className="my-2" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Cambiar Ambiente</span>
+                      </div>
+                      <Button
+                        onClick={handleToggleEnvironment}
+                        disabled={envToggleLoading}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                      >
+                        {envToggleLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <TestTube className="h-4 w-4 mr-1" />
+                        )}
+                        Cambiar a {envInfo?.target_environment || '...'}
+                      </Button>
+                      {envInfo && (
+                        <p className="text-xs text-muted-foreground leading-tight">
+                          {envInfo.message}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No se pudo obtener el estado del sistema
-                  </p>
+                  <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
                 )}
               </CardContent>
             </Card>
 
+            {/* System Resources */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Heart className="h-4 w-4 text-primary" />
+                  Recursos del Sistema
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {health ? (
+                  <div className="space-y-4">
+                    {/* CPU */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">CPU</span>
+                        <span className="text-sm font-medium">
+                          {typeof (health.system as Record<string, unknown>)?.cpu_percent === 'number'
+                            ? `${(health.system as Record<string, number>)?.cpu_percent}%`
+                            : String((health.system as Record<string, unknown>)?.cpu_percent ?? 'N/A')}
+                        </span>
+                      </div>
+                      {typeof (health.system as Record<string, unknown>)?.cpu_percent === 'number' && (
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${(health.system as Record<string, number>)?.cpu_percent}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Memory */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Memoria</span>
+                        <span className="text-sm font-medium">
+                          {typeof (health.system as Record<string, unknown>)?.memory_percent === 'number'
+                            ? `${(health.system as Record<string, number>)?.memory_percent}%`
+                            : String((health.system as Record<string, unknown>)?.memory_percent ?? 'N/A')}
+                        </span>
+                      </div>
+                      {typeof (health.system as Record<string, unknown>)?.memory_percent === 'number' && (
+                        <>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary transition-all"
+                              style={{ width: `${(health.system as Record<string, number>)?.memory_percent}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {((health.system as Record<string, number>)?.memory_used_mb ?? 0).toFixed(0)} MB / {((health.system as Record<string, number>)?.memory_total_mb ?? 0).toFixed(0)} MB
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Disk */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Disco</span>
+                        <span className="text-sm font-medium">
+                          {typeof (health.system as Record<string, unknown>)?.disk_percent === 'number'
+                            ? `${(health.system as Record<string, number>)?.disk_percent}%`
+                            : String((health.system as Record<string, unknown>)?.disk_percent ?? 'N/A')}
+                        </span>
+                      </div>
+                      {typeof (health.system as Record<string, unknown>)?.disk_percent === 'number' && (
+                        <>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${(health.system as Record<string, number>)?.disk_percent > 90 ? 'bg-destructive' : 'bg-primary'}`}
+                              style={{ width: `${(health.system as Record<string, number>)?.disk_percent}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {((health.system as Record<string, number>)?.disk_used_gb ?? 0).toFixed(1)} GB / {((health.system as Record<string, number>)?.disk_total_gb ?? 0).toFixed(1)} GB
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Database Stats */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -464,13 +643,107 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No se pudo obtener el estado de la base de datos
-                  </p>
+                  <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
                 )}
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Licenses Tab */}
+        <TabsContent value="licenses">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {licensePrices.map((plan) => (
+              <Card key={plan.key} className="border-2">
+                <CardHeader>
+                  <CardTitle className="text-lg">{plan.type}</CardTitle>
+                  <CardDescription>{plan.months} {plan.months === 1 ? 'mes' : 'meses'}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center py-4">
+                    <div className="text-3xl font-bold">
+                      ${plan.price.toFixed(2)}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ${(plan.price / plan.months).toFixed(2)}/mes
+                    </p>
+                  </div>
+                  <Badge className={`w-full justify-center ${plan.color}`}>
+                    {plan.type}
+                  </Badge>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="text-center">Precios actuales del sistema</p>
+                    <p className="text-center">Para modificar, edite el archivo <code className="bg-muted px-1">licenses.py</code></p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* License tiers info */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-primary" />
+                Limites por Plan
+              </CardTitle>
+              <CardDescription>
+                Caracteristicas y limites de cada tipo de licencia
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Limite</TableHead>
+                      <TableHead>Mensual</TableHead>
+                      <TableHead>Trimestral</TableHead>
+                      <TableHead>Semestral</TableHead>
+                      <TableHead>Anual</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">Empresas max.</TableCell>
+                      <TableCell>1</TableCell>
+                      <TableCell>2</TableCell>
+                      <TableCell>5</TableCell>
+                      <TableCell>Ilimitado</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Usuarios/empresa</TableCell>
+                      <TableCell>2</TableCell>
+                      <TableCell>5</TableCell>
+                      <TableCell>10</TableCell>
+                      <TableCell>Ilimitado</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Comprobantes/mes</TableCell>
+                      <TableCell>50</TableCell>
+                      <TableCell>200</TableCell>
+                      <TableCell>500</TableCell>
+                      <TableCell>Ilimitado</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Empleados</TableCell>
+                      <TableCell>5</TableCell>
+                      <TableCell>15</TableCell>
+                      <TableCell>50</TableCell>
+                      <TableCell>Ilimitado</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Productos</TableCell>
+                      <TableCell>100</TableCell>
+                      <TableCell>500</TableCell>
+                      <TableCell>2,000</TableCell>
+                      <TableCell>Ilimitado</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Security Tab */}

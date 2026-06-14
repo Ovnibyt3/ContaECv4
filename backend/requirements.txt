@@ -26,3 +26,4 @@ aiofiles==24.1.0
 pyclamd==0.4.0
 vt-py==0.22.0
 email-validator==2.3.0
+psutil==7.0.0

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import {
-  BookOpen,
   Eye,
   EyeOff,
   Loader2,
@@ -81,8 +81,15 @@ export function ContaECLogin({ onAuthSuccess }: ContaECLoginProps) {
         <div className="w-full max-w-md">
           {/* Logo & Branding */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
-              <BookOpen className="w-8 h-8 text-primary" />
+            <div className="inline-flex items-center justify-center w-20 h-20 mb-4">
+              <Image
+                src="/logo.svg"
+                alt="ContaEC Logo"
+                width={80}
+                height={80}
+                className="h-20 w-20"
+                priority
+              />
             </div>
             <h1 className="text-3xl font-bold text-foreground tracking-tight">
               ContaEC
@@ -301,8 +308,14 @@ export function ContaECLogin({ onAuthSuccess }: ContaECLoginProps) {
               </span>
             </div>
             <div className="flex flex-col items-center gap-1.5">
-              <div className="rounded-lg bg-primary/10 p-2">
-                <BookOpen className="h-4 w-4 text-primary" />
+              <div className="rounded-lg bg-primary/10 p-1.5">
+                <Image
+                  src="/logo.svg"
+                  alt="ContaEC"
+                  width={20}
+                  height={20}
+                  className="h-4 w-4"
+                />
               </div>
               <span className="text-xs text-muted-foreground">
                 Contabilidad

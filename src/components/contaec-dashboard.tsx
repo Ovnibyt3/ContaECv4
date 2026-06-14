@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,6 +99,7 @@ import { ContaECAccounting } from '@/components/contaec-accounting';
 import {
   logout,
   getLicenseStatus,
+  getLicenseOptions,
   getCompanies,
   createCompany,
   updateCompany,
@@ -109,6 +111,7 @@ import {
   getInvoiceStats,
   type User as UserType,
   type LicenseStatus as LicenseStatusType,
+  type LicenseOptions as LicenseOptionsType,
   type Company as CompanyType,
   type SRIIVARate,
   type SRIDocumentType,
@@ -251,8 +254,15 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
       >
         {/* Sidebar Header */}
         <div className="p-4 border-b flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2 shrink-0">
-            <BookOpen className="h-5 w-5 text-primary" />
+          <div className="rounded-lg bg-primary/10 p-1.5 shrink-0">
+            <Image
+              src="/logo.svg"
+              alt="ContaEC"
+              width={32}
+              height={32}
+              className="h-8 w-8"
+              priority
+            />
           </div>
           {sidebarOpen && (
             <div className="overflow-hidden">
@@ -470,7 +480,7 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
                 <ContaECAudit />
               )}
               {activeNav === 'settings' && (
-                <ContaECSettings />
+                <ContaECSettings user={user} />
               )}
             </>
           )}
@@ -1297,6 +1307,19 @@ function LicenseView({
   license: LicenseStatusType | null;
   licenseExpiring: boolean;
 }) {
+  const [licenseOptions, setLicenseOptions] = useState<LicenseOptionsType | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  useEffect(() => {
+    if (!license) {
+      setLoadingOptions(true);
+      getLicenseOptions()
+        .then((data) => setLicenseOptions(data))
+        .catch(() => toast.error('Error al cargar opciones de licencia'))
+        .finally(() => setLoadingOptions(false));
+    }
+  }, [license]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -1306,7 +1329,7 @@ function LicenseView({
         </p>
       </div>
 
-      {licenseExpiring && (
+      {licenseExpiring && license && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Licencia por expirar</AlertTitle>
@@ -1395,15 +1418,59 @@ function LicenseView({
           </Card>
         </div>
       ) : (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-            <h3 className="text-lg font-medium">Sin licencia</h3>
-            <p className="text-muted-foreground text-sm mt-1">
-              No se encontro informacion de licencia. Contacte al administrador.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <AlertTriangle className="h-12 w-12 mx-auto text-amber-500 mb-3" />
+              <h3 className="text-lg font-medium">Sin licencia activa</h3>
+              <p className="text-muted-foreground text-sm mt-1">
+                No se encontro informacion de licencia. Seleccione un plan a continuacion o contacte al administrador.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* License Options */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Planes Disponibles</h3>
+            {loadingOptions ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : licenseOptions ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {licenseOptions.options.map((option) => (
+                  <Card key={option.type} className="hover:border-primary transition-colors">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">{option.label}</CardTitle>
+                      <CardDescription>{option.months} {option.months === 1 ? 'mes' : 'meses'}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-center">
+                        <span className="text-3xl font-bold">${option.price.toFixed(2)}</span>
+                        <p className="text-xs text-muted-foreground">
+                          ${(option.price / option.months).toFixed(2)}/mes
+                        </p>
+                      </div>
+                      <Button
+                        className="w-full"
+                        onClick={() => {
+                          const msg = `Hola, soy ${encodeURIComponent('usuario@email.com')}. Me interesa el plan ${encodeURIComponent(option.label)} de $${option.price}.`;
+                          window.open(`https://wa.me/${licenseOptions.contact_whatsapp}?text=${msg}`, '_blank');
+                        }}
+                      >
+                        Contactar por WhatsApp
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No se pudieron cargar las opciones de licencia.
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # Aplicación
     # ==========================================
     APP_NAME: str = "ContaEC"
-    APP_VERSION: str = "1.0.0"
+    APP_VERSION: str = "4.5.0"
     APP_ENV: str = "development"
     DEBUG: bool = True
     SECRET_KEY: str = ""
@@ -122,6 +122,13 @@ class Settings(BaseSettings):
     # ==========================================
     VIRUSTOTAL_ENABLED: bool = False
     VIRUSTOTAL_API_KEY: str = ""
+
+    # ==========================================
+    # SRI RUC Lookup
+    # ==========================================
+    # Set to True to use mock data for RUC lookup (development only)
+    # This is useful when the SRI service is unavailable or timing out
+    SRI_RUC_SANDBOX: bool = False
 
     # ==========================================
     # CORS

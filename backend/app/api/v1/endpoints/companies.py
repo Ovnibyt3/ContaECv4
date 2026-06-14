@@ -153,6 +153,9 @@ async def lookup_ruc(
     Consultar datos de una empresa por RUC desde el SRI.
     Auto-completa los campos de la empresa basado en la información del SRI.
     """
+    from app.core.config import get_settings
+    settings = get_settings()
+
     # Validar formato de RUC (13 dígitos)
     if not ruc.isdigit() or len(ruc) != 13:
         raise HTTPException(
@@ -160,10 +163,25 @@ async def lookup_ruc(
             detail="RUC inválido. Debe tener 13 dígitos numéricos."
         )
 
+    # Modo sandbox: retornar datos simulados (solo desarrollo)
+    if settings.SRI_RUC_SANDBOX and settings.is_development:
+        logger.info(f"Sandbox mode: returning mock data for RUC {ruc}")
+        return {
+            "ruc": ruc,
+            "razon_social": f"EMPRESA DE PRUEBA {ruc[-4:]} C.A.",
+            "nombre_comercial": f"Comercial {ruc[-4:]}",
+            "dir_matriz": "AV. PRINCIPAL 123 Y CALLE SECUNDARIA",
+            "obligado_contabilidad": "SI",
+            "contribuyente_especial": "",
+            "agente_retencion": "",
+            "contribuyente_rimpe": "REGIMEN RIMPE",
+            "message": "Datos de prueba (sandbox). Verifique con el SRI.",
+        }
+
     try:
         # Intentar consultar el SRI
         import httpx
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet/rest/ConsultaRuc/obtenerDatosRuc",
                 params={"ruc": ruc},

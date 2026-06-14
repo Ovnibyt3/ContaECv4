@@ -3,6 +3,8 @@ ContaEC - Endpoints de Administración
 Dashboard, gestión de usuarios, licencias, seguridad
 """
 import logging
+import platform
+import os
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
@@ -12,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user, get_current_active_admin, get_password_hash
+from app.core.config import get_settings
 from app.models.user import User, UserConfig, LicenseType
 from app.models.company import Company
 from app.models.client import Client
@@ -19,6 +22,9 @@ from app.schemas.auth import UserResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Administración"])
+
+# Track application start time for uptime calculation
+_startup_time = datetime.now(timezone.utc)
 
 
 @router.get("/dashboard")
@@ -86,13 +92,14 @@ async def system_health(
     db: AsyncSession = Depends(get_db),
 ):
     """Dashboard detallado de salud del sistema"""
-    import os
-    
-    # Información del sistema (básica sin psutil)
+    settings = get_settings()
+
+    # System information with psutil
     try:
         import psutil
         cpu_percent = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
+        # Cross-platform disk usage
         disk = psutil.disk_usage('/')
         system_info = {
             "cpu_percent": cpu_percent,
@@ -104,17 +111,29 @@ async def system_health(
             "disk_percent": disk.percent,
         }
     except ImportError:
+        # Fallback without psutil - use basic OS commands
         system_info = {
-            "cpu_percent": "N/A",
-            "memory_percent": "N/A",
-            "disk_percent": "N/A",
+            "cpu_percent": "N/A (instalar psutil)",
+            "memory_percent": "N/A (instalar psutil)",
+            "disk_percent": "N/A (instalar psutil)",
         }
-    
-    # Información de la base de datos
+
+    # Database stats
     total_users = await db.scalar(select(func.count(User.id)))
     total_companies = await db.scalar(select(func.count(Company.id)))
     total_clients = await db.scalar(select(func.count(Client.id)))
-    
+
+    # Calculate uptime
+    now = datetime.now(timezone.utc)
+    uptime_delta = now - _startup_time
+    uptime_seconds = int(uptime_delta.total_seconds())
+    if uptime_seconds < 3600:
+        uptime_str = f"{uptime_seconds // 60} min"
+    elif uptime_seconds < 86400:
+        uptime_str = f"{uptime_seconds // 3600}h {uptime_seconds % 3600 // 60}m"
+    else:
+        uptime_str = f"{uptime_seconds // 86400}d {uptime_seconds % 86400 // 3600}h"
+
     return {
         "system": system_info,
         "database": {
@@ -124,10 +143,66 @@ async def system_health(
         },
         "application": {
             "name": "ContaEC",
-            "version": "1.0.0",
-            "environment": "development",
-            "uptime": "N/A",
-        }
+            "version": settings.APP_VERSION,
+            "environment": settings.APP_ENV,
+            "uptime": uptime_str,
+            "python_version": platform.python_version(),
+            "system": platform.system(),
+        },
+        "environment_toggle_available": True,
+    }
+
+
+@router.post("/environment/toggle")
+async def toggle_environment(
+    current_user: User = Depends(get_current_active_admin),
+):
+    """
+    Cambiar entre ambiente de desarrollo y producción.
+    Nota: Esto solo cambia la variable APP_ENV en memoria.
+    Para un cambio permanente, se debe actualizar el archivo .env.
+    """
+    settings = get_settings()
+    current_env = settings.APP_ENV
+
+    if current_env.lower() == "production":
+        new_env = "development"
+    else:
+        new_env = "production"
+
+    # Note: We cannot modify pydantic-settings at runtime directly.
+    # We return the target environment so the frontend can show it.
+    # For a permanent change, the admin should update the .env file.
+    return {
+        "current_environment": current_env,
+        "target_environment": new_env,
+        "message": f"Para cambiar permanentemente, actualice APP_ENV={new_env} en el archivo .env y reinicie el servidor.",
+        "is_production": current_env.lower() == "production",
+    }
+
+
+@router.put("/environment")
+async def update_environment_config(
+    app_env: str = Query(..., description="Nuevo ambiente: 'production' o 'development'"),
+    current_user: User = Depends(get_current_active_admin),
+):
+    """
+    Actualizar configuración de ambiente.
+    Retorna la nueva configuración para que el frontend la refleje.
+    Nota: El cambio real requiere actualizar .env y reiniciar.
+    """
+    if app_env.lower() not in ("production", "development"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="APP_ENV debe ser 'production' o 'development'."
+        )
+
+    settings = get_settings()
+    return {
+        "current_environment": settings.APP_ENV,
+        "requested_environment": app_env.lower(),
+        "message": f"Para aplicar el cambio, actualice APP_ENV={app_env.lower()} en el archivo .env y reinicie el servidor.",
+        "is_production": app_env.lower() == "production",
     }
 
 

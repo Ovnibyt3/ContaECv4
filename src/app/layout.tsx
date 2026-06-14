@@ -30,13 +30,27 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "T&M Technology Ec" }],
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+      { url: "/logo.svg", rel: "icon", type: "image/svg+xml" },
+      { url: "/logo.svg", rel: "apple-touch-icon" },
+    ],
+    shortcut: "/logo.svg",
+    apple: { url: "/logo.svg" },
   },
   openGraph: {
     title: "ContaEC - Contabilidad y Facturacion Electronica",
     description:
       "Sistema de contabilidad y facturacion electronica para Ecuador",
     type: "website",
+    images: [
+      {
+        url: "/logo.svg",
+        width: 600,
+        height: 500,
+        alt: "ContaEC Logo",
+      },
+    ],
   },
 };
 
