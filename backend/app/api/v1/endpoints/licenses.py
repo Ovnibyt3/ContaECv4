@@ -174,7 +174,7 @@ async def get_license_status(
     tier_info = get_tier_limits(current_user.license_type) if current_user.license_type else None
     
     return {
-        "license_type": current_user.license_type.value if current_user.license_type else None,
+        "license_type": current_user.license_type if current_user.license_type else None,
         "license_start_date": current_user.license_start_date.isoformat() if current_user.license_start_date else None,
         "license_end_date": current_user.license_end_date.isoformat() if current_user.license_end_date else None,
         "is_expired": is_expired,
