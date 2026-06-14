@@ -137,7 +137,7 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
   const handleToggleEnvironment = async () => {
     setEnvToggleLoading(true);
     try {
-      const response = await fetch('/api/v1/admin/environment/toggle', {
+      const response = await fetch('/v1/admin/environment/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
