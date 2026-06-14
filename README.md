@@ -146,7 +146,7 @@ sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail htt
 
 # Update the Repository List with the Key Path
 # Overwrite your existing list file to include the signed-by directive:
-sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'   
+sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
 
 # Instalar PostgreSQL 17
 apt update
@@ -260,7 +260,7 @@ apt install -y python3 python3-venv python3-dev python3-pip build-essential libp
 cd /opt && mkdir -p contaec && cd contaec
 
 # Clonar el repositorio (o copiar archivos del proyecto)
-git clone <repositorio> .
+git clone https://github.com/Steve2109/ContaECv4.git
 # O copiar vía scp/rsync
 # Para mover el repositorio clonado al directorio padre
 sudo mv /opt/contaec/ContaECv4/* /opt/contaec/
