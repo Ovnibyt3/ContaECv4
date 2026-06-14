@@ -101,6 +101,70 @@ class CompanyCreate(BaseModel):
         max_length=500,
         description="Ruta del logo de la empresa",
     )
+    # Contacto
+    correo: str | None = Field(
+        None,
+        max_length=255,
+        description="Correo electronico de la empresa",
+    )
+    telefono: str | None = Field(
+        None,
+        max_length=20,
+        description="Telefono de la empresa",
+    )
+    # Firma electronica
+    firma_electronica_password: str | None = Field(
+        None,
+        max_length=500,
+        description="Contraseña de la firma electronica (.p12/.pfx)",
+    )
+    # Registro turistico
+    registro_turistico: bool = Field(
+        default=False,
+        description="Registrado en el registro turistico",
+    )
+    # Operadora Transportista
+    operadora_transportista_comercial: bool = Field(
+        default=False,
+        description="Es operadora transportista comercial",
+    )
+    operadora_transportista_ligera: bool = Field(
+        default=False,
+        description="Es operadora transportista ligera (cooperativas de taxis, etc.)",
+    )
+    ruc_operadora_comercial: str | None = Field(
+        None,
+        max_length=13,
+        description="RUC de operadora transportista comercial (solo si socio transportista)",
+    )
+    ruc_operadora_transportista: str | None = Field(
+        None,
+        max_length=13,
+        description="RUC de operadora transportista",
+    )
+    # Informacion adicional
+    codigo_artesano: str | None = Field(
+        None,
+        max_length=50,
+        description="Codigo de artesano",
+    )
+    nombre_recibos: str | None = Field(
+        None,
+        max_length=255,
+        description="Nombre que aparece en los recibos",
+    )
+
+    @field_validator("ruc_operadora_comercial", "ruc_operadora_transportista")
+    @classmethod
+    def validate_ruc_optional(cls, v: str | None) -> str | None:
+        """Valida el formato del RUC si esta presente"""
+        if v is not None and v != "":
+            if not re.match(r"^\d{13}$", v):
+                raise ValueError("El RUC debe tener exactamente 13 dígitos numéricos")
+            provincia = int(v[:2])
+            if provincia < 1 or provincia > 24:
+                raise ValueError("Código de provincia del RUC inválido (01-24)")
+        return v
 
     @field_validator("ruc")
     @classmethod
@@ -195,6 +259,20 @@ class CompanyUpdate(BaseModel):
     contribuyente_rimpe: str | None = Field(None, max_length=50)
     logo_path: str | None = Field(None, max_length=500)
     is_active: bool | None = Field(None, description="Estado activo de la empresa")
+    # Contacto
+    correo: str | None = Field(None, max_length=255)
+    telefono: str | None = Field(None, max_length=20)
+    firma_electronica_password: str | None = Field(None, max_length=500)
+    # Registro turistico
+    registro_turistico: bool | None = Field(None)
+    # Operadora Transportista
+    operadora_transportista_comercial: bool | None = Field(None)
+    operadora_transportista_ligera: bool | None = Field(None)
+    ruc_operadora_comercial: str | None = Field(None, max_length=13)
+    ruc_operadora_transportista: str | None = Field(None, max_length=13)
+    # Informacion adicional
+    codigo_artesano: str | None = Field(None, max_length=50)
+    nombre_recibos: str | None = Field(None, max_length=255)
 
     @field_validator("obligado_contabilidad")
     @classmethod
@@ -232,6 +310,22 @@ class CompanyResponse(BaseModel):
     agente_retencion: str | None = Field(None, description="Agente de retención")
     contribuyente_rimpe: str | None = Field(None, description="Contribuyente RIMPE")
     logo_path: str | None = Field(None, description="Ruta del logo")
+    # Contacto
+    correo: str | None = Field(None, description="Correo electronico")
+    telefono: str | None = Field(None, description="Telefono")
+    # Firma electronica (solo path, nunca la contraseña)
+    firma_electronica_path: str | None = Field(None, description="Ruta del archivo de firma electronica")
+    # Registro turistico
+    registro_turistico: bool = Field(..., description="Registrado en el registro turistico")
+    # Operadora Transportista
+    operadora_transportista_comercial: bool = Field(..., description="Es operadora transportista comercial")
+    operadora_transportista_ligera: bool = Field(..., description="Es operadora transportista ligera")
+    ruc_operadora_comercial: str | None = Field(None, description="RUC operadora transportista comercial")
+    ruc_operadora_transportista: str | None = Field(None, description="RUC operadora transportista")
+    # Informacion adicional
+    codigo_artesano: str | None = Field(None, description="Codigo de artesano")
+    nombre_recibos: str | None = Field(None, description="Nombre que aparece en los recibos")
+    # Estado
     is_active: bool = Field(..., description="Estado activo")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")

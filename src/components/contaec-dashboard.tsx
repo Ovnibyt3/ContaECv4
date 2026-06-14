@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -108,6 +108,7 @@ import {
   getLicenseOptions,
   getCompanies,
   createCompany,
+  uploadCompanyFile,
   updateCompany,
   deleteCompany,
   lookupRuc,
@@ -153,12 +154,26 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
     ruc: '',
     razon_social: '',
     nombre_comercial: '',
+    correo: '',
+    telefono: '',
     dir_matriz: '',
     cod_establecimiento: '001',
     cod_punto_emision: '001',
-    obligado_contabilidad: '',
+    obligado_contabilidad: 'NO',
     contribuyente_especial: '',
+    contribuyente_rimpe: '',
+    agente_retencion: '',
+    firma_electronica_password: '',
+    registro_turistico: false,
+    operadora_transportista_comercial: false,
+    operadora_transportista_ligera: false,
+    ruc_operadora_comercial: '',
+    ruc_operadora_transportista: '',
+    codigo_artesano: '',
+    nombre_recibos: '',
   });
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const firmaInputRef = useRef<HTMLInputElement>(null);
   const [creatingCompany, setCreatingCompany] = useState(false);
 
   const loadDashboardData = useCallback(async () => {
@@ -209,21 +224,79 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
   async function handleCreateCompany() {
     setCreatingCompany(true);
     try {
-      const company = await createCompany(newCompany);
+      let logoPath: string | undefined;
+      let firmaPath: string | undefined;
+
+      // Upload logo if selected
+      const logoFile = logoInputRef.current?.files?.[0];
+      if (logoFile) {
+        try {
+          const logoResult = await uploadCompanyFile('logo', logoFile);
+          logoPath = logoResult.file_path;
+        } catch (e) {
+          toast.warning('Error subiendo logo, se creara la empresa sin logo');
+        }
+      }
+
+      // Upload firma electronica if selected
+      const firmaFile = firmaInputRef.current?.files?.[0];
+      if (firmaFile) {
+        try {
+          const firmaResult = await uploadCompanyFile('firma', firmaFile);
+          firmaPath = firmaResult.file_path;
+        } catch (e) {
+          toast.warning('Error subiendo firma electronica, se creara la empresa sin firma');
+        }
+      }
+
+      // Build company data with file paths
+      const companyData = {
+        ...newCompany,
+        logo_path: logoPath || null,
+        firma_electronica_path: firmaPath || null,
+        // Clean empty strings to optional fields
+        contribuyente_especial: newCompany.contribuyente_especial || null,
+        agente_retencion: newCompany.agente_retencion || null,
+        ruc_operadora_comercial: newCompany.ruc_operadora_comercial || null,
+        ruc_operadora_transportista: newCompany.ruc_operadora_transportista || null,
+        codigo_artesano: newCompany.codigo_artesano || null,
+        nombre_recibos: newCompany.nombre_recibos || null,
+        correo: newCompany.correo || null,
+        telefono: newCompany.telefono || null,
+      };
+
+      const company = await createCompany(companyData);
       setCompanies((prev) => [...prev, company]);
       setShowNewCompany(false);
       setNewCompany({
         ruc: '',
         razon_social: '',
         nombre_comercial: '',
+        correo: '',
+        telefono: '',
         dir_matriz: '',
         cod_establecimiento: '001',
         cod_punto_emision: '001',
-        obligado_contabilidad: '',
+        obligado_contabilidad: 'NO',
         contribuyente_especial: '',
+        contribuyente_rimpe: '',
+        agente_retencion: '',
+        firma_electronica_password: '',
+        registro_turistico: false,
+        operadora_transportista_comercial: false,
+        operadora_transportista_ligera: false,
+        ruc_operadora_comercial: '',
+        ruc_operadora_transportista: '',
+        codigo_artesano: '',
+        nombre_recibos: '',
       });
+      // Reset file inputs
+      if (logoInputRef.current) logoInputRef.current.value = '';
+      if (firmaInputRef.current) firmaInputRef.current.value = '';
+      toast.success('Empresa creada exitosamente');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al crear empresa');
+      const msg = err instanceof Error ? err.message : 'Error al crear empresa';
+      toast.error(msg);
     } finally {
       setCreatingCompany(false);
     }
@@ -515,107 +588,237 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
 
       {/* New Company Dialog */}
       <Dialog open={showNewCompany} onOpenChange={setShowNewCompany}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nueva Empresa</DialogTitle>
             <DialogDescription>
               Registre una nueva empresa para emitir comprobantes electronicos
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nc-ruc">RUC</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="nc-ruc"
-                    placeholder="1790000000001"
-                    value={newCompany.ruc}
-                    onChange={(e) => setNewCompany({ ...newCompany, ruc: e.target.value })}
-                    maxLength={13}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={newCompany.ruc.length !== 13 || !/^\d+$/.test(newCompany.ruc)}
-                    onClick={async () => {
-                      if (newCompany.ruc.length !== 13) return;
-                      try {
-                        const data = await lookupRuc(newCompany.ruc);
-                        if (data.razon_social) {
-                          setNewCompany((prev) => ({
-                            ...prev,
-                            razon_social: data.razon_social || prev.razon_social,
-                            nombre_comercial: data.nombre_comercial || prev.nombre_comercial,
-                            dir_matriz: data.dir_matriz || prev.dir_matriz,
-                            obligado_contabilidad: data.obligado_contabilidad || prev.obligado_contabilidad,
-                            contribuyente_especial: data.contribuyente_especial || prev.contribuyente_especial,
-                          }));
-                          toast.success('Datos cargados desde el SRI');
-                        } else if (data.message) {
-                          toast.warning(data.message);
-                        }
-                      } catch {
-                        toast.error('Error consultando RUC al SRI');
-                      }
-                    }}
-                  >
-                    Buscar en SRI
-                  </Button>
+          <div className="space-y-6 py-2">
+            {/* Seccion: Informacion Fiscal */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Informacion Fiscal</h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="nc-ruc">RUC <span className="text-red-500">*</span></Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="nc-ruc"
+                        placeholder="1790000000001"
+                        value={newCompany.ruc}
+                        onChange={(e) => setNewCompany({ ...newCompany, ruc: e.target.value.replace(/\D/g, '').slice(0, 13) })}
+                        maxLength={13}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={newCompany.ruc.length !== 13}
+                        onClick={async () => {
+                          if (newCompany.ruc.length !== 13) return;
+                          try {
+                            const data = await lookupRuc(newCompany.ruc);
+                            if (data.razon_social) {
+                              setNewCompany((prev) => ({
+                                ...prev,
+                                razon_social: data.razon_social || prev.razon_social,
+                                nombre_comercial: data.nombre_comercial || prev.nombre_comercial,
+                                dir_matriz: data.dir_matriz || prev.dir_matriz,
+                                obligado_contabilidad: data.obligado_contabilidad || prev.obligado_contabilidad,
+                                contribuyente_especial: data.contribuyente_especial || prev.contribuyente_especial,
+                              }));
+                              toast.success('Datos cargados desde el SRI');
+                            } else if (data.message) {
+                              toast.warning(data.message);
+                            }
+                          } catch {
+                            toast.error('Error consultando RUC al SRI');
+                          }
+                        }}
+                      >
+                        SRI
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-cod-est">Cod. Establecimiento</Label>
+                    <Input id="nc-cod-est" placeholder="001" value={newCompany.cod_establecimiento} onChange={(e) => setNewCompany({ ...newCompany, cod_establecimiento: e.target.value.replace(/\D/g, '').slice(0, 3) })} maxLength={3} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-razon">Razon Social <span className="text-red-500">*</span></Label>
+                    <Input id="nc-razon" placeholder="Mi Empresa S.A." value={newCompany.razon_social} onChange={(e) => setNewCompany({ ...newCompany, razon_social: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-nombre">Nombre Comercial</Label>
+                    <Input id="nc-nombre" placeholder="Mi Empresa" value={newCompany.nombre_comercial} onChange={(e) => setNewCompany({ ...newCompany, nombre_comercial: e.target.value })} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nc-dir">Direccion Matriz <span className="text-red-500">*</span></Label>
+                  <Input id="nc-dir" placeholder="Av. Amazonas 123, Quito" value={newCompany.dir_matriz} onChange={(e) => setNewCompany({ ...newCompany, dir_matriz: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-correo">Correo</Label>
+                    <Input id="nc-correo" type="email" placeholder="info@empresa.com" value={newCompany.correo} onChange={(e) => setNewCompany({ ...newCompany, correo: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-tel">Telefono</Label>
+                    <Input id="nc-tel" placeholder="0999999999" value={newCompany.telefono} onChange={(e) => setNewCompany({ ...newCompany, telefono: e.target.value })} />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="nc-cod-est">Cod. Establecimiento</Label>
-                <Input
-                  id="nc-cod-est"
-                  placeholder="001"
-                  value={newCompany.cod_establecimiento}
-                  onChange={(e) => setNewCompany({ ...newCompany, cod_establecimiento: e.target.value })}
-                  maxLength={3}
-                />
+            </div>
+
+            {/* Seccion: Configuracion Fiscal */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Configuracion Fiscal</h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-obligado">Obligado a llevar Contabilidad</Label>
+                    <select
+                      id="nc-obligado"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={newCompany.obligado_contabilidad}
+                      onChange={(e) => setNewCompany({ ...newCompany, obligado_contabilidad: e.target.value })}
+                    >
+                      <option value="NO">NO</option>
+                      <option value="SI">SI</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-cod-pemi">Cod. Punto Emision</Label>
+                    <Input id="nc-cod-pemi" placeholder="001" value={newCompany.cod_punto_emision} onChange={(e) => setNewCompany({ ...newCompany, cod_punto_emision: e.target.value.replace(/\D/g, '').slice(0, 3) })} maxLength={3} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Contribuyente Regimen RIMPE</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
+                      <input
+                        type="radio"
+                        name="rimpe"
+                        value="RIMPE Emprendedor"
+                        checked={newCompany.contribuyente_rimpe === 'RIMPE Emprendedor'}
+                        onChange={(e) => setNewCompany({ ...newCompany, contribuyente_rimpe: e.target.value })}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm">RIMPE Emprendedor</span>
+                    </label>
+                    <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
+                      <input
+                        type="radio"
+                        name="rimpe"
+                        value="RIMPE Negocio Popular"
+                        checked={newCompany.contribuyente_rimpe === 'RIMPE Negocio Popular'}
+                        onChange={(e) => setNewCompany({ ...newCompany, contribuyente_rimpe: e.target.value })}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm">RIMPE Negocio Popular</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">*Solo act. no sujetas al regimen RIMPE</p>
+                </div>
+                <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    checked={newCompany.registro_turistico}
+                    onChange={(e) => setNewCompany({ ...newCompany, registro_turistico: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm">Registro Turistico</span>
+                </label>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="nc-razon">Razon Social</Label>
-              <Input
-                id="nc-razon"
-                placeholder="Mi Empresa S.A."
-                value={newCompany.razon_social}
-                onChange={(e) => setNewCompany({ ...newCompany, razon_social: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nc-nombre">Nombre Comercial</Label>
-              <Input
-                id="nc-nombre"
-                placeholder="Mi Empresa"
-                value={newCompany.nombre_comercial}
-                onChange={(e) => setNewCompany({ ...newCompany, nombre_comercial: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nc-dir">Direccion Matriz</Label>
-              <Input
-                id="nc-dir"
-                placeholder="Av. Amazonas 123, Quito"
-                value={newCompany.dir_matriz}
-                onChange={(e) => setNewCompany({ ...newCompany, dir_matriz: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nc-cod-pemi">Cod. Punto Emision</Label>
-                <Input
-                  id="nc-cod-pemi"
-                  placeholder="001"
-                  value={newCompany.cod_punto_emision}
-                  onChange={(e) => setNewCompany({ ...newCompany, cod_punto_emision: e.target.value })}
-                  maxLength={3}
-                />
+
+            {/* Seccion: Firma Electronica */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Firma Electronica y Logo</h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-logo">Logo Empresa</Label>
+                    <Input id="nc-logo" type="file" accept="image/*" ref={logoInputRef} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nc-firma-archivo">Archivo Firma Electronica (.p12/.pfx)</Label>
+                    <Input id="nc-firma-archivo" type="file" accept=".p12,.pfx" ref={firmaInputRef} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nc-firma-pass">Contraseña Firma Electronica</Label>
+                  <Input id="nc-firma-pass" type="password" placeholder="Contraseña del archivo .p12" value={newCompany.firma_electronica_password} onChange={(e) => setNewCompany({ ...newCompany, firma_electronica_password: e.target.value })} />
+                </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2">
+
+            {/* Seccion: Transportista (condicional) */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Transporte</h3>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    checked={newCompany.operadora_transportista_comercial}
+                    onChange={(e) => setNewCompany({ ...newCompany, operadora_transportista_comercial: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm">Soy Operadora Transportista Comercial</span>
+                </label>
+                <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    checked={newCompany.operadora_transportista_ligera}
+                    onChange={(e) => setNewCompany({ ...newCompany, operadora_transportista_ligera: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm">Soy Operadora Transportista Ligera (Cooperativas de Taxis, etc.)</span>
+                </label>
+              </div>
+              {(newCompany.operadora_transportista_comercial || newCompany.operadora_transportista_ligera) && (
+                <div className="mt-3 space-y-3 pl-2 border-l-2 border-primary/30">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="nc-ruc-op-comercial">RUC Operadora Transportista Comercial</Label>
+                      <p className="text-xs text-muted-foreground">(solo si eres Socio Transportista)</p>
+                      <Input id="nc-ruc-op-comercial" placeholder="1790000000001" value={newCompany.ruc_operadora_comercial} onChange={(e) => setNewCompany({ ...newCompany, ruc_operadora_comercial: e.target.value.replace(/\D/g, '').slice(0, 13) })} maxLength={13} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nc-ruc-op">RUC Operadora Transportista</Label>
+                      <Input id="nc-ruc-op" placeholder="1790000000001" value={newCompany.ruc_operadora_transportista} onChange={(e) => setNewCompany({ ...newCompany, ruc_operadora_transportista: e.target.value.replace(/\D/g, '').slice(0, 13) })} maxLength={13} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="nc-agente-ret">Agente de Retencion</Label>
+                      <Input id="nc-agente-ret" placeholder="Numero de resolucion" value={newCompany.agente_retencion} onChange={(e) => setNewCompany({ ...newCompany, agente_retencion: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nc-contrib-esp">Contribuyente Especial</Label>
+                      <Input id="nc-contrib-esp" placeholder="Numero de resolucion" value={newCompany.contribuyente_especial} onChange={(e) => setNewCompany({ ...newCompany, contribuyente_especial: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="nc-artesano">Codigo de Artesano</Label>
+                      <Input id="nc-artesano" placeholder="Codigo" value={newCompany.codigo_artesano} onChange={(e) => setNewCompany({ ...newCompany, codigo_artesano: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nc-nom-recibos">Nombre de Recibos</Label>
+                      <Input id="nc-nom-recibos" placeholder="Nombre que aparece en recibos" value={newCompany.nombre_recibos} onChange={(e) => setNewCompany({ ...newCompany, nombre_recibos: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Botones */}
+            <div className="flex justify-end gap-2 pt-2 border-t">
               <Button variant="outline" onClick={() => setShowNewCompany(false)}>
                 Cancelar
               </Button>

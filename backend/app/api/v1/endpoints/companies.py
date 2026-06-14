@@ -3,12 +3,16 @@ ContaEC - Endpoints de Empresas
 CRUD de empresas, establecimientos, auto-completado RUC desde SRI
 """
 import logging
+import os
+import uuid
 from uuid import UUID
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
@@ -179,44 +183,67 @@ async def lookup_ruc(
         }
 
     try:
-        # Intentar consultar el SRI
+        # Intentar consultar el SRI con reintentos
         import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet/rest/ConsultaRuc/obtenerDatosRuc",
-                params={"ruc": ruc},
-            )
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("razonSocial"):
-                    return {
-                        "ruc": ruc,
-                        "razon_social": data.get("razonSocial", ""),
-                        "nombre_comercial": data.get("nombreComercial", ""),
-                        "dir_matriz": data.get("dirMatriz", ""),
-                        "obligado_contabilidad": data.get("obligadoContabilidad", "NO"),
-                        "contribuyente_especial": data.get("contribuyenteEspecial", ""),
-                        "agente_retencion": data.get("agenteRetencion", ""),
-                        "contribuyente_rimpe": data.get("contribuyenteRimpe", ""),
-                    }
-                else:
-                    logger.warning(f"SRI no encontro datos para RUC {ruc}: {data}")
-                    return {
-                        "ruc": ruc,
-                        "message": "RUC no encontrado en el SRI. Complete los datos manualmente.",
-                        "razon_social": "",
-                        "nombre_comercial": "",
-                        "dir_matriz": "",
-                    }
-            else:
-                logger.warning(f"SRI respondio con status {response.status_code} para RUC {ruc}")
-    except Exception as e:
-        logger.warning(f"Error consultando RUC {ruc} en SRI: {e}")
+        last_error = None
+        for attempt in range(3):
+            try:
+                timeout = httpx.Timeout(connect=10.0, read=20.0, total=30.0)
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.get(
+                        f"https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet/rest/ConsultaRuc/obtenerDatosRuc",
+                        params={"ruc": ruc},
+                        headers={"User-Agent": "ContaEC/4.0"},
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("razonSocial"):
+                            return {
+                                "ruc": ruc,
+                                "razon_social": data.get("razonSocial", ""),
+                                "nombre_comercial": data.get("nombreComercial", ""),
+                                "dir_matriz": data.get("dirMatriz", ""),
+                                "obligado_contabilidad": data.get("obligadoContabilidad", "NO"),
+                                "contribuyente_especial": data.get("contribuyenteEspecial", ""),
+                                "agente_retencion": data.get("agenteRetencion", ""),
+                                "contribuyente_rimpe": data.get("contribuyenteRimpe", ""),
+                            }
+                        else:
+                            logger.warning(f"SRI no encontro datos para RUC {ruc}: {data}")
+                            return {
+                                "ruc": ruc,
+                                "message": "RUC no encontrado en el SRI. Verifique el numero e intente nuevamente.",
+                                "razon_social": "",
+                                "nombre_comercial": "",
+                                "dir_matriz": "",
+                            }
+                    else:
+                        logger.warning(f"SRI respondio con status {response.status_code} para RUC {ruc}")
+                        last_error = f"El SRI respondio con status {response.status_code}"
+                        break  # Non-200 status, don't retry
+            except httpx.TimeoutException:
+                last_error = "El servicio del SRI no responde (timeout)"
+                logger.warning(f"SRI timeout en intento {attempt+1} para RUC {ruc}")
+                if attempt < 2:
+                    import asyncio
+                    await asyncio.sleep(2)
+                continue
+            except httpx.ConnectError:
+                last_error = "No se puede conectar con el servicio del SRI"
+                logger.warning(f"SRI connection error en intento {attempt+1} para RUC {ruc}")
+                if attempt < 2:
+                    import asyncio
+                    await asyncio.sleep(2)
+                continue
 
-    # Fallback: retornar datos básicos
+        logger.warning(f"Error consultando RUC {ruc} en SRI despues de reintentos: {last_error}")
+    except Exception as e:
+        logger.warning(f"Error inesperado consultando RUC {ruc} en SRI: {e}")
+
+    # Fallback: retornar datos basicos
     return {
         "ruc": ruc,
-        "message": "No se pudo consultar el SRI. Complete los datos manualmente.",
+        "message": "El servicio del SRI no esta disponible en este momento. Complete los datos manualmente.",
         "razon_social": "",
         "nombre_comercial": "",
         "dir_matriz": "",
@@ -320,3 +347,50 @@ async def list_clients(
         }
         for c in clients
     ]
+
+
+@router.post("/upload/{upload_type}")
+async def upload_company_file(
+    upload_type: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Subir archivos de empresa: logo o firma electronica.
+    
+    upload_type: "logo" o "firma"
+    Retorna la ruta del archivo guardado.
+    """
+    if upload_type not in ("logo", "firma"):
+        raise HTTPException(status_code=400, detail="Tipo de archivo invalido. Use 'logo' o 'firma'")
+
+    settings = get_settings()
+    upload_dir = Path(settings.upload_dir) / "companies"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    # Validar extension
+    filename = file.filename or ""
+    if upload_type == "logo":
+        if not filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")):
+            raise HTTPException(status_code=400, detail="Solo se permiten imagenes (png, jpg, jpeg, gif, svg, webp)")
+    else:  # firma
+        if not filename.lower().endswith((".p12", ".pfx")):
+            raise HTTPException(status_code=400, detail="Solo se permiten archivos .p12 o .pfx")
+
+    # Generar nombre unico
+    ext = Path(filename).suffix
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    file_path = upload_dir / unique_name
+
+    content = await file.read()
+    file_path.write_bytes(content)
+
+    relative_path = f"/uploads/companies/{unique_name}"
+
+    logger.info(f"Archivo {upload_type} subido por {current_user.email}: {relative_path}")
+
+    return {
+        "file_path": relative_path,
+        "filename": filename,
+        "upload_type": upload_type,
+    }

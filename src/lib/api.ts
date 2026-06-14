@@ -102,7 +102,17 @@ async function apiRequest<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ detail: 'Error de servidor' }));
-    throw new Error(errorData.detail || `Error ${response.status}`);
+    const detail = errorData.detail;
+    // Handle Pydantic 422 validation errors (array of {loc, msg, type})
+    let message: string;
+    if (Array.isArray(detail)) {
+      message = detail.map((e: { loc?: (string | number)[]; msg?: string }) => e.msg || e).filter(Boolean).join(', ');
+    } else if (typeof detail === 'string') {
+      message = detail;
+    } else {
+      message = `Error ${response.status}`;
+    }
+    throw new Error(message);
   }
 
   // Handle 204 No Content
@@ -233,6 +243,22 @@ interface Company {
   agente_retencion: string | null;
   contribuyente_rimpe: string | null;
   logo_path: string | null;
+  // Contacto
+  correo: string | null;
+  telefono: string | null;
+  // Firma electronica
+  firma_electronica_path: string | null;
+  // Registro turistico
+  registro_turistico: boolean;
+  // Operadora Transportista
+  operadora_transportista_comercial: boolean;
+  operadora_transportista_ligera: boolean;
+  ruc_operadora_comercial: string | null;
+  ruc_operadora_transportista: string | null;
+  // Informacion adicional
+  codigo_artesano: string | null;
+  nombre_recibos: string | null;
+  // Estado
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -248,6 +274,25 @@ async function getCompany(id: string): Promise<Company> {
 
 async function createCompany(data: Partial<Company>): Promise<Company> {
   return apiPost<Company>('/v1/companies', data);
+}
+
+async function uploadCompanyFile(type: 'logo' | 'firma', file: File): Promise<{ file_path: string; filename: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getToken();
+  const response = await fetch(buildUrl('/v1/companies/upload/' + type), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Error al subir archivo' }));
+    throw new Error(typeof errorData.detail === 'string' ? errorData.detail : 'Error al subir archivo');
+  }
+
+  return response.json();
 }
 
 async function updateCompany(id: string, data: Partial<Company>): Promise<Company> {
@@ -4483,6 +4528,7 @@ export {
   getCompanies,
   getCompany,
   createCompany,
+  uploadCompanyFile,
   updateCompany,
   deleteCompany,
   getSRITipoImpuesto,

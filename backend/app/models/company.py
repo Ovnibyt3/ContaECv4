@@ -208,6 +208,69 @@ class Company(Base):
         nullable=True,
         comment="Ruta del logo de la empresa",
     )
+    # Contacto
+    correo: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Correo electronico de la empresa",
+    )
+    telefono: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Telefono de la empresa",
+    )
+    # Firma electronica
+    firma_electronica_path: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Ruta del archivo de firma electronica (.p12/.pfx)",
+    )
+    firma_electronica_password: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Contraseña de la firma electronica (cifrada)",
+    )
+    # Registro turistico
+    registro_turistico: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Registrado en el registro turistico",
+    )
+    # Operadora Transportista
+    operadora_transportista_comercial: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Es operadora transportista comercial",
+    )
+    operadora_transportista_ligera: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Es operadora transportista ligera (cooperativas de taxis, etc.)",
+    )
+    ruc_operadora_comercial: Mapped[str | None] = mapped_column(
+        String(13),
+        nullable=True,
+        comment="RUC de operadora transportista comercial (solo si socio transportista)",
+    )
+    ruc_operadora_transportista: Mapped[str | None] = mapped_column(
+        String(13),
+        nullable=True,
+        comment="RUC de operadora transportista",
+    )
+    # Informacion adicional
+    codigo_artesano: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Codigo de artesano",
+    )
+    nombre_recibos: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Nombre que aparece en los recibos",
+    )
     # Estado
     is_active: Mapped[bool] = mapped_column(
         Boolean,
