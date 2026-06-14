@@ -84,7 +84,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
-import { getCurrentLocale, setCurrentLocale, getLocaleLabel, LOCALES, type Locale } from '@/lib/i18n';
+import { getCurrentLocale, setCurrentLocale, getLocaleLabel, LOCALES, t, type Locale } from '@/lib/i18n';
 import { ContaECSettings } from '@/components/contaec-settings';
 import { ContaECInvoices } from '@/components/contaec-invoices';
 import { ContaECInventory } from '@/components/contaec-inventory';
@@ -235,37 +235,37 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
   }
 
   const userNavItems: { id: NavItem; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Panel Principal', icon: <LayoutDashboard className="h-4 w-4" /> },
-    { id: 'companies', label: 'Empresas', icon: <Building2 className="h-4 w-4" /> },
-    { id: 'sri', label: 'Catalogos SRI', icon: <Shield className="h-4 w-4" /> },
-    { id: 'license', label: 'Licencia', icon: <FileText className="h-4 w-4" /> },
-    { id: 'invoices', label: 'Comprobantes', icon: <Receipt className="h-4 w-4" /> },
-    { id: 'proformas', label: 'Proformas', icon: <FileText className="h-4 w-4" /> },
-    { id: 'products', label: 'Productos', icon: <Package className="h-4 w-4" /> },
-    { id: 'inventory', label: 'Inventario', icon: <Database className="h-4 w-4" /> },
-    { id: 'warehouses', label: 'Almacenes', icon: <WarehouseIcon className="h-4 w-4" /> },
-    { id: 'pos', label: 'Punto de Venta', icon: <Monitor className="h-4 w-4" /> },
-    { id: 'hr', label: 'Recursos Humanos', icon: <Users className="h-4 w-4" /> },
-    { id: 'suppliers', label: 'Proveedores', icon: <Truck className="h-4 w-4" /> },
-    { id: 'purchases', label: 'Compras', icon: <ShoppingCart className="h-4 w-4" /> },
-    { id: 'budgets', label: 'Presupuestos', icon: <PieChart className="h-4 w-4" /> },
-    { id: 'crm', label: 'CRM', icon: <Kanban className="h-4 w-4" /> },
-    { id: 'projects', label: 'Proyectos', icon: <Briefcase className="h-4 w-4" /> },
-    { id: 'integrations', label: 'Integraciones', icon: <Plug className="h-4 w-4" /> },
-    { id: 'mlai', label: 'ML / IA', icon: <Brain className="h-4 w-4" /> },
-    { id: 'accounting', label: 'Contabilidad', icon: <BookOpen className="h-4 w-4" /> },
-    { id: 'audit', label: 'Auditoria', icon: <ScrollText className="h-4 w-4" /> },
-    { id: 'settings', label: 'Configuracion', icon: <Wrench className="h-4 w-4" /> },
-    { id: 'policies', label: 'Politicas', icon: <Scale className="h-4 w-4" /> },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: <LayoutDashboard className="h-4 w-4" /> },
+    { id: 'companies', label: t('nav.companies'), icon: <Building2 className="h-4 w-4" /> },
+    { id: 'sri', label: t('nav.sri'), icon: <Shield className="h-4 w-4" /> },
+    { id: 'license', label: t('nav.license'), icon: <FileText className="h-4 w-4" /> },
+    { id: 'invoices', label: t('nav.invoices'), icon: <Receipt className="h-4 w-4" /> },
+    { id: 'proformas', label: t('nav.proformas'), icon: <FileText className="h-4 w-4" /> },
+    { id: 'products', label: t('nav.products'), icon: <Package className="h-4 w-4" /> },
+    { id: 'inventory', label: t('nav.inventory'), icon: <Database className="h-4 w-4" /> },
+    { id: 'warehouses', label: t('nav.warehouses'), icon: <WarehouseIcon className="h-4 w-4" /> },
+    { id: 'pos', label: t('nav.pos'), icon: <Monitor className="h-4 w-4" /> },
+    { id: 'hr', label: t('nav.hr'), icon: <Users className="h-4 w-4" /> },
+    { id: 'suppliers', label: t('nav.suppliers'), icon: <Truck className="h-4 w-4" /> },
+    { id: 'purchases', label: t('nav.purchases'), icon: <ShoppingCart className="h-4 w-4" /> },
+    { id: 'budgets', label: t('nav.budgets'), icon: <PieChart className="h-4 w-4" /> },
+    { id: 'crm', label: t('nav.crm'), icon: <Kanban className="h-4 w-4" /> },
+    { id: 'projects', label: t('nav.projects'), icon: <Briefcase className="h-4 w-4" /> },
+    { id: 'integrations', label: t('nav.integrations'), icon: <Plug className="h-4 w-4" /> },
+    { id: 'mlai', label: t('nav.ai'), icon: <Brain className="h-4 w-4" /> },
+    { id: 'accounting', label: t('nav.accounting'), icon: <BookOpen className="h-4 w-4" /> },
+    { id: 'audit', label: t('nav.audit'), icon: <ScrollText className="h-4 w-4" /> },
+    { id: 'settings', label: t('nav.settings'), icon: <Wrench className="h-4 w-4" /> },
+    { id: 'policies', label: t('nav.policies'), icon: <Scale className="h-4 w-4" /> },
   ];
 
   const adminNavItems: { id: NavItem; label: string; icon: React.ReactNode }[] = [
-    { id: 'admin-overview', label: 'Resumen', icon: <Activity className="h-4 w-4" /> },
-    { id: 'admin-users', label: 'Usuarios', icon: <Users className="h-4 w-4" /> },
-    { id: 'admin-system', label: 'Sistema', icon: <Server className="h-4 w-4" /> },
-    { id: 'admin-licenses', label: 'Licencias', icon: <Key className="h-4 w-4" /> },
-    { id: 'admin-security', label: 'Seguridad', icon: <ShieldAlert className="h-4 w-4" /> },
-    { id: 'policies', label: 'Politicas', icon: <Scale className="h-4 w-4" /> },
+    { id: 'admin-overview', label: t('admin.overview'), icon: <Activity className="h-4 w-4" /> },
+    { id: 'admin-users', label: t('admin.users'), icon: <Users className="h-4 w-4" /> },
+    { id: 'admin-system', label: t('admin.system'), icon: <Server className="h-4 w-4" /> },
+    { id: 'admin-licenses', label: t('nav.licenses'), icon: <Key className="h-4 w-4" /> },
+    { id: 'admin-security', label: t('admin.security'), icon: <ShieldAlert className="h-4 w-4" /> },
+    { id: 'policies', label: t('nav.policies'), icon: <Scale className="h-4 w-4" /> },
   ];
 
   // Admin users see admin tabs, regular users see normal nav items
@@ -349,7 +349,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
               <Menu className="h-5 w-5" />
             </Button>
             <h1 className="text-lg font-semibold hidden sm:block">
-              {navItems.find((n) => n.id === activeNav)?.label || 'Panel Principal'}
+              {navItems.find((n) => n.id === activeNav)?.label || t('nav.dashboard')}
             </h1>
           </div>
 
@@ -1577,27 +1577,27 @@ function PoliciesView() {
   const policies = [
     {
       key: 'lopd' as PolicyType,
-      title: 'L.O.P.D',
-      subtitle: 'Ley Organica de Proteccion de Datos Personales',
-      description: 'Marco legal para la proteccion de datos personales en Ecuador',
+      title: t('policy.lopd', 'L.O.P.D'),
+      subtitle: t('policy.lopd.subtitle', 'Ley Organica de Proteccion de Datos Personales'),
+      description: t('policy.lopd.desc', 'Marco legal para la proteccion de datos personales en Ecuador'),
       icon: Shield,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100 dark:bg-blue-900/30',
     },
     {
       key: 'terms' as PolicyType,
-      title: 'Terminos y Condiciones',
-      subtitle: 'Acuerdo de uso del sistema ContaEC',
-      description: 'Reglas y condiciones para el uso de la plataforma',
+      title: t('policy.terms', 'Terminos y Condiciones'),
+      subtitle: t('policy.terms.subtitle', 'Acuerdo de uso del sistema ContaEC'),
+      description: t('policy.terms.desc', 'Reglas y condiciones para el uso de la plataforma'),
       icon: FileText,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
     },
     {
       key: 'refund' as PolicyType,
-      title: 'Politica de Reembolso',
-      subtitle: 'Condiciones de devolucion y reembolso',
-      description: 'Politicas aplicables a reembolsos y devoluciones',
+      title: t('policy.refund', 'Politica de Reembolso'),
+      subtitle: t('policy.refund.subtitle', 'Condiciones de devolucion y reembolso'),
+      description: t('policy.refund.desc', 'Politicas aplicables a reembolsos y devoluciones'),
       icon: DollarSign,
       color: 'text-amber-600',
       bgColor: 'bg-amber-100 dark:bg-amber-900/30',
@@ -1621,8 +1621,8 @@ function PoliciesView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Politicas de ContaEC</h2>
-        <p className="text-muted-foreground">Informacion legal y politicas de uso del sistema</p>
+        <h2 className="text-2xl font-bold">{t('nav.policies', 'Politicas')}</h2>
+        <p className="text-muted-foreground">{t('policies.description', 'Informacion legal y politicas de uso del sistema')}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

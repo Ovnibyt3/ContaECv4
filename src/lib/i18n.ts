@@ -27,6 +27,26 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.bi': 'Inteligencia de Negocios',
     'nav.ai': 'IA / ML',
     'nav.notifications': 'Notificaciones',
+    'nav.policies': 'Politicas',
+    'nav.licenses': 'Licencias',
+
+    // Admin
+    'admin.overview': 'Resumen',
+    'admin.users': 'Usuarios',
+    'admin.system': 'Sistema',
+    'admin.security': 'Seguridad',
+
+    // Policies
+    'policy.lopd': 'L.O.P.D',
+    'policy.lopd.subtitle': 'Ley Organica de Proteccion de Datos Personales',
+    'policy.lopd.desc': 'Marco legal para la proteccion de datos personales en Ecuador',
+    'policy.terms': 'Terminos y Condiciones',
+    'policy.terms.subtitle': 'Acuerdo de uso del sistema ContaEC',
+    'policy.terms.desc': 'Reglas y condiciones para el uso de la plataforma',
+    'policy.refund': 'Politica de Reembolso',
+    'policy.refund.subtitle': 'Condiciones de devolucion y reembolso',
+    'policy.refund.desc': 'Politicas aplicables a reembolsos y devoluciones',
+    'policies.description': 'Informacion legal y politicas de uso del sistema',
 
     // Common
     'common.save': 'Guardar',
@@ -354,6 +374,26 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.bi': 'Business Intelligence',
     'nav.ai': 'AI / ML',
     'nav.notifications': 'Notifications',
+    'nav.policies': 'Policies',
+    'nav.licenses': 'Licenses',
+
+    // Admin
+    'admin.overview': 'Overview',
+    'admin.users': 'Users',
+    'admin.system': 'System',
+    'admin.security': 'Security',
+
+    // Policies
+    'policy.lopd': 'L.O.P.D',
+    'policy.lopd.subtitle': 'Organic Law on Personal Data Protection',
+    'policy.lopd.desc': 'Legal framework for personal data protection in Ecuador',
+    'policy.terms': 'Terms & Conditions',
+    'policy.terms.subtitle': 'ContaEC system usage agreement',
+    'policy.terms.desc': 'Rules and conditions for using the platform',
+    'policy.refund': 'Refund Policy',
+    'policy.refund.subtitle': 'Refund and return conditions',
+    'policy.refund.desc': 'Policies applicable to refunds and returns',
+    'policies.description': 'Legal information and system usage policies',
 
     // Common
     'common.save': 'Save',
@@ -681,6 +721,26 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.bi': 'Inteligência de Negócios',
     'nav.ai': 'IA / ML',
     'nav.notifications': 'Notificações',
+    'nav.policies': 'Políticas',
+    'nav.licenses': 'Licenças',
+
+    // Admin
+    'admin.overview': 'Visão Geral',
+    'admin.users': 'Usuários',
+    'admin.system': 'Sistema',
+    'admin.security': 'Segurança',
+
+    // Policies
+    'policy.lopd': 'L.O.P.D',
+    'policy.lopd.subtitle': 'Lei Organica de Protecao de Dados Pessoais',
+    'policy.lopd.desc': 'Marco legal para protecao de dados pessoais no Equador',
+    'policy.terms': 'Termos e Condicoes',
+    'policy.terms.subtitle': 'Acordo de uso do sistema ContaEC',
+    'policy.terms.desc': 'Regras e condicoes para uso da plataforma',
+    'policy.refund': 'Politica de Reembolso',
+    'policy.refund.subtitle': 'Condicoes de devolucao e reembolso',
+    'policy.refund.desc': 'Politicas aplicaveis a reembolsos e devolucoes',
+    'policies.description': 'Informacoes legais e politicas de uso do sistema',
 
     // Common
     'common.save': 'Salvar',
@@ -996,11 +1056,22 @@ function setLocale(locale: Locale): void {
   localStorage.setItem('contaec_locale', locale);
 }
 
-function t(key: string, params?: Record<string, string | number>): string {
+function t(key: string, fallbackOrParams?: string | Record<string, string | number>, params?: Record<string, string | number>): string {
   const locale = getLocale();
-  let text = translations[locale]?.[key] || translations.es_EC[key] || key;
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => {
+
+  let fallback: string | undefined;
+  let p: Record<string, string | number> | undefined;
+
+  if (typeof fallbackOrParams === 'string') {
+    fallback = fallbackOrParams;
+    p = params;
+  } else if (typeof fallbackOrParams === 'object') {
+    p = fallbackOrParams;
+  }
+
+  let text = translations[locale]?.[key] || translations.es_EC[key] || fallback || key;
+  if (p) {
+    Object.entries(p).forEach(([k, v]) => {
       text = text.replace(`{${k}}`, String(v));
     });
   }
