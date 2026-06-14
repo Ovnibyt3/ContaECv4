@@ -108,6 +108,15 @@ Internet (DNS: conta.tymtechnology.shop)
 - Red: vmbr0 (internet) + vmbr1 (10.0.1.20/24)
 
 ---
+## Si se desea hacer cambio de ambiente general de producción a desarrollo hacer lo siguiente:
+How to change environment
+Edit /opt/contaec/backend/.env on the server:
+# Switch to production:
+sed -i 's/APP_ENV=.*/APP_ENV=production/' /opt/contaec/backend/.env
+# Switch to development:
+sed -i 's/APP_ENV=.*/APP_ENV=development/' /opt/contaec/backend/.env
+# Then restart:
+systemctl restart contaec-backend
 
 ## Instalación Paso a Paso
 
