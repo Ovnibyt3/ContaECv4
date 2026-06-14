@@ -7,8 +7,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator'
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -94,12 +103,14 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
   } | null>(null);
 
   // License prices management
-  const [licensePrices] = useState([
+  const [licensePrices, setLicensePrices] = useState([
     { type: 'Mensual', key: 'monthly', price: 15.00, months: 1, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
     { type: 'Trimestral', key: 'quarterly', price: 40.00, months: 3, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     { type: 'Semestral', key: 'semiannual', price: 75.00, months: 6, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
     { type: 'Anual', key: 'annual', price: 130.00, months: 12, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
   ]);
+  const [editingPrices, setEditingPrices] = useState(false);
+  const [savingPrices, setSavingPrices] = useState(false);
 
   const loadAdminData = useCallback(async () => {
     setLoading(true);
@@ -122,7 +133,7 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
             current_environment: app.environment,
             target_environment: app.environment === 'production' ? 'development' : 'production',
             is_production: app.environment === 'production',
-            message: 'Actualice APP_ENV en .env y reinicie para aplicar cambios.',
+            message: '',
           });
         }
       }
@@ -137,9 +148,12 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
   const handleToggleEnvironment = async () => {
     setEnvToggleLoading(true);
     try {
-      const response = await fetch('/v1/admin/environment/toggle', {
+      const response = await fetch('/api/v1/admin/environment/toggle', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('contaec_token')}`,
+        },
       });
       if (!response.ok) throw new Error('Error al cambiar ambiente');
       const data = await response.json();
@@ -149,7 +163,7 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
         is_production: data.is_production,
         message: data.message,
       });
-      toast.success(`Ambiente actual: ${data.current_environment}. ${data.message}`);
+      toast.success(`Ambiente cambiado a: ${data.current_environment}`);
     } catch (error) {
       toast.error('Error al cambiar ambiente. Verifique los logs del servidor.');
     } finally {
@@ -157,9 +171,65 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
     }
   };
 
+  const loadLicensePrices = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('contaec_token');
+      const res = await fetch('/api/v1/admin/license-prices', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLicensePrices((prev) =>
+          prev.map((p) => ({
+            ...p,
+            price: data.prices[p.key]?.price ?? p.price,
+          }))
+        );
+      }
+    } catch {
+      // Use defaults
+    }
+  }, []);
+
+  const handleSavePrices = async () => {
+    setSavingPrices(true);
+    try {
+      const token = localStorage.getItem('contaec_token');
+      const body: Record<string, number> = {};
+      licensePrices.forEach((p) => {
+        body[p.key] = p.price;
+      });
+      const res = await fetch('/api/v1/admin/license-prices', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('Error al guardar precios');
+      toast.success('Precios actualizados correctamente');
+      setEditingPrices(false);
+    } catch {
+      toast.error('Error al guardar precios');
+    } finally {
+      setSavingPrices(false);
+    }
+  };
+
+  const handlePriceChange = (key: string, value: string) => {
+    const num = parseFloat(value);
+    if (!isNaN(num) && num >= 0) {
+      setLicensePrices((prev) =>
+        prev.map((p) => (p.key === key ? { ...p, price: num } : p))
+      );
+    }
+  };
+
   useEffect(() => {
     loadAdminData();
-  }, [loadAdminData]);
+    loadLicensePrices();
+  }, [loadAdminData, loadLicensePrices]);
 
   async function handleModifyLicense() {
     if (!selectedUser) return;
@@ -504,11 +574,6 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
                         )}
                         Cambiar a {envInfo?.target_environment || '...'}
                       </Button>
-                      {envInfo && (
-                        <p className="text-xs text-muted-foreground leading-tight">
-                          {envInfo.message}
-                        </p>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -653,98 +718,141 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
 
         {/* Licenses Tab */}
         <TabsContent value="licenses">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {licensePrices.map((plan) => (
-              <Card key={plan.key} className="border-2">
-                <CardHeader>
-                  <CardTitle className="text-lg">{plan.type}</CardTitle>
-                  <CardDescription>{plan.months} {plan.months === 1 ? 'mes' : 'meses'}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center py-4">
-                    <div className="text-3xl font-bold">
-                      ${plan.price.toFixed(2)}
+          <div className="space-y-6">
+            {/* Price editing controls */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                      Precios de Licencias
+                    </CardTitle>
+                    <CardDescription>
+                      {editingPrices
+                        ? 'Edite los precios y haga clic en Guardar'
+                        : 'Precios actuales del sistema. Haga clic en Editar para cambiar.'}
+                    </CardDescription>
+                  </div>
+                  {!editingPrices ? (
+                    <Button size="sm" onClick={() => setEditingPrices(true)}>
+                      <Edit2 className="h-4 w-4 mr-1" />
+                      Editar Precios
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => { setEditingPrices(false); loadLicensePrices(); }}>
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={handleSavePrices} disabled={savingPrices}>
+                        {savingPrices ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                        Guardar
+                      </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ${(plan.price / plan.months).toFixed(2)}/mes
-                    </p>
-                  </div>
-                  <Badge className={`w-full justify-center ${plan.color}`}>
-                    {plan.type}
-                  </Badge>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p className="text-center">Precios actuales del sistema</p>
-                    <p className="text-center">Para modificar, edite el archivo <code className="bg-muted px-1">licenses.py</code></p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {licensePrices.map((plan) => (
+                    <div key={plan.key} className="space-y-3 p-4 rounded-lg border">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{plan.type}</span>
+                        <Badge className={plan.color}>{plan.type}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{plan.months} {plan.months === 1 ? 'mes' : 'meses'}</p>
+                      {editingPrices ? (
+                        <div className="space-y-1">
+                          <Label htmlFor={`price-${plan.key}`}>Precio (USD)</Label>
+                          <Input
+                            id={`price-${plan.key}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={plan.price}
+                            onChange={(e) => handlePriceChange(plan.key, e.target.value)}
+                            className="text-lg font-bold"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-center py-2">
+                          <div className="text-3xl font-bold">${plan.price.toFixed(2)}</div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            ${(plan.price / plan.months).toFixed(2)}/mes
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* License tiers info */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-primary" />
-                Limites por Plan
-              </CardTitle>
-              <CardDescription>
-                Caracteristicas y limites de cada tipo de licencia
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Limite</TableHead>
-                      <TableHead>Mensual</TableHead>
-                      <TableHead>Trimestral</TableHead>
-                      <TableHead>Semestral</TableHead>
-                      <TableHead>Anual</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell className="font-medium">Empresas max.</TableCell>
-                      <TableCell>1</TableCell>
-                      <TableCell>2</TableCell>
-                      <TableCell>5</TableCell>
-                      <TableCell>Ilimitado</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Usuarios/empresa</TableCell>
-                      <TableCell>2</TableCell>
-                      <TableCell>5</TableCell>
-                      <TableCell>10</TableCell>
-                      <TableCell>Ilimitado</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Comprobantes/mes</TableCell>
-                      <TableCell>50</TableCell>
-                      <TableCell>200</TableCell>
-                      <TableCell>500</TableCell>
-                      <TableCell>Ilimitado</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Empleados</TableCell>
-                      <TableCell>5</TableCell>
-                      <TableCell>15</TableCell>
-                      <TableCell>50</TableCell>
-                      <TableCell>Ilimitado</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Productos</TableCell>
-                      <TableCell>100</TableCell>
-                      <TableCell>500</TableCell>
-                      <TableCell>2,000</TableCell>
-                      <TableCell>Ilimitado</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+            {/* License tiers info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  Limites por Plan
+                </CardTitle>
+                <CardDescription>
+                  Caracteristicas y limites de cada tipo de licencia
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Limite</TableHead>
+                        <TableHead>Mensual</TableHead>
+                        <TableHead>Trimestral</TableHead>
+                        <TableHead>Semestral</TableHead>
+                        <TableHead>Anual</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="font-medium">Empresas max.</TableCell>
+                        <TableCell>1</TableCell>
+                        <TableCell>2</TableCell>
+                        <TableCell>5</TableCell>
+                        <TableCell>Ilimitado</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Usuarios/empresa</TableCell>
+                        <TableCell>2</TableCell>
+                        <TableCell>5</TableCell>
+                        <TableCell>10</TableCell>
+                        <TableCell>Ilimitado</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Comprobantes/mes</TableCell>
+                        <TableCell>50</TableCell>
+                        <TableCell>200</TableCell>
+                        <TableCell>500</TableCell>
+                        <TableCell>Ilimitado</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Empleados</TableCell>
+                        <TableCell>5</TableCell>
+                        <TableCell>15</TableCell>
+                        <TableCell>50</TableCell>
+                        <TableCell>Ilimitado</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Productos</TableCell>
+                        <TableCell>100</TableCell>
+                        <TableCell>500</TableCell>
+                        <TableCell>2,000</TableCell>
+                        <TableCell>Ilimitado</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Security Tab */}

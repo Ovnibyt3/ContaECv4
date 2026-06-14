@@ -74,19 +74,17 @@ export default function Home() {
   if (initializing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center mb-4">
-            <Image
-              src="/logo.svg"
-              alt="ContaEC Logo"
-              width={64}
-              height={64}
-              className="h-16 w-16 animate-pulse"
-              priority
-            />
-          </div>
-          <h1 className="text-xl font-bold text-foreground">ContaEC</h1>
-          <p className="text-sm text-muted-foreground mt-1">Cargando...</p>
+        <div className="text-center space-y-4">
+          <Image
+            src="/logo.svg"
+            alt="ContaEC Logo"
+            width={120}
+            height={100}
+            className="h-24 w-auto mx-auto"
+            priority
+          />
+          <h1 className="text-2xl font-bold text-foreground">ContaEC</h1>
+          <p className="text-sm text-muted-foreground">Cargando...</p>
         </div>
       </div>
     );

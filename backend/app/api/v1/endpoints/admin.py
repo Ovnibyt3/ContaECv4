@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,23 @@ router = APIRouter(prefix="/admin", tags=["Administración"])
 
 # Track application start time for uptime calculation
 _startup_time = datetime.now(timezone.utc)
+
+# ==========================================
+# License Price Management (in-memory, editable by admin)
+# ==========================================
+LICENSE_PRICES = {
+    "monthly": {"price": 15.00, "months": 1, "label": "Mensual"},
+    "quarterly": {"price": 40.00, "months": 3, "label": "Trimestral"},
+    "semiannual": {"price": 75.00, "months": 6, "label": "Semestral"},
+    "annual": {"price": 130.00, "months": 12, "label": "Anual"},
+}
+
+
+class LicensePriceUpdate(BaseModel):
+    monthly: float | None = None
+    quarterly: float | None = None
+    semiannual: float | None = None
+    annual: float | None = None
 
 
 @router.get("/dashboard")
@@ -355,4 +373,50 @@ async def security_issues(
             }
             for u in users_no_config
         ],
+    }
+
+
+# ==========================================
+# License Price Management Endpoints
+# ==========================================
+
+@router.get("/license-prices")
+async def get_license_prices(
+    current_user: User = Depends(get_current_active_admin),
+):
+    """Obtener precios actuales de todas las licencias"""
+    return {
+        "prices": LICENSE_PRICES,
+        "currency": "USD",
+    }
+
+
+@router.put("/license-prices")
+async def update_license_prices(
+    data: LicensePriceUpdate,
+    current_user: User = Depends(get_current_active_admin),
+):
+    """
+    Actualizar precios de licencias.
+    Solo se envían los precios que se quieren cambiar (None = no cambiar).
+    """
+    updated = []
+    if data.monthly is not None:
+        LICENSE_PRICES["monthly"]["price"] = data.monthly
+        updated.append("monthly")
+    if data.quarterly is not None:
+        LICENSE_PRICES["quarterly"]["price"] = data.quarterly
+        updated.append("quarterly")
+    if data.semiannual is not None:
+        LICENSE_PRICES["semiannual"]["price"] = data.semiannual
+        updated.append("semiannual")
+    if data.annual is not None:
+        LICENSE_PRICES["annual"]["price"] = data.annual
+        updated.append("annual")
+
+    logger.info(f"Admin {current_user.email} updated license prices: {updated}")
+
+    return {
+        "message": f"Precios actualizados: {', '.join(updated)}",
+        "prices": LICENSE_PRICES,
     }

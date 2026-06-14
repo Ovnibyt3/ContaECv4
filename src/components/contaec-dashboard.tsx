@@ -220,7 +220,7 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
     onLogout();
   }
 
-  const navItems: { id: NavItem; label: string; icon: React.ReactNode }[] = [
+  const userNavItems: { id: NavItem; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Panel Principal', icon: <LayoutDashboard className="h-4 w-4" /> },
     { id: 'companies', label: 'Empresas', icon: <Building2 className="h-4 w-4" /> },
     { id: 'sri', label: 'Catalogos SRI', icon: <Shield className="h-4 w-4" /> },
@@ -243,6 +243,11 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
     { id: 'audit', label: 'Auditoria', icon: <ScrollText className="h-4 w-4" /> },
     { id: 'settings', label: 'Configuracion', icon: <Wrench className="h-4 w-4" /> },
   ];
+
+  // Admin users only see Admin Panel button, not regular nav items
+  const navItems = user.is_admin
+    ? []
+    : userNavItems;
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -274,32 +279,29 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
 
         {/* Nav Items */}
         <nav className="flex-1 p-2 space-y-1">
-          {navItems.map((item) => (
+          {user.is_admin ? (
             <button
-              key={item.id}
-              onClick={() => setActiveNav(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                activeNav === item.id
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              }`}
+              onClick={onShowAdmin}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors bg-primary/10 text-primary font-medium"
             >
-              {item.icon}
-              {sidebarOpen && <span>{item.label}</span>}
+              <Settings className="h-4 w-4" />
+              {sidebarOpen && <span>Admin Panel</span>}
             </button>
-          ))}
-
-          {user.is_admin && (
-            <>
-              <Separator className="my-2" />
+          ) : (
+            navItems.map((item) => (
               <button
-                onClick={onShowAdmin}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                key={item.id}
+                onClick={() => setActiveNav(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                  activeNav === item.id
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
               >
-                <Settings className="h-4 w-4" />
-                {sidebarOpen && <span>Admin Panel</span>}
+                {item.icon}
+                {sidebarOpen && <span>{item.label}</span>}
               </button>
-            </>
+            ))
           )}
         </nav>
 
@@ -400,6 +402,20 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : user.is_admin ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4">
+              <Image
+                src="/logo.svg"
+                alt="ContaEC"
+                width={80}
+                height={80}
+                className="h-20 w-20 opacity-50"
+              />
+              <h2 className="text-xl font-semibold">Bienvenido, Administrador</h2>
+              <p className="text-muted-foreground text-center max-w-md">
+                Use el boton <strong>Admin Panel</strong> en la barra lateral para acceder a la gestion del sistema.
+              </p>
             </div>
           ) : (
             <>
