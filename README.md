@@ -252,7 +252,7 @@ cd /opt && mkdir -p contaec && cd contaec
 git clone <repositorio> .
 # O copiar vía scp/rsync
 # Para mover el repositorio clonado al directorio padre
-sudo mv /opt/contaec/ContaECv4/* /opt/contaec/ 
+sudo mv /opt/contaec/ContaECv4/* /opt/contaec/
 sudo mv /opt/contaec/ContaECv4/.* /opt/contaec/ 2>/dev/null && sudo rmdir /opt/contaec/ContaECv4
 
 # Crear y activar entorno virtual
@@ -371,6 +371,7 @@ sudo journalctl -u contaec-frontend -n 100 --no-pager | tail -50
 sudo systemctl status contaec-frontend
 
 # Verificar que el frontend responde
+sleep 10
 curl http://localhost:3000
 ```
 
