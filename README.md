@@ -288,10 +288,7 @@ bun --version
 
 ```bash
 # Crear directorios necesarios
-mkdir -p /opt/contaec/backend/backups
-mkdir -p /opt/contaec/backend/uploads
-mkdir -p /opt/contaec/backend/temp
-mkdir -p /opt/contaec/backend/signatures
+mkdir -p /opt/contaec/backend/backups && mkdir -p /opt/contaec/backend/uploads && mkdir -p /opt/contaec/backend/temp && mkdir -p /opt/contaec/backend/signatures
 
 # Configurar el archivo .env
 cp /opt/contaec/.env.example /opt/contaec/backend/.env
@@ -324,6 +321,7 @@ systemctl enable contaec-backend
 systemctl start contaec-backend
 
 # Verificar que el backend responde
+sleep 10
 curl http://localhost:8000/api/health
 ```
 
