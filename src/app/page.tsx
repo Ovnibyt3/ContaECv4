@@ -4,10 +4,9 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { ContaECLogin } from '@/components/contaec-login';
 import { ContaECDashboard } from '@/components/contaec-dashboard';
-import { ContaECAdmin } from '@/components/contaec-admin';
 import { getMe, getUserCache, type User } from '@/lib/api';
 
-type AppView = 'login' | 'dashboard' | 'admin';
+type AppView = 'login' | 'dashboard';
 
 export default function Home() {
   const [view, setView] = useState<AppView>('login');
@@ -62,14 +61,6 @@ export default function Home() {
     setView('login');
   }
 
-  function handleShowAdmin() {
-    setView('admin');
-  }
-
-  function handleBackFromAdmin() {
-    setView('dashboard');
-  }
-
   // Loading screen while checking auth
   if (initializing) {
     return (
@@ -94,15 +85,10 @@ export default function Home() {
     return <ContaECLogin onAuthSuccess={handleAuthSuccess} />;
   }
 
-  if (view === 'admin') {
-    return <ContaECAdmin onBack={handleBackFromAdmin} />;
-  }
-
   return (
     <ContaECDashboard
       user={user}
       onLogout={handleLogout}
-      onShowAdmin={handleShowAdmin}
     />
   );
 }

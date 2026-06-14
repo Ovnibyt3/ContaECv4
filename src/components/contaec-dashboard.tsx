@@ -49,6 +49,7 @@ import {
   RefreshCw,
   Settings,
   Shield,
+  ShieldAlert,
   Sun,
   User,
   AlertTriangle,
@@ -58,6 +59,7 @@ import {
   Database,
   DollarSign,
   Receipt,
+  Server,
   TrendingUp,
   Users,
   Briefcase,
@@ -77,6 +79,7 @@ import {
   Kanban,
   Plug,
   Brain,
+  Activity,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -122,12 +125,11 @@ import {
 interface ContaECDashboardProps {
   user: UserType;
   onLogout: () => void;
-  onShowAdmin: () => void;
 }
 
-type NavItem = 'dashboard' | 'companies' | 'sri' | 'license' | 'invoices' | 'proformas' | 'products' | 'inventory' | 'warehouses' | 'pos' | 'hr' | 'suppliers' | 'purchases' | 'budgets' | 'crm' | 'projects' | 'integrations' | 'mlai' | 'accounting' | 'audit' | 'settings';
+type NavItem = 'dashboard' | 'companies' | 'sri' | 'license' | 'invoices' | 'proformas' | 'products' | 'inventory' | 'warehouses' | 'pos' | 'hr' | 'suppliers' | 'purchases' | 'budgets' | 'crm' | 'projects' | 'integrations' | 'mlai' | 'accounting' | 'audit' | 'settings' | 'admin-overview' | 'admin-users' | 'admin-system' | 'admin-licenses' | 'admin-security';
 
-export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboardProps) {
+export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
   const { theme, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeNav, setActiveNav] = useState<NavItem>('dashboard');
@@ -244,10 +246,16 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
     { id: 'settings', label: 'Configuracion', icon: <Wrench className="h-4 w-4" /> },
   ];
 
-  // Admin users only see Admin Panel button, not regular nav items
-  const navItems = user.is_admin
-    ? []
-    : userNavItems;
+  const adminNavItems: { id: NavItem; label: string; icon: React.ReactNode }[] = [
+    { id: 'admin-overview', label: 'Resumen', icon: <Activity className="h-4 w-4" /> },
+    { id: 'admin-users', label: 'Usuarios', icon: <Users className="h-4 w-4" /> },
+    { id: 'admin-system', label: 'Sistema', icon: <Server className="h-4 w-4" /> },
+    { id: 'admin-licenses', label: 'Licencias', icon: <Key className="h-4 w-4" /> },
+    { id: 'admin-security', label: 'Seguridad', icon: <ShieldAlert className="h-4 w-4" /> },
+  ];
+
+  // Admin users see admin tabs, regular users see normal nav items
+  const navItems = user.is_admin ? adminNavItems : userNavItems;
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -279,30 +287,20 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
 
         {/* Nav Items */}
         <nav className="flex-1 p-2 space-y-1">
-          {user.is_admin ? (
+          {navItems.map((item) => (
             <button
-              onClick={onShowAdmin}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors bg-primary/10 text-primary font-medium"
+              key={item.id}
+              onClick={() => setActiveNav(item.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                activeNav === item.id
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              }`}
             >
-              <Settings className="h-4 w-4" />
-              {sidebarOpen && <span>Admin Panel</span>}
+              {item.icon}
+              {sidebarOpen && <span>{item.label}</span>}
             </button>
-          ) : (
-            navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveNav(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                  activeNav === item.id
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                {item.icon}
-                {sidebarOpen && <span>{item.label}</span>}
-              </button>
-            ))
-          )}
+          ))}
         </nav>
 
         {/* Sidebar Footer */}
@@ -404,19 +402,7 @@ export function ContaECDashboard({ user, onLogout, onShowAdmin }: ContaECDashboa
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : user.is_admin ? (
-            <div className="flex flex-col items-center justify-center h-64 space-y-4">
-              <Image
-                src="/logo.svg"
-                alt="ContaEC"
-                width={80}
-                height={80}
-                className="h-20 w-20 opacity-50"
-              />
-              <h2 className="text-xl font-semibold">Bienvenido, Administrador</h2>
-              <p className="text-muted-foreground text-center max-w-md">
-                Use el boton <strong>Admin Panel</strong> en la barra lateral para acceder a la gestion del sistema.
-              </p>
-            </div>
+            <AdminDashboardView />
           ) : (
             <>
               {activeNav === 'dashboard' && (
@@ -1560,6 +1546,552 @@ function InvoicesView({ invoiceStats }: { invoiceStats: InvoiceStatsType | null 
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+// ─── Admin Dashboard View (integrated into main dashboard) ────────────────
+function AdminDashboardView() {
+  const [activeAdminTab, setActiveAdminTab] = useState('overview');
+  const [adminStats, setAdminStats] = useState<{
+    total_users: number;
+    total_companies: number;
+    total_clients: number;
+    expiring_licenses: number;
+    expired_licenses: number;
+    license_distribution: Record<string, number>;
+  } | null>(null);
+  const [adminUsers, setAdminUsers] = useState<Array<{
+    id: string;
+    email: string;
+    full_name: string;
+    is_active: boolean;
+    is_admin: boolean;
+    license_type: string;
+    license_end_date: string | null;
+    created_at: string;
+  }>>([]);
+  const [health, setHealth] = useState<{
+    system: Record<string, unknown>;
+    database: Record<string, unknown>;
+    application: Record<string, unknown>;
+  } | null>(null);
+  const [securityData, setSecurityData] = useState<{
+    expired_active_licenses: Array<{ user_id: string; email: string; full_name: string; license_end_date: string | null; days_expired: number | null }>;
+    users_without_config: Array<{ user_id: string; email: string; full_name: string }>;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [licenseDialogOpen, setLicenseDialogOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [licenseForm, setLicenseForm] = useState({ license_type: '' });
+  const [modifying, setModifying] = useState(false);
+
+  const licensePrices = [
+    { type: 'Mensual', key: 'monthly', price: 15.00, months: 1, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+    { type: 'Trimestral', key: 'quarterly', price: 40.00, months: 3, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+    { type: 'Semestral', key: 'semiannual', price: 75.00, months: 6, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+    { type: 'Anual', key: 'annual', price: 130.00, months: 12, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+  ];
+
+  const loadAdminData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('contaec_token') || '';
+      const results = await Promise.allSettled([
+        fetch('/api/v1/admin/dashboard', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/v1/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/v1/admin/system-health', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/v1/admin/security-issues', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      ]);
+
+      if (results[0].status === 'fulfilled') setAdminStats(results[0].value);
+      if (results[1].status === 'fulfilled') setAdminUsers(results[1].value);
+      if (results[2].status === 'fulfilled') setHealth(results[2].value);
+      if (results[3].status === 'fulfilled') setSecurityData(results[3].value);
+    } catch {
+      toast.error('Error al cargar datos de administracion');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAdminData();
+  }, [loadAdminData]);
+
+  async function handleModifyLicense() {
+    if (!selectedUserId) return;
+    setModifying(true);
+    try {
+      const token = localStorage.getItem('contaec_token') || '';
+      const res = await fetch(`/api/v1/admin/users/${selectedUserId}/license?license_type=${licenseForm.license_type}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Error al modificar licencia');
+      toast.success('Licencia actualizada');
+      setLicenseDialogOpen(false);
+      loadAdminData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al modificar licencia');
+    } finally {
+      setModifying(false);
+    }
+  }
+
+  async function handleToggleUser(userId: string, isActive: boolean) {
+    try {
+      const token = localStorage.getItem('contaec_token') || '';
+      const res = await fetch(`/api/v1/admin/users/${userId}/toggle-active`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Error al cambiar estado');
+      toast.success(isActive ? 'Usuario desactivado' : 'Usuario activado');
+      loadAdminData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error');
+    }
+  }
+
+  if (loading && !adminStats) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Panel de Administracion</h2>
+        <p className="text-muted-foreground">Gestion del sistema ContaEC</p>
+      </div>
+
+      <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="space-y-4">
+        <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="overview" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Resumen</span>
+          </TabsTrigger>
+          <TabsTrigger value="users" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Usuarios</span>
+          </TabsTrigger>
+          <TabsTrigger value="system" className="gap-1.5">
+            <Server className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Sistema</span>
+          </TabsTrigger>
+          <TabsTrigger value="licenses" className="gap-1.5">
+            <Key className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Licencias</span>
+          </TabsTrigger>
+          <TabsTrigger value="security" className="gap-1.5">
+            <ShieldAlert className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Seguridad</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Users className="h-8 w-8 mx-auto text-primary mb-2" />
+                <div className="text-3xl font-bold">{adminStats?.total_users ?? 0}</div>
+                <p className="text-sm text-muted-foreground">Total Usuarios</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Building2 className="h-8 w-8 mx-auto text-primary mb-2" />
+                <div className="text-3xl font-bold">{adminStats?.total_companies ?? 0}</div>
+                <p className="text-sm text-muted-foreground">Total Empresas</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Database className="h-8 w-8 mx-auto text-primary mb-2" />
+                <div className="text-3xl font-bold">{adminStats?.total_clients ?? 0}</div>
+                <p className="text-sm text-muted-foreground">Total Clientes</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Clock className="h-8 w-8 mx-auto text-amber-500 mb-2" />
+                <div className="text-3xl font-bold">{adminStats?.expiring_licenses ?? 0}</div>
+                <p className="text-sm text-muted-foreground">Licencias por Expirar (30d)</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <XCircle className="h-8 w-8 mx-auto text-destructive mb-2" />
+                <div className="text-3xl font-bold">{adminStats?.expired_licenses ?? 0}</div>
+                <p className="text-sm text-muted-foreground">Licencias Expiradas</p>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Users Tab */}
+        <TabsContent value="users">
+          <Card>
+            <CardHeader>
+              <CardTitle>Usuarios del Sistema</CardTitle>
+              <CardDescription>Gestione usuarios y licencias</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Licencia</TableHead>
+                      <TableHead>Expiracion</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {adminUsers.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.full_name}</TableCell>
+                        <TableCell>{u.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">{u.license_type || 'N/A'}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {u.license_end_date
+                            ? new Date(u.license_end_date).toLocaleDateString('es-EC')
+                            : 'Sin limite'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={u.is_active ? 'default' : 'destructive'}>
+                            {u.is_active ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => { setSelectedUserId(u.id); setLicenseDialogOpen(true); setLicenseForm({ license_type: u.license_type }); }}
+                            >
+                              Licencia
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={u.is_active ? 'destructive' : 'default'}
+                              onClick={() => handleToggleUser(u.id, u.is_active)}
+                            >
+                              {u.is_active ? 'Desactivar' : 'Activar'}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* System Tab */}
+        <TabsContent value="system">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Server className="h-4 w-4 text-primary" />
+                  Aplicacion
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {health ? (
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Version</span>
+                      <Badge variant="outline" className="font-mono">{(health.application as Record<string, string>)?.version ?? 'N/A'}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Ambiente</span>
+                      <Badge variant={(health.application as Record<string, string>)?.environment === 'production' ? 'destructive' : 'default'}>
+                        {(health.application as Record<string, string>)?.environment ?? 'N/A'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Uptime</span>
+                      <span className="text-sm font-medium">{(health.application as Record<string, string>)?.uptime ?? 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Python</span>
+                      <span className="text-sm font-mono">{(health.application as Record<string, string>)?.python_version ?? ''}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">SO</span>
+                      <span className="text-sm font-medium">{(health.application as Record<string, string>)?.system ?? ''}</span>
+                    </div>
+                    <Separator />
+                    <div className="text-xs text-muted-foreground">
+                      <p>Para cambiar ambiente, edite <code className="bg-muted px-1">APP_ENV</code> en <code className="bg-muted px-1">.env</code> y reinicie el servidor.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Recursos del Sistema</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {health ? (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">CPU</span>
+                        <span className="font-medium">
+                          {typeof (health.system as Record<string, unknown>)?.cpu_percent === 'number'
+                            ? `${(health.system as Record<string, number>)?.cpu_percent}%`
+                            : String((health.system as Record<string, unknown>)?.cpu_percent ?? 'N/A')}
+                        </span>
+                      </div>
+                      {typeof (health.system as Record<string, unknown>)?.cpu_percent === 'number' && (
+                        <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+                          <div className="h-full bg-primary transition-all" style={{ width: `${(health.system as Record<string, number>)?.cpu_percent}%` }} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Memoria</span>
+                        <span className="font-medium">
+                          {typeof (health.system as Record<string, unknown>)?.memory_percent === 'number'
+                            ? `${(health.system as Record<string, number>)?.memory_percent}%`
+                            : String((health.system as Record<string, unknown>)?.memory_percent ?? 'N/A')}
+                        </span>
+                      </div>
+                      {typeof (health.system as Record<string, unknown>)?.memory_percent === 'number' && (
+                        <>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+                            <div className="h-full bg-primary transition-all" style={{ width: `${(health.system as Record<string, number>)?.memory_percent}%` }} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {((health.system as Record<string, number>)?.memory_used_mb ?? 0).toFixed(0)} MB / {((health.system as Record<string, number>)?.memory_total_mb ?? 0).toFixed(0)} MB
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Disco</span>
+                        <span className="font-medium">
+                          {typeof (health.system as Record<string, unknown>)?.disk_percent === 'number'
+                            ? `${(health.system as Record<string, number>)?.disk_percent}%`
+                            : String((health.system as Record<string, unknown>)?.disk_percent ?? 'N/A')}
+                        </span>
+                      </div>
+                      {typeof (health.system as Record<string, unknown>)?.disk_percent === 'number' && (
+                        <>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+                            <div className={`h-full transition-all ${(health.system as Record<string, number>)?.disk_percent > 90 ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${(health.system as Record<string, number>)?.disk_percent}%` }} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {((health.system as Record<string, number>)?.disk_used_gb ?? 0).toFixed(1)} GB / {((health.system as Record<string, number>)?.disk_total_gb ?? 0).toFixed(1)} GB
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Base de Datos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {health ? (
+                  <div className="space-y-3">
+                    <div className="flex justify-between p-3 rounded-lg border">
+                      <span className="text-sm">Usuarios</span>
+                      <span className="font-medium">{(health.database as Record<string, number>)?.total_users ?? 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between p-3 rounded-lg border">
+                      <span className="text-sm">Empresas</span>
+                      <span className="font-medium">{(health.database as Record<string, number>)?.total_companies ?? 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between p-3 rounded-lg border">
+                      <span className="text-sm">Clientes</span>
+                      <span className="font-medium">{(health.database as Record<string, number>)?.total_clients ?? 'N/A'}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Licenses Tab */}
+        <TabsContent value="licenses">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {licensePrices.map((plan) => (
+              <Card key={plan.key} className="border-2">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">{plan.type}</CardTitle>
+                  <CardDescription>{plan.months} {plan.months === 1 ? 'mes' : 'meses'}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center">
+                    <span className="text-3xl font-bold">${plan.price.toFixed(2)}</span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ${(plan.price / plan.months).toFixed(2)}/mes
+                    </p>
+                  </div>
+                  <Badge className={`w-full justify-center mt-3 ${plan.color}`}>{plan.type}</Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base">Limites por Plan</CardTitle>
+              <CardDescription>Caracteristicas y limites de cada tipo de licencia</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Limite</TableHead>
+                      <TableHead>Mensual</TableHead>
+                      <TableHead>Trimestral</TableHead>
+                      <TableHead>Semestral</TableHead>
+                      <TableHead>Anual</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow><TableCell className="font-medium">Empresas max.</TableCell><TableCell>1</TableCell><TableCell>2</TableCell><TableCell>5</TableCell><TableCell>Ilimitado</TableCell></TableRow>
+                    <TableRow><TableCell className="font-medium">Usuarios/empresa</TableCell><TableCell>2</TableCell><TableCell>5</TableCell><TableCell>10</TableCell><TableCell>Ilimitado</TableCell></TableRow>
+                    <TableRow><TableCell className="font-medium">Comprobantes/mes</TableCell><TableCell>50</TableCell><TableCell>200</TableCell><TableCell>500</TableCell><TableCell>Ilimitado</TableCell></TableRow>
+                    <TableRow><TableCell className="font-medium">Empleados</TableCell><TableCell>5</TableCell><TableCell>15</TableCell><TableCell>50</TableCell><TableCell>Ilimitado</TableCell></TableRow>
+                    <TableRow><TableCell className="font-medium">Productos</TableCell><TableCell>100</TableCell><TableCell>500</TableCell><TableCell>2,000</TableCell><TableCell>Ilimitado</TableCell></TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Security Tab */}
+        <TabsContent value="security">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-amber-500" />
+                Problemas de Seguridad
+              </CardTitle>
+              <CardDescription>Usuarios con licencias expiradas pero activos, y sin configuracion</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {securityData ? (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <XCircle className="h-4 w-4 text-destructive" />
+                      Licencias Expiradas pero Activas ({securityData.expired_active_licenses.length})
+                    </h3>
+                    {securityData.expired_active_licenses.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow><TableHead>Usuario</TableHead><TableHead>Email</TableHead><TableHead>Expiro</TableHead><TableHead>Dias</TableHead></TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {securityData.expired_active_licenses.map((u) => (
+                            <TableRow key={u.user_id}>
+                              <TableCell className="font-medium">{u.full_name}</TableCell>
+                              <TableCell>{u.email}</TableCell>
+                              <TableCell>{u.license_end_date ? new Date(u.license_end_date).toLocaleDateString('es-EC') : 'N/A'}</TableCell>
+                              <TableCell className="text-destructive">{u.days_expired ?? 'N/A'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No hay problemas</p>
+                    )}
+                  </div>
+                  <Separator />
+                  <div>
+                    <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      Usuarios sin Configuracion ({securityData.users_without_config.length})
+                    </h3>
+                    {securityData.users_without_config.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow><TableHead>Usuario</TableHead><TableHead>Email</TableHead></TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {securityData.users_without_config.map((u) => (
+                            <TableRow key={u.user_id}>
+                              <TableCell className="font-medium">{u.full_name}</TableCell>
+                              <TableCell>{u.email}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Todos los usuarios tienen configuracion</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* License Dialog */}
+      <Dialog open={licenseDialogOpen} onOpenChange={setLicenseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modificar Licencia</DialogTitle>
+            <DialogDescription>Seleccione el tipo de licencia para el usuario</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tipo de Licencia</Label>
+              <select
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                value={licenseForm.license_type}
+                onChange={(e) => setLicenseForm({ license_type: e.target.value })}
+              >
+                <option value="monthly">Mensual - $15.00</option>
+                <option value="quarterly">Trimestral - $40.00</option>
+                <option value="semiannual">Semestral - $75.00</option>
+                <option value="annual">Anual - $130.00</option>
+              </select>
+            </div>
+            <Button onClick={handleModifyLicense} disabled={modifying} className="w-full">
+              {modifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Guardar Cambios
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

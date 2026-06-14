@@ -41,8 +41,6 @@ import {
   RefreshCw,
   UserCheck,
   UserX,
-  Globe,
-  TestTube,
   Server,
   DollarSign,
   Edit2,
@@ -85,15 +83,6 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
   const [licenseForm, setLicenseForm] = useState({ license_type: '' });
   const [modifying, setModifying] = useState(false);
 
-  // Environment toggle
-  const [envToggleLoading, setEnvToggleLoading] = useState(false);
-  const [envInfo, setEnvInfo] = useState<{
-    current_environment: string;
-    target_environment: string;
-    is_production: boolean;
-    message: string;
-  } | null>(null);
-
   // License prices management
   const [licensePrices, setLicensePrices] = useState([
     { type: 'Mensual', key: 'monthly', price: 15.00, months: 1, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
@@ -116,19 +105,7 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
 
       if (results[0].status === 'fulfilled') setStats(results[0].value);
       if (results[1].status === 'fulfilled') setUsers(results[1].value);
-      if (results[2].status === 'fulfilled') {
-        setHealth(results[2].value);
-        // Extract environment info from health response
-        const app = results[2].value.application as Record<string, string>;
-        if (app?.environment) {
-          setEnvInfo({
-            current_environment: app.environment,
-            target_environment: app.environment === 'production' ? 'development' : 'production',
-            is_production: app.environment === 'production',
-            message: '',
-          });
-        }
-      }
+      if (results[2].status === 'fulfilled') setHealth(results[2].value);
       if (results[3].status === 'fulfilled') setSecurityData(results[3].value);
     } catch {
       toast.error('Error al cargar datos de administracion');
@@ -136,32 +113,6 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
       setLoading(false);
     }
   }, []);
-
-  const handleToggleEnvironment = async () => {
-    setEnvToggleLoading(true);
-    try {
-      const response = await fetch('/api/v1/admin/environment/toggle', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('contaec_token')}`,
-        },
-      });
-      if (!response.ok) throw new Error('Error al cambiar ambiente');
-      const data = await response.json();
-      setEnvInfo({
-        current_environment: data.current_environment,
-        target_environment: data.target_environment,
-        is_production: data.is_production,
-        message: data.message,
-      });
-      toast.success(`Ambiente cambiado a: ${data.current_environment}`);
-    } catch (error) {
-      toast.error('Error al cambiar ambiente. Verifique los logs del servidor.');
-    } finally {
-      setEnvToggleLoading(false);
-    }
-  };
 
   const loadLicensePrices = useCallback(async () => {
     try {
@@ -528,7 +479,7 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Ambiente</span>
-                      <Badge variant={envInfo?.is_production ? 'destructive' : 'default'}>
+                      <Badge variant={(health.application as Record<string, string>)?.environment === 'production' ? 'destructive' : 'default'}>
                         {(health.application as Record<string, string>)?.environment ?? 'N/A'}
                       </Badge>
                     </div>
@@ -544,29 +495,10 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
                       <span className="text-sm text-muted-foreground">SO</span>
                       <span className="text-sm font-medium">{(health.application as Record<string, string>)?.system ?? ''}</span>
                     </div>
-
-                    {/* Environment Toggle */}
                     <Separator className="my-2" />
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Cambiar Ambiente</span>
-                      </div>
-                      <Button
-                        onClick={handleToggleEnvironment}
-                        disabled={envToggleLoading}
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                      >
-                        {envToggleLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                        ) : (
-                          <TestTube className="h-4 w-4 mr-1" />
-                        )}
-                        Cambiar a {envInfo?.target_environment || '...'}
-                      </Button>
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Para cambiar ambiente, edite <code className="bg-muted px-1">APP_ENV</code> en <code className="bg-muted px-1">.env</code> y reinicie el servidor.
+                    </p>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-4">Cargando...</p>
