@@ -152,6 +152,16 @@ sudo systemctl start postgresql@17-main
 sudo systemctl status postgresql@17-main
 sudo ss -tlnp | grep 5432
 pg_isready -h localhost -p 5432
+
+# Comando para instalar es_EC.UTF-8 
+# 1. Instalar el paquete locales
+sudo apt-get install locales
+# 2. Generar el locale es_EC.UTF-8
+sudo locale-gen es_EC.UTF-8
+# 3. Reconfigurar locales
+sudo dpkg-reconfigure locales
+# 4. Verificar que se instaló
+locale -a | grep es_EC
 ```
 
 ### 4.3 Configuración de la Base de Datos
@@ -205,9 +215,9 @@ lc_time = 'es_EC.UTF-8'
 
 ```
 # Añadir línea para el usuario de la app (colocar antes de las configuraciones del sistema)
-local   contaec_db      contaec_user                    md5
-host    contaec_db      contaec_user    127.0.0.1/32    md5
-host    contaec_db      contaec_user    ::1/128         md5
+local   contaec_db      contaec_user                            md5
+host    contaec_db      contaec_user    127.0.0.1/32            md5
+host    contaec_db      contaec_user    ::1/128                 md5
 
 # Database administrative login by Unix domain socket
 ```
@@ -236,16 +246,14 @@ psql -U contaec_user -d contaec_db -c "\dx"
 # Instalar Python 3 y herramientas de compilación
 apt install -y python3 python3-venv python3-dev python3-pip build-essential libpq-dev
 # Crear entorno virtual
-cd /opt
-mkdir -p contaec
-cd contaec
+cd /opt && mkdir -p contaec && cd contaec
 
 # Clonar el repositorio (o copiar archivos del proyecto)
-# git clone <repositorio> .
+git clone <repositorio> .
 # O copiar vía scp/rsync
 # Para mover el repositorio clonado al directorio padre
-# sudo mv /opt/contaec/ContaECv4/* /opt/contaec/ 
-# sudo mv /opt/contaec/ContaECv4/.* /opt/contaec/ 2>/dev/null && sudo rmdir /opt/contaec/ContaECv4
+sudo mv /opt/contaec/ContaECv4/* /opt/contaec/ 
+sudo mv /opt/contaec/ContaECv4/.* /opt/contaec/ 2>/dev/null && sudo rmdir /opt/contaec/ContaECv4
 
 # Crear y activar entorno virtual
 python3 -m venv /opt/contaec/.venv
