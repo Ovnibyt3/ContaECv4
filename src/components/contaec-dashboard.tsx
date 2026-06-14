@@ -412,7 +412,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : user.is_admin ? (
-            <AdminDashboardView onLogout={onLogout} />
+            <AdminDashboardView onLogout={onLogout} activeAdminTab={activeNav} />
           ) : (
             <>
               {activeNav === 'dashboard' && (
@@ -1563,8 +1563,7 @@ function InvoicesView({ invoiceStats }: { invoiceStats: InvoiceStatsType | null 
 }
 
 // ─── Admin Dashboard View (integrated into main dashboard) ────────────────
-function AdminDashboardView({ onLogout }: { onLogout: () => void }) {
-  const [activeAdminTab, setActiveAdminTab] = useState('overview');
+function AdminDashboardView({ onLogout, activeAdminTab }: { onLogout: () => void; activeAdminTab: string }) {
   const [adminStats, setAdminStats] = useState<{
     total_users: number;
     total_companies: number;
@@ -1739,33 +1738,9 @@ function AdminDashboardView({ onLogout }: { onLogout: () => void }) {
         <p className="text-muted-foreground">Gestion del sistema ContaEC</p>
       </div>
 
-      <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="space-y-4">
-        <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview" className="gap-1.5">
-            <Activity className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Resumen</span>
-          </TabsTrigger>
-          <TabsTrigger value="users" className="gap-1.5">
-            <Users className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Usuarios</span>
-          </TabsTrigger>
-          <TabsTrigger value="system" className="gap-1.5">
-            <Server className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Sistema</span>
-          </TabsTrigger>
-          <TabsTrigger value="licenses" className="gap-1.5">
-            <Key className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Licencias</span>
-          </TabsTrigger>
-          <TabsTrigger value="security" className="gap-1.5">
-            <ShieldAlert className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Seguridad</span>
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Overview */}
+      {activeAdminTab === 'admin-overview' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card>
               <CardContent className="p-6 text-center">
                 <Users className="h-8 w-8 mx-auto text-primary mb-2" />
@@ -1802,10 +1777,10 @@ function AdminDashboardView({ onLogout }: { onLogout: () => void }) {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        )}
 
-        {/* Users Tab */}
-        <TabsContent value="users">
+        {/* Users */}
+        {activeAdminTab === 'admin-users' && (
           <Card>
             <CardHeader>
               <CardTitle>Usuarios del Sistema</CardTitle>
@@ -1867,10 +1842,10 @@ function AdminDashboardView({ onLogout }: { onLogout: () => void }) {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        )}
 
-        {/* System Tab */}
-        <TabsContent value="system">
+        {/* System */}
+        {activeAdminTab === 'admin-system' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
@@ -2010,32 +1985,33 @@ function AdminDashboardView({ onLogout }: { onLogout: () => void }) {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        )}
 
-        {/* Licenses Tab */}
-        <TabsContent value="licenses">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-medium">Precios de Licencias</h3>
-            <div className="flex gap-2">
-              {editingPrice ? (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => { setEditingPrice(null); loadAdminData(); }}>
-                    Cancelar
+        {/* Licenses */}
+        {activeAdminTab === 'admin-licenses' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-medium">Precios de Licencias</h3>
+              <div className="flex gap-2">
+                {editingPrice ? (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => { setEditingPrice(null); loadAdminData(); }}>
+                      Cancelar
+                    </Button>
+                    <Button size="sm" onClick={handleSavePrices} disabled={savingPrices}>
+                      {savingPrices ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                      Guardar Precios
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setEditingPrice('prices')}>
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Editar Precios
                   </Button>
-                  <Button size="sm" onClick={handleSavePrices} disabled={savingPrices}>
-                    {savingPrices ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                    Guardar Precios
-                  </Button>
-                </>
-              ) : (
-                <Button variant="outline" size="sm" onClick={() => setEditingPrice('prices')}>
-                  <Pencil className="h-3.5 w-3.5 mr-1" />
-                  Editar Precios
-                </Button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {licensePrices.map((plan) => (
               <Card key={plan.key} className="border-2">
                 <CardHeader className="pb-3">
@@ -2096,10 +2072,11 @@ function AdminDashboardView({ onLogout }: { onLogout: () => void }) {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+          </div>
+        )}
 
-        {/* Security Tab */}
-        <TabsContent value="security">
+        {/* Security */}
+        {activeAdminTab === 'admin-security' && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -2166,8 +2143,7 @@ function AdminDashboardView({ onLogout }: { onLogout: () => void }) {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        )}
 
       {/* License Dialog */}
       <Dialog open={licenseDialogOpen} onOpenChange={setLicenseDialogOpen}>
