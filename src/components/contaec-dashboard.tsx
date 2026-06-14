@@ -101,6 +101,7 @@ import { ContaECMLAI } from '@/components/contaec-ml-ai';
 import { ContaECAccounting } from '@/components/contaec-accounting';
 import {
   logout,
+  clearTokens,
   getLicenseStatus,
   getLicenseOptions,
   getCompanies,
@@ -170,6 +171,15 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
         getInvoiceStats(),
       ]);
 
+      // Detect session expiry: if ALL API calls are rejected, session is invalid
+      const allRejected = results.every(r => r.status === 'rejected');
+      if (allRejected) {
+        clearTokens();
+        onLogout();
+        toast.error('Sesion expirada. Por favor inicie sesion nuevamente.');
+        return;
+      }
+
       if (results[0].status === 'fulfilled') {
         const lic = results[0].value;
         setLicense(lic);
@@ -178,17 +188,17 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
           setLicenseExpiring(lic.days_remaining <= 30 && lic.days_remaining > 0);
         }
       }
-      if (results[1].status === 'fulfilled') setCompanies(results[1].value);
-      if (results[2].status === 'fulfilled') setIvaRates(results[2].value);
-      if (results[3].status === 'fulfilled') setDocumentTypes(results[3].value);
-      if (results[4].status === 'fulfilled') setIdentTypes(results[4].value);
+      if (results[1].status === 'fulfilled' && Array.isArray(results[1].value)) setCompanies(results[1].value);
+      if (results[2].status === 'fulfilled' && Array.isArray(results[2].value)) setIvaRates(results[2].value);
+      if (results[3].status === 'fulfilled' && Array.isArray(results[3].value)) setDocumentTypes(results[3].value);
+      if (results[4].status === 'fulfilled' && Array.isArray(results[4].value)) setIdentTypes(results[4].value);
       if (results[5].status === 'fulfilled') setInvoiceStats(results[5].value);
     } catch {
       toast.error('Error al cargar datos del panel');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onLogout]);
 
   useEffect(() => {
     loadDashboardData();
@@ -1316,7 +1326,9 @@ function LicenseView({
     if (!license) {
       setLoadingOptions(true);
       getLicenseOptions()
-        .then((data) => setLicenseOptions(data))
+        .then((data) => {
+          if (data && Array.isArray(data.options)) setLicenseOptions(data);
+        })
         .catch(() => toast.error('Error al cargar opciones de licencia'))
         .finally(() => setLoadingOptions(false));
     }
@@ -1585,35 +1597,70 @@ function AdminDashboardView() {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [licenseForm, setLicenseForm] = useState({ license_type: '' });
   const [modifying, setModifying] = useState(false);
-
-  const licensePrices = [
+  const [licensePrices, setLicensePrices] = useState<Array<{ type: string; key: string; price: number; months: number; color: string }>>([
     { type: 'Mensual', key: 'monthly', price: 15.00, months: 1, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
     { type: 'Trimestral', key: 'quarterly', price: 40.00, months: 3, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
     { type: 'Semestral', key: 'semiannual', price: 75.00, months: 6, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
     { type: 'Anual', key: 'annual', price: 130.00, months: 12, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
-  ];
+  ]);
+  const [editingPrice, setEditingPrice] = useState<string | null>(null);
+  const [priceForm, setPriceForm] = useState<Record<string, number>>({});
+  const [savingPrices, setSavingPrices] = useState(false);
 
   const loadAdminData = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('contaec_token') || '';
+      const headers = { headers: { Authorization: `Bearer ${token}` } };
       const results = await Promise.allSettled([
-        fetch('/api/v1/admin/dashboard', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/v1/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/v1/admin/system-health', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/v1/admin/security-issues', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/v1/admin/dashboard', headers).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+        fetch('/api/v1/admin/users', headers).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+        fetch('/api/v1/admin/system-health', headers).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+        fetch('/api/v1/admin/security-issues', headers).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+        fetch('/api/v1/admin/license-prices', headers).then(r => r.ok ? r.json() : Promise.reject(r.status)),
       ]);
 
+      // Detect session expiry: if ALL admin API calls are rejected, session is invalid
+      const allRejected = results.every(r => r.status === 'rejected');
+      if (allRejected) {
+        clearTokens();
+        onLogout();
+        toast.error('Sesion expirada. Por favor inicie sesion nuevamente.');
+        return;
+      }
+
       if (results[0].status === 'fulfilled') setAdminStats(results[0].value);
-      if (results[1].status === 'fulfilled') setAdminUsers(results[1].value);
+      if (results[1].status === 'fulfilled' && Array.isArray(results[1].value)) setAdminUsers(results[1].value);
       if (results[2].status === 'fulfilled') setHealth(results[2].value);
       if (results[3].status === 'fulfilled') setSecurityData(results[3].value);
+      // Load license prices from API
+      if (results[4].status === 'fulfilled' && results[4].value?.prices) {
+        const prices = results[4].value.prices;
+        const colorMap: Record<string, string> = {
+          monthly: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+          quarterly: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+          semiannual: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+          annual: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+        };
+        setLicensePrices([
+          { type: prices.monthly?.label || 'Mensual', key: 'monthly', price: prices.monthly?.price || 15, months: prices.monthly?.months || 1, color: colorMap.monthly },
+          { type: prices.quarterly?.label || 'Trimestral', key: 'quarterly', price: prices.quarterly?.price || 40, months: prices.quarterly?.months || 3, color: colorMap.quarterly },
+          { type: prices.semiannual?.label || 'Semestral', key: 'semiannual', price: prices.semiannual?.price || 75, months: prices.semiannual?.months || 6, color: colorMap.semiannual },
+          { type: prices.annual?.label || 'Anual', key: 'annual', price: prices.annual?.price || 130, months: prices.annual?.months || 12, color: colorMap.annual },
+        ]);
+        setPriceForm({
+          monthly: prices.monthly?.price || 15,
+          quarterly: prices.quarterly?.price || 40,
+          semiannual: prices.semiannual?.price || 75,
+          annual: prices.annual?.price || 130,
+        });
+      }
     } catch {
       toast.error('Error al cargar datos de administracion');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onLogout]);
 
   useEffect(() => {
     loadAdminData();
@@ -1642,15 +1689,38 @@ function AdminDashboardView() {
   async function handleToggleUser(userId: string, isActive: boolean) {
     try {
       const token = localStorage.getItem('contaec_token') || '';
-      const res = await fetch(`/api/v1/admin/users/${userId}/toggle-active`, {
+      const res = await fetch(`/api/v1/admin/users/${userId}/active?is_active=${!isActive}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('Error al cambiar estado');
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ detail: 'Error al cambiar estado' }));
+        throw new Error(error.detail || 'Error al cambiar estado');
+      }
       toast.success(isActive ? 'Usuario desactivado' : 'Usuario activado');
       loadAdminData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error');
+    }
+  }
+
+  async function handleSavePrices() {
+    setSavingPrices(true);
+    try {
+      const token = localStorage.getItem('contaec_token') || '';
+      const res = await fetch('/api/v1/admin/license-prices', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(priceForm),
+      });
+      if (!res.ok) throw new Error('Error al guardar precios');
+      toast.success('Precios actualizados correctamente');
+      setEditingPrice(null);
+      loadAdminData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al guardar precios');
+    } finally {
+      setSavingPrices(false);
     }
   }
 
@@ -1944,6 +2014,27 @@ function AdminDashboardView() {
 
         {/* Licenses Tab */}
         <TabsContent value="licenses">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-medium">Precios de Licencias</h3>
+            <div className="flex gap-2">
+              {editingPrice ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => { setEditingPrice(null); loadAdminData(); }}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleSavePrices} disabled={savingPrices}>
+                    {savingPrices ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    Guardar Precios
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setEditingPrice('prices')}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  Editar Precios
+                </Button>
+              )}
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {licensePrices.map((plan) => (
               <Card key={plan.key} className="border-2">
@@ -1953,9 +2044,23 @@ function AdminDashboardView() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-center">
-                    <span className="text-3xl font-bold">${plan.price.toFixed(2)}</span>
+                    {editingPrice ? (
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-lg font-bold">$</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24 text-center text-xl font-bold"
+                          value={priceForm[plan.key] ?? plan.price}
+                          onChange={(e) => setPriceForm({ ...priceForm, [plan.key]: parseFloat(e.target.value) || 0 })}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-3xl font-bold">${plan.price.toFixed(2)}</span>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">
-                      ${(plan.price / plan.months).toFixed(2)}/mes
+                      ${((priceForm[plan.key] ?? plan.price) / plan.months).toFixed(2)}/mes
                     </p>
                   </div>
                   <Badge className={`w-full justify-center mt-3 ${plan.color}`}>{plan.type}</Badge>
@@ -2079,10 +2184,9 @@ function AdminDashboardView() {
                 value={licenseForm.license_type}
                 onChange={(e) => setLicenseForm({ license_type: e.target.value })}
               >
-                <option value="monthly">Mensual - $15.00</option>
-                <option value="quarterly">Trimestral - $40.00</option>
-                <option value="semiannual">Semestral - $75.00</option>
-                <option value="annual">Anual - $130.00</option>
+                {licensePrices.map((p) => (
+                  <option key={p.key} value={p.key}>{p.type} - ${p.price.toFixed(2)}</option>
+                ))}
               </select>
             </div>
             <Button onClick={handleModifyLicense} disabled={modifying} className="w-full">
