@@ -117,6 +117,8 @@ sed -i 's/APP_ENV=.*/APP_ENV=production/' /opt/contaec/backend/.env
 sed -i 's/APP_ENV=.*/APP_ENV=development/' /opt/contaec/backend/.env
 # Then restart:
 systemctl restart contaec-backend
+# Then wait:
+sleep 15
 
 ## Instalación Paso a Paso
 
