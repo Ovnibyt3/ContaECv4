@@ -464,16 +464,12 @@ UPLOAD_DIR=./uploads
 ```bash
 # Ejecutar estas líneas y copiar los resultados al .env
 source /opt/contaec/.venv/bin/activate
-
 # SECRET_KEY
 python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(64))"
-
 # ENCRYPTION_KEY
 python3 -c "import secrets; print('ENCRYPTION_KEY=' + secrets.token_urlsafe(64))"
-
 # JWT_SECRET_KEY
 python3 -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_urlsafe(64))"
-
 # BACKUP_ENCRYPTION_KEY (Fernet)
 python3 -c "from cryptography.fernet import Fernet; print('BACKUP_ENCRYPTION_KEY=' + Fernet.generate_key().decode())"
 ```
@@ -481,13 +477,10 @@ python3 -c "from cryptography.fernet import Fernet; print('BACKUP_ENCRYPTION_KEY
 ```bash
 # Reiniciar el servicio para que cargue los nuevos valores
 sudo systemctl restart contaec-backend
-
 # Espera 30 segundos
 sleep 30
-
 # Verificar que arrancó
 sudo systemctl status contaec-backend
-
 # Test conexión
 curl http://localhost:8000/api/health
 ```
