@@ -3,6 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
+// In standalone mode, project root is the parent of .next/standalone
+function getProjectRoot(): string {
+  const cwd = process.cwd();
+  // Standalone: /opt/contaec/.next/standalone -> root is /opt/contaec
+  if (cwd.includes('.next/standalone')) {
+    return path.join(cwd, '..', '..');
+  }
+  return cwd;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
@@ -12,15 +22,11 @@ export async function GET(
     return new NextResponse('Not found', { status: 404 });
   }
 
-  const filePath = path.join(
-    process.cwd(),
-    'backend',
-    'uploads',
-    ...segments
-  );
+  const projectRoot = getProjectRoot();
+  const filePath = path.join(projectRoot, 'backend', 'uploads', ...segments);
+  const uploadsDir = path.join(projectRoot, 'backend', 'uploads');
 
   // Security: prevent path traversal
-  const uploadsDir = path.join(process.cwd(), 'backend', 'uploads');
   if (!filePath.startsWith(uploadsDir)) {
     return new NextResponse('Forbidden', { status: 403 });
   }
