@@ -699,31 +699,67 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
                 <div className="space-y-2">
                   <Label>Contribuyente Regimen RIMPE</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
-                      <input
-                        type="radio"
-                        name="rimpe"
-                        value="RIMPE Emprendedor"
-                        checked={newCompany.contribuyente_rimpe === 'RIMPE Emprendedor'}
-                        onChange={(e) => setNewCompany({ ...newCompany, contribuyente_rimpe: e.target.value })}
-                        className="h-4 w-4"
-                      />
+                    <button
+                      type="button"
+                      className={`flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors text-left ${
+                        newCompany.contribuyente_rimpe === 'RIMPE Emprendedor'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'hover:bg-accent'
+                      }`}
+                      onClick={() => setNewCompany({
+                        ...newCompany,
+                        contribuyente_rimpe: newCompany.contribuyente_rimpe === 'RIMPE Emprendedor' ? '' : 'RIMPE Emprendedor',
+                      })}
+                    >
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        newCompany.contribuyente_rimpe === 'RIMPE Emprendedor' ? 'border-primary' : 'border-muted-foreground'
+                      }`}>
+                        {newCompany.contribuyente_rimpe === 'RIMPE Emprendedor' && (
+                          <div className="h-2 w-2 rounded-full bg-primary" />
+                        )}
+                      </div>
                       <span className="text-sm">RIMPE Emprendedor</span>
-                    </label>
-                    <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
-                      <input
-                        type="radio"
-                        name="rimpe"
-                        value="RIMPE Negocio Popular"
-                        checked={newCompany.contribuyente_rimpe === 'RIMPE Negocio Popular'}
-                        onChange={(e) => setNewCompany({ ...newCompany, contribuyente_rimpe: e.target.value })}
-                        className="h-4 w-4"
-                      />
+                    </button>
+                    <button
+                      type="button"
+                      className={`flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors text-left ${
+                        newCompany.contribuyente_rimpe === 'RIMPE Negocio Popular'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'hover:bg-accent'
+                      }`}
+                      onClick={() => setNewCompany({
+                        ...newCompany,
+                        contribuyente_rimpe: newCompany.contribuyente_rimpe === 'RIMPE Negocio Popular' ? '' : 'RIMPE Negocio Popular',
+                      })}
+                    >
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        newCompany.contribuyente_rimpe === 'RIMPE Negocio Popular' ? 'border-primary' : 'border-muted-foreground'
+                      }`}>
+                        {newCompany.contribuyente_rimpe === 'RIMPE Negocio Popular' && (
+                          <div className="h-2 w-2 rounded-full bg-primary" />
+                        )}
+                      </div>
                       <span className="text-sm">RIMPE Negocio Popular</span>
-                    </label>
+                    </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">*Solo act. no sujetas al regimen RIMPE</p>
+                  <p className="text-xs text-muted-foreground">*Solo act. no sujetas al regimen RIMPE. Clic nuevamente para deseleccionar.</p>
                 </div>
+
+                {/* Campos condicionales para RIMPE Negocio Popular */}
+                {newCompany.contribuyente_rimpe === 'RIMPE Negocio Popular' && (
+                  <div className="pl-2 border-l-2 border-amber-400 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="nc-artesano-rimpe">Codigo Artesano</Label>
+                        <Input id="nc-artesano-rimpe" placeholder="Codigo asignado" value={newCompany.codigo_artesano} onChange={(e) => setNewCompany({ ...newCompany, codigo_artesano: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="nc-nom-recibos-rimpe">Nombre de Recibos</Label>
+                        <Input id="nc-nom-recibos-rimpe" placeholder="Nombre que aparece en recibos" value={newCompany.nombre_recibos} onChange={(e) => setNewCompany({ ...newCompany, nombre_recibos: e.target.value })} />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-accent">
                   <input
                     type="checkbox"
