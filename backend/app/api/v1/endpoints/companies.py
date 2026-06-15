@@ -364,8 +364,9 @@ async def upload_company_file(
     if upload_type not in ("logo", "firma"):
         raise HTTPException(status_code=400, detail="Tipo de archivo invalido. Use 'logo' o 'firma'")
 
-    settings = get_settings()
-    upload_dir = Path(settings.upload_dir) / "companies"
+    # Resolve to absolute path relative to project root (backend/../uploads)
+    base_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
+    upload_dir = base_dir / "uploads" / "companies"
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     # Validar extension
