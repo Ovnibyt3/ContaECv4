@@ -299,7 +299,8 @@ bun --version
 
 ```bash
 # Crear directorios necesarios
-mkdir -p /opt/contaec/backend/backups && mkdir -p /opt/contaec/backend/uploads && mkdir -p /opt/contaec/backend/temp && mkdir -p /opt/contaec/backend/signatures
+mkdir -p /opt/contaec/backend/backups /opt/contaec/backend/uploads /opt/contaec/backend/temp /opt/contaec/backend/signatures
+chmod 777 /opt/contaec/backend/backups /opt/contaec/backend/uploads /opt/contaec/backend/temp /opt/contaec/backend/signatures
 
 # Configurar el archivo .env
 cp /opt/contaec/.env.example /opt/contaec/backend/.env
@@ -570,6 +571,10 @@ sudo systemctl status clamav-freshclam
 # o usar socket Unix:
 # LocalSocket /var/run/clamav/clamd.ctl
 ```
+### 4.11 Creacion de symlink
+ln -sf /opt/contaec/backend/uploads /opt/contaec/public/uploads
+ls -la /opt/contaec/public/
+ls -la /opt/contaec/backend/uploads/
 
 ---
 

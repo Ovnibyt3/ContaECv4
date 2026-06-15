@@ -168,7 +168,7 @@ async function proxyRequest(request: NextRequest, method: string) {
       const contentType = request.headers.get('content-type') || '';
       if (contentType.includes('multipart/form-data')) {
         config.body = await request.arrayBuffer();
-        delete headers['content-type'];
+        // Keep content-type header for multipart (FastAPI needs boundary)
       } else {
         // Use arrayBuffer for all body types - handles JSON, text, and binary uniformly
         config.body = await request.arrayBuffer();
