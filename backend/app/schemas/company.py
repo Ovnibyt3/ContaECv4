@@ -332,6 +332,13 @@ class CompanyResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, str_strip_whitespace=True)
 
+    @field_validator('id', 'user_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if hasattr(v, '__str__') and not isinstance(v, str):
+            return str(v)
+        return v
+
 
 # ==========================================
 # Establecimiento (Establishment)
