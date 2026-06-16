@@ -93,8 +93,15 @@ async def create_product(
         precio_unitario=data.precio_unitario,
         iva_codigo=data.iva_codigo,
         iva_porcentaje=data.iva_porcentaje,
+        iva_incluido=data.iva_incluido,
         ice_codigo=data.ice_codigo,
         ice_porcentaje=data.ice_porcentaje,
+        valor_ice_unitario=data.valor_ice_unitario,
+        valor_irbpnr=data.valor_irbpnr,
+        subsidio=data.subsidio,
+        categoria=data.categoria,
+        detalle=data.detalle,
+        imagen=data.imagen,
         unidad_medida=data.unidad_medida,
         descuento=data.descuento,
     )
@@ -121,36 +128,45 @@ async def list_products(
 ):
     """
     Listar productos de las empresas del usuario.
-    
+
     Opcionalmente filtrado por empresa, tipo (B/S) y estado activo.
     """
-    # Consulta base: productos de empresas del usuario
-    query = (
-        select(Product)
-        .join(Company, Product.company_id == Company.id)
-        .where(Company.user_id == current_user.id)
-    )
-    
-    # Filtro de empresa
-    if company_id:
-        await _get_company_for_user(db, company_id, current_user.id)
-        query = query.where(Product.company_id == company_id)
-    
-    # Filtro de tipo (B=Bien, S=Servicio)
-    if tipo:
-        query = query.where(Product.tipo == tipo)
-    
-    # Filtro de estado activo
-    if is_active is not None:
-        query = query.where(Product.is_active == is_active)
-    
-    # Ordenar por descripción y paginar
-    query = query.order_by(Product.descripcion).offset(skip).limit(limit)
-    
-    result = await db.execute(query)
-    products = result.scalars().all()
-    
-    return [ProductResponse.model_validate(p) for p in products]
+    try:
+        # Consulta base: productos de empresas del usuario
+        query = (
+            select(Product)
+            .join(Company, Product.company_id == Company.id)
+            .where(Company.user_id == current_user.id)
+        )
+
+        # Filtro de empresa
+        if company_id:
+            await _get_company_for_user(db, company_id, current_user.id)
+            query = query.where(Product.company_id == company_id)
+
+        # Filtro de tipo (B=Bien, S=Servicio)
+        if tipo:
+            query = query.where(Product.tipo == tipo)
+
+        # Filtro de estado activo
+        if is_active is not None:
+            query = query.where(Product.is_active == is_active)
+
+        # Ordenar por descripción y paginar
+        query = query.order_by(Product.descripcion).offset(skip).limit(limit)
+
+        result = await db.execute(query)
+        products = result.scalars().all()
+
+        return [ProductResponse.model_validate(p) for p in products]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing products: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al listar productos: {str(e)}",
+        )
 
 
 @router.get("/{product_id}", response_model=ProductResponse)

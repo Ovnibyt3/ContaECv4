@@ -861,7 +861,7 @@ function TransferenciasTab({ companyId }: { companyId: string }) {
 
       {/* Wizard Dialog */}
       <Dialog open={showWizard} onOpenChange={(o) => { if (!o) resetWizard(); setShowWizard(o); }}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nueva Transferencia</DialogTitle>
             <DialogDescription>Paso {wizardStep} de 3</DialogDescription>

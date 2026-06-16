@@ -52,6 +52,7 @@ import {
   CheckCircle2,
   Clock,
   Filter,
+  Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -109,12 +110,12 @@ const ETAPAS_PIPELINE = [
 ] as const;
 
 const FUENTES = [
-  { key: 'web', label: 'Web' },
-  { key: 'referido', label: 'Referido' },
-  { key: 'llamado', label: 'Llamado' },
-  { key: 'email', label: 'Email' },
-  { key: 'redes', label: 'Redes Sociales' },
-  { key: 'otro', label: 'Otro' },
+  { key: 'website', label: 'Sitio Web' },
+  { key: 'referral', label: 'Referencia' },
+  { key: 'ad', label: 'Publicidad' },
+  { key: 'social', label: 'Redes Sociales' },
+  { key: 'event', label: 'Evento' },
+  { key: 'other', label: 'Otro' },
 ] as const;
 
 const TIPOS_ACTIVIDAD = [
@@ -475,8 +476,10 @@ function LeadsTab({ companyId }: { companyId: string }) {
         </Select>
         <Button variant="outline" size="icon" onClick={loadData}><RefreshCw className="h-4 w-4" /></Button>
         <div className="flex-1" />
+        <Button variant="outline" size="sm" title="Importar leads desde CSV"><Upload className="mr-1 h-3.5 w-3.5" /> Importar</Button>
         <Button onClick={() => { setEditLead(null); setShowCreate(true); }}><Plus className="mr-2 h-4 w-4" /> Nuevo Lead</Button>
       </div>
+      <p className="text-sm text-muted-foreground">Un lead es un cliente potencial que aún no ha sido convertido en oportunidad de venta. Agregue leads para hacer seguimiento de prospectos.</p>
 
       {filteredLeads.length > 0 ? (
         <Card>
@@ -554,6 +557,7 @@ function LeadsTab({ companyId }: { companyId: string }) {
 function OportunidadesTab({ companyId }: { companyId: string }) {
   const [opportunities, setOpportunities] = useState<CRMOpportunity[]>([]);
   const [clients, setClients] = useState<ClientResponse[]>([]);
+  const [pipelines, setPipelines] = useState<CRMPipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editOpp, setEditOpp] = useState<CRMOpportunity | null>(null);
@@ -564,12 +568,23 @@ function OportunidadesTab({ companyId }: { companyId: string }) {
     if (!companyId) return;
     setLoading(true);
     try {
-      const [opps, cls] = await Promise.all([
+      const [opps, cls, pipes] = await Promise.all([
         getCRMOpportunities({ company_id: companyId }),
         getClients(companyId),
+        getCRMPipelines(companyId),
       ]);
-      setOpportunities(opps);
+      // Normalize response fields to legacy aliases for display
+      const normalized = opps.map(o => ({
+        ...o,
+        titulo: o.name,
+        etapa: o.stage_id,
+        valor_estimado: o.estimated_amount,
+        fecha_cierre_estimada: o.expected_close_date,
+        cliente_razon_social: o.client_name,
+      }));
+      setOpportunities(normalized);
       setClients(cls);
+      setPipelines(pipes);
     } catch {
       toast.error('Error al cargar oportunidades');
     } finally {
@@ -579,10 +594,10 @@ function OportunidadesTab({ companyId }: { companyId: string }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  async function handleMoveStage(id: string, etapa: string) {
+  async function handleMoveStage(id: string, stageId: string) {
     setOperating(true);
     try {
-      await moveCRMOpportunity(id, etapa);
+      await moveCRMOpportunity(id, stageId);
       toast.success('Etapa actualizada');
       loadData();
     } catch (err) {
@@ -606,7 +621,7 @@ function OportunidadesTab({ companyId }: { companyId: string }) {
     }
   }
 
-  const filteredOpps = opportunities.filter((o) => filterEtapa === 'all' || o.etapa === filterEtapa);
+  const filteredOpps = opportunities.filter((o) => filterEtapa === 'all' || o.stage_id === filterEtapa || o.etapa === filterEtapa);
 
   if (loading) return <div className="flex items-center justify-center h-48"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -645,14 +660,14 @@ function OportunidadesTab({ companyId }: { companyId: string }) {
                 <TableBody>
                   {filteredOpps.map((opp) => (
                     <TableRow key={opp.id}>
-                      <TableCell className="font-medium">{opp.titulo}</TableCell>
-                      <TableCell className="text-sm">{opp.cliente_razon_social || '-'}</TableCell>
-                      <TableCell>{getEtapaBadge(opp.etapa)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(opp.valor_estimado)}</TableCell>
-                      <TableCell className="text-center">{opp.probabilidad}%</TableCell>
-                      <TableCell className="text-sm">{formatDate(opp.fecha_cierre_estimada)}</TableCell>
+                      <TableCell className="font-medium">{opp.name || opp.titulo}</TableCell>
+                      <TableCell className="text-sm">{opp.client_name || opp.cliente_razon_social || '-'}</TableCell>
+                      <TableCell>{getEtapaBadge(opp.stage_id || opp.etapa || '')}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(opp.estimated_amount || opp.valor_estimado || 0)}</TableCell>
+                      <TableCell className="text-center">{opp.probability}%</TableCell>
+                      <TableCell className="text-sm">{formatDate(opp.expected_close_date || opp.fecha_cierre_estimada)}</TableCell>
                       <TableCell>
-                        <Select value={opp.etapa} onValueChange={(v) => handleMoveStage(opp.id, v)} disabled={operating}>
+                        <Select value={opp.stage_id || opp.etapa || ''} onValueChange={(v) => handleMoveStage(opp.id, v)} disabled={operating}>
                           <SelectTrigger className="w-[140px] h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {ETAPAS_PIPELINE.map((e) => (<SelectItem key={e.key} value={e.key}>{e.label}</SelectItem>))}
@@ -686,9 +701,9 @@ function OportunidadesTab({ companyId }: { companyId: string }) {
         </Card>
       )}
 
-      <CreateOpportunityDialog open={showCreate} onOpenChange={setShowCreate} companyId={companyId} clients={clients} onCreated={loadData} />
+      <CreateOpportunityDialog open={showCreate} onOpenChange={setShowCreate} companyId={companyId} clients={clients} pipelines={pipelines} onCreated={loadData} />
       {editOpp && (
-        <EditOpportunityDialog opportunity={editOpp} open={!!editOpp} onOpenChange={(open) => { if (!open) setEditOpp(null); }} clients={clients} onUpdated={loadData} />
+        <EditOpportunityDialog opportunity={editOpp} open={!!editOpp} onOpenChange={(open) => { if (!open) setEditOpp(null); }} clients={clients} pipelines={pipelines} onUpdated={loadData} />
       )}
     </div>
   );
@@ -712,8 +727,24 @@ function ActividadesTab({ companyId }: { companyId: string }) {
         getCRMActivities({ company_id: companyId }),
         getCRMOpportunities({ company_id: companyId }),
       ]);
-      setActivities(acts);
-      setOpportunities(opps);
+      // Normalize response fields
+      const normalizedActs = acts.map(a => ({
+        ...a,
+        tipo: a.type,
+        asunto: a.subject,
+        descripcion: a.description,
+        fecha_actividad: a.scheduled_at,
+        estado: a.status,
+        oportunidad_titulo: opps.find(o => o.id === a.opportunity_id)?.name || null,
+      }));
+      const normalizedOpps = opps.map(o => ({
+        ...o,
+        titulo: o.name,
+        etapa: o.stage_id,
+        valor_estimado: o.estimated_amount,
+      }));
+      setActivities(normalizedActs);
+      setOpportunities(normalizedOpps);
     } catch {
       toast.error('Error al cargar actividades');
     } finally {
@@ -823,7 +854,14 @@ function SegmentosTab({ companyId }: { companyId: string }) {
     setLoading(true);
     try {
       const data = await getCRMSegments(companyId);
-      setSegments(data);
+      // Normalize response fields
+      const normalized = data.map(s => ({
+        ...s,
+        nombre: s.name,
+        criterio: s.rules,
+        cliente_count: s.client_members?.length || 0,
+      }));
+      setSegments(normalized);
     } catch {
       toast.error('Error al cargar segmentos');
     } finally {
@@ -932,7 +970,16 @@ function AutomatizacionesTab({ companyId }: { companyId: string }) {
     setLoading(true);
     try {
       const data = await getCRMAutomations(companyId);
-      setAutomations(data);
+      // Normalize response fields
+      const normalized = data.map(a => ({
+        ...a,
+        nombre: a.name,
+        evento_disparador: a.trigger_type,
+        condiciones: a.trigger_conditions,
+        ejecuciones_count: a.trigger_count,
+        ultima_ejecucion: a.last_triggered_at,
+      }));
+      setAutomations(normalized);
     } catch {
       toast.error('Error al cargar automatizaciones');
     } finally {
@@ -1058,7 +1105,7 @@ function CreateLeadDialog({ open, onOpenChange, companyId, onCreated }: {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [source, setSource] = useState('web');
+  const [source, setSource] = useState('website');
   const [estimatedValue, setEstimatedValue] = useState('');
   const [notes, setNotes] = useState('');
   const [nextFollowUp, setNextFollowUp] = useState('');
@@ -1085,7 +1132,7 @@ function CreateLeadDialog({ open, onOpenChange, companyId, onCreated }: {
       toast.success('Lead creado exitosamente');
       onOpenChange(false);
       setFirstName(''); setLastName(''); setEmail(''); setPhone('');
-      setSource('web'); setEstimatedValue(''); setNotes(''); setNextFollowUp('');
+      setSource('website'); setEstimatedValue(''); setNotes(''); setNextFollowUp('');
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear lead');
@@ -1096,7 +1143,7 @@ function CreateLeadDialog({ open, onOpenChange, companyId, onCreated }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo Lead</DialogTitle>
           <DialogDescription>Registre un nuevo lead en el CRM</DialogDescription>
@@ -1178,7 +1225,7 @@ function EditLeadDialog({ lead, open, onOpenChange, onUpdated }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Lead</DialogTitle>
           <DialogDescription>Modifique los datos del lead</DialogDescription>
@@ -1252,43 +1299,52 @@ function ConvertLeadDialog({ lead, open, onOpenChange, onConvert, operating }: {
   );
 }
 
-function CreateOpportunityDialog({ open, onOpenChange, companyId, clients, onCreated }: {
-  open: boolean; onOpenChange: (open: boolean) => void; companyId: string; clients: ClientResponse[]; onCreated: () => void;
+function CreateOpportunityDialog({ open, onOpenChange, companyId, clients, pipelines, onCreated }: {
+  open: boolean; onOpenChange: (open: boolean) => void; companyId: string; clients: ClientResponse[]; pipelines: CRMPipeline[]; onCreated: () => void;
 }) {
-  const [titulo, setTitulo] = useState('');
+  const [name, setName] = useState('');
   const [clientId, setClientId] = useState('');
-  const [valorEstimado, setValorEstimado] = useState('');
-  const [probabilidad, setProbabilidad] = useState('50');
-  const [etapa, setEtapa] = useState('prospecto');
-  const [fechaCierre, setFechaCierre] = useState('');
-  const [fuente, setFuente] = useState('web');
-  const [responsable, setResponsable] = useState('');
-  const [descripcion, setDescripcion] = useState('');
+  const [pipelineId, setPipelineId] = useState('');
+  const [stageId, setStageId] = useState('');
+  const [estimatedAmount, setEstimatedAmount] = useState('');
+  const [probability, setProbability] = useState('');
+  const [expectedCloseDate, setExpectedCloseDate] = useState('');
+  const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // When pipeline changes, auto-select first stage
+  useEffect(() => {
+    if (pipelineId && !stageId) {
+      const p = pipelines.find(p => p.id === pipelineId);
+      if (p?.stages && p.stages.length > 0) {
+        const sorted = [...p.stages].sort((a, b) => a.order - b.order);
+        setStageId(sorted[0].id);
+      }
+    }
+  }, [pipelineId]);
+
   async function handleCreate() {
-    if (!titulo) {
-      toast.error('El título es requerido');
+    if (!name || !pipelineId || !stageId) {
+      toast.error('Complete los campos requeridos (nombre, pipeline, etapa)');
       return;
     }
     setCreating(true);
     try {
       await createCRMOpportunity({
         company_id: companyId,
-        titulo,
+        name,
+        pipeline_id: pipelineId,
+        stage_id: stageId,
         client_id: clientId || undefined,
-        valor_estimado: parseFloat(valorEstimado) || 0,
-        probabilidad: parseInt(probabilidad) || undefined,
-        etapa,
-        fecha_cierre_estimada: fechaCierre || undefined,
-        fuente,
-        responsable: responsable || undefined,
-        descripcion: descripcion || undefined,
+        description: description || undefined,
+        estimated_amount: estimatedAmount ? parseFloat(estimatedAmount) : undefined,
+        probability: probability ? parseInt(probability) : undefined,
+        expected_close_date: expectedCloseDate || undefined,
       });
       toast.success('Oportunidad creada exitosamente');
       onOpenChange(false);
-      setTitulo(''); setClientId(''); setValorEstimado(''); setProbabilidad('50');
-      setEtapa('prospecto'); setFechaCierre(''); setFuente('web'); setResponsable(''); setDescripcion('');
+      setName(''); setClientId(''); setPipelineId(''); setStageId('');
+      setEstimatedAmount(''); setProbability(''); setExpectedCloseDate(''); setDescription('');
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear oportunidad');
@@ -1305,17 +1361,18 @@ function CreateOpportunityDialog({ open, onOpenChange, companyId, clients, onCre
           <DialogDescription>Cree una nueva oportunidad de venta</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="space-y-2"><Label>Título *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de la oportunidad" /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2"><Label>Título *</Label><Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Nombre de la oportunidad" /></div>
             <div className="space-y-2"><Label>Cliente</Label><Select value={clientId} onValueChange={setClientId}><SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger><SelectContent>{clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.razon_social}</SelectItem>))}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Etapa</Label><Select value={etapa} onValueChange={setEtapa}><SelectTrigger /><SelectContent>{ETAPAS_PIPELINE.map((e) => (<SelectItem key={e.key} value={e.key}>{e.label}</SelectItem>))}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Valor Estimado ($) *</Label><Input type="number" value={valorEstimado} onChange={(e) => setValorEstimado(e.target.value)} placeholder="0.00" /></div>
-            <div className="space-y-2"><Label>Probabilidad (%)</Label><Input type="number" min="0" max="100" value={probabilidad} onChange={(e) => setProbabilidad(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Fecha Cierre Estimada</Label><Input type="date" value={fechaCierre} onChange={(e) => setFechaCierre(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Fuente</Label><Select value={fuente} onValueChange={setFuente}><SelectTrigger /><SelectContent>{FUENTES.map((f) => (<SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>))}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Responsable</Label><Input value={responsable} onChange={(e) => setResponsable(e.target.value)} placeholder="Nombre del responsable" /></div>
-            <div className="space-y-2 col-span-2"><Label>Descripción</Label><Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Descripción de la oportunidad" /></div>
+            <div className="space-y-2"><Label>Pipeline *</Label><Select value={pipelineId} onValueChange={(v) => { setPipelineId(v); setStageId(''); }}><SelectTrigger><SelectValue placeholder="Seleccionar pipeline" /></SelectTrigger><SelectContent>{pipelines.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Etapa *</Label><Select value={stageId} onValueChange={setStageId}><SelectTrigger><SelectValue placeholder="Seleccionar etapa" /></SelectTrigger><SelectContent>
+              {pipelines.find(p => p.id === pipelineId)?.stages?.sort((a, b) => a.order - b.order).map((s) => (<SelectItem key={s.id} value={s.id}>{s.name} ({s.probability_percentage}%)</SelectItem>))}
+            </SelectContent></Select></div>
+            <div className="space-y-2"><Label>Valor Estimado ($)</Label><Input type="number" value={estimatedAmount} onChange={(e) => setEstimatedAmount(e.target.value)} placeholder="0.00" /></div>
+            <div className="space-y-2"><Label>Probabilidad (%)</Label><Input type="number" min="0" max="100" value={probability} onChange={(e) => setProbability(e.target.value)} placeholder="Auto desde etapa" /></div>
+            <div className="space-y-2"><Label>Fecha Cierre Estimada</Label><Input type="date" value={expectedCloseDate} onChange={(e) => setExpectedCloseDate(e.target.value)} /></div>
           </div>
+          <div className="space-y-2"><Label>Descripción</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Descripción de la oportunidad" /></div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={creating}>{creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Crear Oportunidad</Button>
@@ -1326,46 +1383,43 @@ function CreateOpportunityDialog({ open, onOpenChange, companyId, clients, onCre
   );
 }
 
-function EditOpportunityDialog({ opportunity, open, onOpenChange, clients, onUpdated }: {
-  opportunity: CRMOpportunity; open: boolean; onOpenChange: (open: boolean) => void; clients: ClientResponse[]; onUpdated: () => void;
+function EditOpportunityDialog({ opportunity, open, onOpenChange, clients, pipelines, onUpdated }: {
+  opportunity: CRMOpportunity; open: boolean; onOpenChange: (open: boolean) => void; clients: ClientResponse[]; pipelines: CRMPipeline[]; onUpdated: () => void;
 }) {
-  const [titulo, setTitulo] = useState(opportunity.titulo);
+  const [name, setName] = useState(opportunity.name || opportunity.titulo || '');
   const [clientId, setClientId] = useState(opportunity.client_id || '');
-  const [valorEstimado, setValorEstimado] = useState(opportunity.valor_estimado.toString());
-  const [probabilidad, setProbabilidad] = useState(opportunity.probabilidad.toString());
-  const [etapa, setEtapa] = useState(opportunity.etapa);
-  const [fechaCierre, setFechaCierre] = useState(opportunity.fecha_cierre_estimada?.split('T')[0] || '');
-  const [fuente, setFuente] = useState(opportunity.fuente || 'web');
-  const [responsable, setResponsable] = useState(opportunity.responsable || '');
-  const [descripcion, setDescripcion] = useState(opportunity.descripcion || '');
+  const [pipelineId, setPipelineId] = useState(opportunity.pipeline_id || '');
+  const [stageId, setStageId] = useState(opportunity.stage_id || '');
+  const [estimatedAmount, setEstimatedAmount] = useState(opportunity.estimated_amount?.toString() || opportunity.valor_estimado?.toString() || '');
+  const [probability, setProbability] = useState(opportunity.probability?.toString() || '');
+  const [expectedCloseDate, setExpectedCloseDate] = useState(opportunity.expected_close_date?.split('T')[0] || opportunity.fecha_cierre_estimada?.split('T')[0] || '');
+  const [description, setDescription] = useState(opportunity.description || '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setTitulo(opportunity.titulo);
+    setName(opportunity.name || opportunity.titulo || '');
     setClientId(opportunity.client_id || '');
-    setValorEstimado(opportunity.valor_estimado.toString());
-    setProbabilidad(opportunity.probabilidad.toString());
-    setEtapa(opportunity.etapa);
-    setFechaCierre(opportunity.fecha_cierre_estimada?.split('T')[0] || '');
-    setFuente(opportunity.fuente || 'web');
-    setResponsable(opportunity.responsable || '');
-    setDescripcion(opportunity.descripcion || '');
+    setPipelineId(opportunity.pipeline_id || '');
+    setStageId(opportunity.stage_id || '');
+    setEstimatedAmount(opportunity.estimated_amount?.toString() || opportunity.valor_estimado?.toString() || '');
+    setProbability(opportunity.probability?.toString() || '');
+    setExpectedCloseDate(opportunity.expected_close_date?.split('T')[0] || opportunity.fecha_cierre_estimada?.split('T')[0] || '');
+    setDescription(opportunity.description || '');
   }, [opportunity]);
 
   async function handleSave() {
     setSaving(true);
     try {
-      await updateCRMOpportunity(opportunity.id, {
-        titulo,
-        client_id: clientId || undefined,
-        valor_estimado: parseFloat(valorEstimado) || undefined,
-        probabilidad: parseInt(probabilidad) || undefined,
-        etapa,
-        fecha_cierre_estimada: fechaCierre || undefined,
-        fuente,
-        responsable: responsable || undefined,
-        descripcion: descripcion || undefined,
-      });
+      const updateData: Record<string, unknown> = {};
+      if (name) updateData.name = name;
+      if (clientId) updateData.client_id = clientId;
+      if (pipelineId) updateData.pipeline_id = pipelineId;
+      if (stageId) updateData.stage_id = stageId;
+      if (estimatedAmount) updateData.estimated_amount = parseFloat(estimatedAmount);
+      if (probability) updateData.probability = parseInt(probability);
+      if (expectedCloseDate) updateData.expected_close_date = expectedCloseDate;
+      if (description) updateData.description = description;
+      await updateCRMOpportunity(opportunity.id, updateData);
       toast.success('Oportunidad actualizada');
       onOpenChange(false);
       onUpdated();
@@ -1384,17 +1438,18 @@ function EditOpportunityDialog({ opportunity, open, onOpenChange, clients, onUpd
           <DialogDescription>Modifique los datos de la oportunidad</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="space-y-2"><Label>Título *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2"><Label>Título *</Label><Input value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
             <div className="space-y-2"><Label>Cliente</Label><Select value={clientId} onValueChange={setClientId}><SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger><SelectContent>{clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.razon_social}</SelectItem>))}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Etapa</Label><Select value={etapa} onValueChange={setEtapa}><SelectTrigger /><SelectContent>{ETAPAS_PIPELINE.map((e) => (<SelectItem key={e.key} value={e.key}>{e.label}</SelectItem>))}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Valor Estimado ($)</Label><Input type="number" value={valorEstimado} onChange={(e) => setValorEstimado(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Probabilidad (%)</Label><Input type="number" min="0" max="100" value={probabilidad} onChange={(e) => setProbabilidad(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Fecha Cierre Estimada</Label><Input type="date" value={fechaCierre} onChange={(e) => setFechaCierre(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Fuente</Label><Select value={fuente} onValueChange={setFuente}><SelectTrigger /><SelectContent>{FUENTES.map((f) => (<SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>))}</SelectContent></Select></div>
-            <div className="space-y-2"><Label>Responsable</Label><Input value={responsable} onChange={(e) => setResponsable(e.target.value)} /></div>
-            <div className="space-y-2 col-span-2"><Label>Descripción</Label><Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} /></div>
+            <div className="space-y-2"><Label>Pipeline</Label><Select value={pipelineId} onValueChange={(v) => { setPipelineId(v); setStageId(''); }}><SelectTrigger><SelectValue placeholder="Seleccionar pipeline" /></SelectTrigger><SelectContent>{pipelines.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Etapa</Label><Select value={stageId} onValueChange={setStageId}><SelectTrigger><SelectValue placeholder="Seleccionar etapa" /></SelectTrigger><SelectContent>
+              {pipelines.find(p => p.id === pipelineId)?.stages?.sort((a, b) => a.order - b.order).map((s) => (<SelectItem key={s.id} value={s.id}>{s.name} ({s.probability_percentage}%)</SelectItem>))}
+            </SelectContent></Select></div>
+            <div className="space-y-2"><Label>Valor Estimado ($)</Label><Input type="number" value={estimatedAmount} onChange={(e) => setEstimatedAmount(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Probabilidad (%)</Label><Input type="number" min="0" max="100" value={probability} onChange={(e) => setProbability(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Fecha Cierre Estimada</Label><Input type="date" value={expectedCloseDate} onChange={(e) => setExpectedCloseDate(e.target.value)} /></div>
           </div>
+          <div className="space-y-2"><Label>Descripción</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} /></div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Guardar</Button>
@@ -1408,15 +1463,15 @@ function EditOpportunityDialog({ opportunity, open, onOpenChange, clients, onUpd
 function CreateActivityDialog({ open, onOpenChange, companyId, opportunities, onCreated }: {
   open: boolean; onOpenChange: (open: boolean) => void; companyId: string; opportunities: CRMOpportunity[]; onCreated: () => void;
 }) {
-  const [tipo, setTipo] = useState('llamada');
-  const [asunto, setAsunto] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [fechaActividad, setFechaActividad] = useState(new Date().toISOString().slice(0, 10));
+  const [type, setType] = useState('llamada');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [scheduledAt, setScheduledAt] = useState(new Date().toISOString().slice(0, 16));
   const [opportunityId, setOpportunityId] = useState('');
   const [creating, setCreating] = useState(false);
 
   async function handleCreate() {
-    if (!asunto) {
+    if (!subject) {
       toast.error('El asunto es requerido');
       return;
     }
@@ -1424,17 +1479,17 @@ function CreateActivityDialog({ open, onOpenChange, companyId, opportunities, on
     try {
       await createCRMActivity({
         company_id: companyId,
-        tipo,
-        asunto,
-        descripcion: descripcion || undefined,
-        fecha_actividad: fechaActividad,
+        type,
+        subject,
+        description: description || undefined,
+        scheduled_at: scheduledAt || undefined,
         opportunity_id: opportunityId || undefined,
-        estado: 'pendiente',
+        status: 'pendiente',
       });
       toast.success('Actividad creada');
       onOpenChange(false);
-      setTipo('llamada'); setAsunto(''); setDescripcion('');
-      setFechaActividad(new Date().toISOString().slice(0, 10)); setOpportunityId('');
+      setType('llamada'); setSubject(''); setDescription('');
+      setScheduledAt(new Date().toISOString().slice(0, 16)); setOpportunityId('');
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear actividad');
@@ -1445,7 +1500,7 @@ function CreateActivityDialog({ open, onOpenChange, companyId, opportunities, on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nueva Actividad</DialogTitle>
           <DialogDescription>Registre una nueva actividad en el CRM</DialogDescription>
@@ -1454,7 +1509,7 @@ function CreateActivityDialog({ open, onOpenChange, companyId, opportunities, on
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tipo *</Label>
-              <Select value={tipo} onValueChange={setTipo}>
+              <Select value={type} onValueChange={setType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TIPOS_ACTIVIDAD.map((t) => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
@@ -1466,14 +1521,14 @@ function CreateActivityDialog({ open, onOpenChange, companyId, opportunities, on
               <Select value={opportunityId} onValueChange={setOpportunityId}>
                 <SelectTrigger><SelectValue placeholder="Sin oportunidad" /></SelectTrigger>
                 <SelectContent>
-                  {opportunities.map((o) => (<SelectItem key={o.id} value={o.id}>{o.titulo}</SelectItem>))}
+                  {opportunities.map((o) => (<SelectItem key={o.id} value={o.id}>{o.name || o.titulo}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="space-y-2"><Label>Asunto *</Label><Input value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="Asunto de la actividad" /></div>
-          <div className="space-y-2"><Label>Descripción</Label><Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Detalles de la actividad" /></div>
-          <div className="space-y-2"><Label>Fecha Programada</Label><Input type="date" value={fechaActividad} onChange={(e) => setFechaActividad(e.target.value)} /></div>
+          <div className="space-y-2"><Label>Asunto *</Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Asunto de la actividad" /></div>
+          <div className="space-y-2"><Label>Descripción</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Detalles de la actividad" /></div>
+          <div className="space-y-2"><Label>Fecha Programada</Label><Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} /></div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={creating}>{creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Crear Actividad</Button>
@@ -1487,14 +1542,15 @@ function CreateActivityDialog({ open, onOpenChange, companyId, opportunities, on
 function CreateSegmentDialog({ open, onOpenChange, companyId, onCreated }: {
   open: boolean; onOpenChange: (open: boolean) => void; companyId: string; onCreated: () => void;
 }) {
-  const [nombre, setNombre] = useState('');
-  const [descripcion, setDescripcion] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [color, setColor] = useState('#3b82f6');
-  const [criterio, setCriterio] = useState('');
+  const [type, setType] = useState('manual');
+  const [rules, setRules] = useState('');
   const [creating, setCreating] = useState(false);
 
   async function handleCreate() {
-    if (!nombre) {
+    if (!name) {
       toast.error('El nombre es requerido');
       return;
     }
@@ -1502,14 +1558,15 @@ function CreateSegmentDialog({ open, onOpenChange, companyId, onCreated }: {
     try {
       await createCRMSegment({
         company_id: companyId,
-        nombre,
-        descripcion: descripcion || undefined,
+        name,
+        type,
+        description: description || undefined,
         color,
-        criterio: criterio || undefined,
+        rules: rules || undefined,
       });
       toast.success('Segmento creado');
       onOpenChange(false);
-      setNombre(''); setDescripcion(''); setColor('#3b82f6'); setCriterio('');
+      setName(''); setDescription(''); setColor('#3b82f6'); setType('manual'); setRules('');
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear segmento');
@@ -1520,19 +1577,28 @@ function CreateSegmentDialog({ open, onOpenChange, companyId, onCreated }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo Segmento</DialogTitle>
           <DialogDescription>Cree un segmento para agrupar clientes</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2"><Label>Nombre *</Label><Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del segmento" /></div>
-          <div className="space-y-2"><Label>Descripción</Label><Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Descripción del segmento" /></div>
+          <div className="space-y-2"><Label>Nombre *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del segmento" /></div>
+          <div className="space-y-2"><Label>Descripción</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Descripción del segmento" /></div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>Color</Label><div className="flex items-center gap-2"><Input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-10 h-10 p-1" /><span className="text-sm text-muted-foreground">{color}</span></div></div>
-            <div className="space-y-2"><Label>Tipo</Label><Badge variant="outline">{criterio ? 'Dinámico' : 'Manual'}</Badge></div>
+            <div className="space-y-2"><Label>Tipo</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="regla">Regla</SelectItem>
+                  <SelectItem value="rfm">RFM</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-2"><Label>Reglas (JSON)</Label><Textarea value={criterio} onChange={(e) => setCriterio(e.target.value)} rows={2} placeholder='{"campo": "valor"}' /></div>
+          <div className="space-y-2"><Label>Reglas (JSON)</Label><Textarea className="overflow-y-auto max-h-40" value={rules} onChange={(e) => setRules(e.target.value)} rows={3} placeholder='{"campo": "industry", "valor": "tecnologia"}' /></div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={creating}>{creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Crear Segmento</Button>
@@ -1546,39 +1612,39 @@ function CreateSegmentDialog({ open, onOpenChange, companyId, onCreated }: {
 function CreateAutomationDialog({ open, onOpenChange, companyId, onCreated }: {
   open: boolean; onOpenChange: (open: boolean) => void; companyId: string; onCreated: () => void;
 }) {
-  const [nombre, setNombre] = useState('');
-  const [eventoDisparador, setEventoDisparador] = useState('nueva_oportunidad');
-  const [condiciones, setCondiciones] = useState('');
-  const [acciones, setAcciones] = useState('');
+  const [name, setName] = useState('');
+  const [triggerType, setTriggerType] = useState('lead_creado');
+  const [triggerConditions, setTriggerConditions] = useState('');
+  const [actions, setActions] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [creating, setCreating] = useState(false);
 
   const TRIGGERS = [
-    { key: 'nueva_oportunidad', label: 'Nueva Oportunidad' },
-    { key: 'cambio_etapa', label: 'Cambio de Etapa' },
-    { key: 'actividad_vencida', label: 'Actividad Vencida' },
-    { key: 'nuevo_lead', label: 'Nuevo Lead' },
-    { key: 'lead_convertido', label: 'Lead Convertido' },
+    { key: 'lead_creado', label: 'Lead Creado' },
+    { key: 'oportunidad_ganada', label: 'Oportunidad Ganada' },
+    { key: 'oportunidad_perdida', label: 'Oportunidad Perdida' },
+    { key: 'stage_changed', label: 'Cambio de Etapa' },
+    { key: 'client_creado', label: 'Cliente Creado' },
   ];
 
   async function handleCreate() {
-    if (!nombre || !acciones) {
-      toast.error('Complete los campos requeridos (nombre, acciones)');
+    if (!name || !triggerType) {
+      toast.error('Complete los campos requeridos (nombre, trigger)');
       return;
     }
     setCreating(true);
     try {
       await createCRMAutomation({
         company_id: companyId,
-        nombre,
-        evento_disparador: eventoDisparador,
-        condiciones: condiciones || undefined,
-        acciones,
+        name,
+        trigger_type: triggerType,
+        trigger_conditions: triggerConditions || undefined,
+        actions: actions || undefined,
         is_active: isActive,
       });
       toast.success('Automatización creada');
       onOpenChange(false);
-      setNombre(''); setEventoDisparador('nueva_oportunidad'); setCondiciones(''); setAcciones(''); setIsActive(true);
+      setName(''); setTriggerType('lead_creado'); setTriggerConditions(''); setActions(''); setIsActive(true);
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear automatización');
@@ -1589,24 +1655,24 @@ function CreateAutomationDialog({ open, onOpenChange, companyId, onCreated }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nueva Automatización</DialogTitle>
           <DialogDescription>Configure una automatización del CRM</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2"><Label>Nombre *</Label><Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la automatización" /></div>
+          <div className="space-y-2"><Label>Nombre *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de la automatización" /></div>
           <div className="space-y-2">
             <Label>Trigger *</Label>
-            <Select value={eventoDisparador} onValueChange={setEventoDisparador}>
+            <Select value={triggerType} onValueChange={setTriggerType}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TRIGGERS.map((t) => (<SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2"><Label>Condiciones (JSON)</Label><Textarea value={condiciones} onChange={(e) => setCondiciones(e.target.value)} rows={2} placeholder='{"campo": "valor"}' /></div>
-          <div className="space-y-2"><Label>Acciones (JSON) *</Label><Textarea value={acciones} onChange={(e) => setAcciones(e.target.value)} rows={3} placeholder='[{"tipo": "enviar_email", "destino": "cliente"}]' /></div>
+          <div className="space-y-2"><Label>Condiciones (JSON)</Label><Textarea className="overflow-y-auto max-h-40" value={triggerConditions} onChange={(e) => setTriggerConditions(e.target.value)} rows={3} placeholder='{"campo": "stage", "operador": "equals", "valor": "propuesta"}' /></div>
+          <div className="space-y-2"><Label>Acciones (JSON)</Label><Textarea className="overflow-y-auto max-h-40" value={actions} onChange={(e) => setActions(e.target.value)} rows={3} placeholder='{"tipo": "email", "destinatario": "lead", "plantilla": "seguimiento"}' /></div>
           <div className="flex items-center gap-2">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded" />
             <Label>Activar inmediatamente</Label>

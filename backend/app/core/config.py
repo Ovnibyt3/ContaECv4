@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # Aplicación
     # ==========================================
     APP_NAME: str = "ContaEC"
-    APP_VERSION: str = "4.5.0"
+    APP_VERSION: str = "5.0.0"
     APP_ENV: str = "development"
     DEBUG: bool = True
     SECRET_KEY: str = ""
@@ -210,59 +210,35 @@ class Settings(BaseSettings):
     @property
     def database_url_async(self) -> str:
         """
-        URL asíncrona de la base de datos.
-        
+        URL asíncrona de la base de datos (PostgreSQL obligatorio).
+
         Prioridad:
-        1. Si DATABASE_URL está configurada y apunta a PostgreSQL -> usar PostgreSQL
-        2. Si DATABASE_URL está configurada y apunta a SQLite -> usar SQLite (solo desarrollo)
-        3. Si APP_ENV es 'production' -> construir URL PostgreSQL desde settings individuales
-        4. Fallback -> SQLite local (desarrollo)
-        
-        NOTA: En producción (APP_ENV=production) SOLO se permite PostgreSQL.
-        SQLite NO es compatible con carga de trabajo multi-usuario concurrente
-        por las siguientes razones:
-        - SQLite usa locking a nivel de archivo (solo 1 escritor a la vez)
-        - No soporta conexiones concurrentes de escritura
-        - No tiene pool de conexiones real
-        - PRAGMA foreign_keys no es persistente (debe activarse por conexión)
-        - No soporta NOTIFY/LISTEN para eventos en tiempo real
-        - Funciones como func.strftime son incompatibles con PostgreSQL
-        - Riesgo de corrupción bajo carga concurrente
+        1. Si DATABASE_URL está configurada con PostgreSQL -> usar directamente
+        2. Si DATABASE_URL tiene PostgreSQL sincrónico -> convertir a asyncpg
+        3. Si POSTGRES_HOST/POSTGRES_DB están configuradas -> construir URL
+        4. Error si no hay configuración PostgreSQL
         """
         url = self.DATABASE_URL
-        
-        # Si la URL viene de Prisma (file:...), usar SQLite aiosqlite por defecto
-        if url.startswith("file:"):
-            url = "sqlite+aiosqlite:///./contaec.db"
-        # Si es SQLite sincrónico, convertir a asíncrono
-        elif url.startswith("sqlite:///") and "aiosqlite" not in url:
-            url = url.replace("sqlite:///", "sqlite+aiosqlite:///")
-        # Si es SQLite relativo sin protocolo, agregar protocolo aiosqlite
-        elif url.endswith(".db") and ":///" not in url:
-            url = f"sqlite+aiosqlite:///{url}"
+
         # Si es PostgreSQL sincrónico, convertir a asíncrono
-        elif url.startswith("postgresql://") and "asyncpg" not in url:
+        if url.startswith("postgresql://") and "asyncpg" not in url:
             url = url.replace("postgresql://", "postgresql+asyncpg://")
         # Si ya tiene asyncpg, usarla directamente
         elif url.startswith("postgresql+asyncpg://"):
             pass  # Ya está en el formato correcto
-        # Si es producción y no hay URL explícita, construir PostgreSQL
-        elif self.is_production and not url.startswith("sqlite"):
+        # Si no tiene protocolo pero parece PostgreSQL, construir desde variables
+        elif self.POSTGRES_HOST and self.POSTGRES_DB:
             url = (
                 f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
                 f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
             )
-        
-        # BLOQUEAR SQLite en producción
-        if self.is_production and url.startswith("sqlite"):
+        else:
             raise RuntimeError(
-                "⛔ PRODUCCIÓN: SQLite NO está permitido en ambiente de producción. "
-                "SQLite no soporta concurrencia de escritura, tiene riesgo de corrupción "
-                "bajo carga, y funciones como func.strftime son incompatibles con PostgreSQL. "
-                "Configure DATABASE_URL con PostgreSQL en las variables de entorno: "
-                "DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/dbname"
+                "⛔ PostgreSQL es la única base de datos soportada. "
+                "Configure DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/dbname "
+                "o las variables POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD."
             )
-        
+
         return url
 
     @property

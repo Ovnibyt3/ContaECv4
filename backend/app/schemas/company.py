@@ -153,6 +153,47 @@ class CompanyCreate(BaseModel):
         max_length=255,
         description="Nombre que aparece en los recibos",
     )
+    # SMTP por empresa
+    smtp_host: str | None = Field(
+        None,
+        max_length=255,
+        description="Host del servidor SMTP",
+    )
+    smtp_port: int | None = Field(
+        None,
+        ge=1,
+        le=65535,
+        description="Puerto SMTP",
+    )
+    smtp_user: str | None = Field(
+        None,
+        max_length=255,
+        description="Usuario SMTP",
+    )
+    smtp_password: str | None = Field(
+        None,
+        max_length=500,
+        description="Contraseña SMTP",
+    )
+    smtp_protocol: str | None = Field(
+        None,
+        max_length=10,
+        description="Protocolo SMTP (TLS/SSL)",
+    )
+    smtp_ssl: bool = Field(
+        default=True,
+        description="Usar SSL para SMTP",
+    )
+    # Ambiente por empresa
+    environment_mode: str = Field(
+        default="sandbox",
+        description="Modo de ambiente: sandbox/production",
+    )
+    # VirusTotal por empresa
+    virustotal_enabled: bool = Field(
+        default=False,
+        description="Habilitar escaneo con VirusTotal",
+    )
 
     @field_validator("ruc_operadora_comercial", "ruc_operadora_transportista")
     @classmethod
@@ -273,6 +314,17 @@ class CompanyUpdate(BaseModel):
     # Informacion adicional
     codigo_artesano: str | None = Field(None, max_length=50)
     nombre_recibos: str | None = Field(None, max_length=255)
+    # SMTP por empresa
+    smtp_host: str | None = Field(None, max_length=255)
+    smtp_port: int | None = Field(None, ge=1, le=65535)
+    smtp_user: str | None = Field(None, max_length=255)
+    smtp_password: str | None = Field(None, max_length=500)
+    smtp_protocol: str | None = Field(None, max_length=10)
+    smtp_ssl: bool | None = Field(None)
+    # Ambiente por empresa
+    environment_mode: str | None = Field(None)
+    # VirusTotal por empresa
+    virustotal_enabled: bool | None = Field(None)
 
     @field_validator("obligado_contabilidad")
     @classmethod
@@ -325,6 +377,16 @@ class CompanyResponse(BaseModel):
     # Informacion adicional
     codigo_artesano: str | None = Field(None, description="Codigo de artesano")
     nombre_recibos: str | None = Field(None, description="Nombre que aparece en los recibos")
+    # SMTP por empresa
+    smtp_host: str | None = Field(None, description="Host del servidor SMTP")
+    smtp_port: int | None = Field(None, description="Puerto SMTP")
+    smtp_user: str | None = Field(None, description="Usuario SMTP")
+    smtp_protocol: str | None = Field(None, description="Protocolo SMTP")
+    smtp_ssl: bool = Field(..., description="Usar SSL para SMTP")
+    # Ambiente por empresa
+    environment_mode: str = Field(..., description="Modo de ambiente: sandbox/production")
+    # VirusTotal por empresa
+    virustotal_enabled: bool = Field(..., description="Habilitar escaneo con VirusTotal")
     # Estado
     is_active: bool = Field(..., description="Estado activo")
     created_at: datetime = Field(..., description="Fecha de creación")

@@ -162,6 +162,9 @@ class UserResponse(BaseModel):
     license_type: str = Field("monthly", description="Tipo de licencia")
     license_start_date: datetime | None = Field(None, description="Inicio de licencia")
     license_end_date: datetime | None = Field(None, description="Fin de licencia")
+    is_trial: bool = Field(False, description="Indica si está en período de prueba")
+    trial_start_date: datetime | None = Field(None, description="Inicio del período de prueba")
+    trial_end_date: datetime | None = Field(None, description="Fin del período de prueba")
     created_at: datetime = Field(..., description="Fecha de creación")
     updated_at: datetime = Field(..., description="Fecha de actualización")
 

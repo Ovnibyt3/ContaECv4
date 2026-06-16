@@ -603,7 +603,7 @@ function EjecucionTab({ companyId }: { companyId: string }) {
 
       {/* Ejecución Dialog */}
       <Dialog open={!!showEjecucion} onOpenChange={(open) => { if (!open) setShowEjecucion(null); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Registrar Ejecución Mensual</DialogTitle><DialogDescription>Ingrese el monto ejecutado para el mes seleccionado</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Mes</Label><Select value={ejecucionMes} onValueChange={setEjecucionMes}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{MESES.map((m, i) => (<SelectItem key={i} value={(i + 1).toString()}>{m}</SelectItem>))}</SelectContent></Select></div>

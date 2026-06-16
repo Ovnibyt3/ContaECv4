@@ -98,6 +98,16 @@ class Product(Base):
         nullable=True,
         comment="Porcentaje de ICE (si aplica)",
     )
+    valor_ice_unitario: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 4),
+        nullable=True,
+        comment="Valor ICE unitario en moneda",
+    )
+    valor_irbpnr: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 4),
+        nullable=True,
+        comment="Valor del impuesto IRBP_NR por unidad",
+    )
     # Unidad de medida y descuento
     unidad_medida: Mapped[str] = mapped_column(
         String(50),
@@ -110,6 +120,34 @@ class Product(Base):
         default=Decimal("0"),
         nullable=False,
         comment="Porcentaje de descuento por defecto",
+    )
+    # IVA incluido en precio
+    iva_incluido: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="Indica si el IVA está incluido en el precio unitario",
+    )
+    subsidio: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 4),
+        nullable=True,
+        comment="Subsidio aplicable al producto",
+    )
+    # Categorización y detalle
+    categoria: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Categoría del producto",
+    )
+    detalle: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Detalle adicional del producto",
+    )
+    # Imagen del producto
+    imagen: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Ruta o URL de la imagen del producto",
     )
     # Código de barras e inventario
     codigo_barras: Mapped[str | None] = mapped_column(

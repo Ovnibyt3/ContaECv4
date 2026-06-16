@@ -110,6 +110,19 @@ const PLATAFORMAS: Record<string, { label: string; color: string }> = {
   otro: { label: 'Otro', color: 'bg-gray-100 text-gray-800' },
 };
 
+// Ecuadorian banks with SWIFT/BIC codes
+const BANCOS_EC: Record<string, { swift_bic: string; manual: boolean }> = {
+  'Banco Pichincha': { swift_bic: 'PICHECEQXXX', manual: false },
+  'Produbanco': { swift_bic: 'PRODECEQXXX', manual: false },
+  'Banco Bolivariano': { swift_bic: 'BBOLECEQXXX', manual: false },
+  'Banco Internacional': { swift_bic: 'BACECEQXXX', manual: false },
+  'Banco Austro': { swift_bic: 'AUSTECQX', manual: false },
+  'Banco Guayaquil': { swift_bic: 'BPGUECEQXXX', manual: false },
+  'Banco Ruminahui': { swift_bic: '', manual: true },
+  'Banco del Pacifico': { swift_bic: '', manual: true },
+  'Otro': { swift_bic: '', manual: true },
+};
+
 export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProps) {
   const selectedCompany = companies[0];
   const companyId = selectedCompany?.id || '';
@@ -147,6 +160,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
     saldo_inicial: 0,
     formato_extracto: 'csv',
   });
+  const [bancoSeleccionado, setBancoSeleccionado] = useState<string>('');
 
   const [extractoForm, setExtractoForm] = useState<ExtractoBancarioCreate>({
     company_id: companyId,
@@ -227,6 +241,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
           titular: cuentaForm.titular,
           moneda: cuentaForm.moneda,
           formato_extracto: cuentaForm.formato_extracto,
+          swift_bic: cuentaForm.swift_bic,
         });
         toast.success('Cuenta bancaria actualizada');
       } else {
@@ -235,6 +250,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
       }
       setShowCuentaDialog(false);
       setEditingCuenta(null);
+      setBancoSeleccionado('');
       loadData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar cuenta');
@@ -497,6 +513,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
               <Button
                 onClick={() => {
                   setEditingCuenta(null);
+                  setBancoSeleccionado('');
                   setCuentaForm({
                     company_id: companyId,
                     nombre_banco: '',
@@ -506,6 +523,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
                     moneda: 'USD',
                     saldo_inicial: 0,
                     formato_extracto: 'csv',
+                    swift_bic: '',
                   });
                   setShowCuentaDialog(true);
                 }}
@@ -554,6 +572,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
                                 size="sm"
                                 onClick={() => {
                                   setEditingCuenta(c);
+                                  setBancoSeleccionado('');
                                   setCuentaForm({
                                     company_id: c.company_id,
                                     nombre_banco: c.nombre_banco,
@@ -563,6 +582,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
                                     moneda: c.moneda,
                                     saldo_inicial: Number(c.saldo_inicial),
                                     formato_extracto: c.formato_extracto,
+                                    swift_bic: c.swift_bic || '',
                                   });
                                   setShowCuentaDialog(true);
                                 }}
@@ -1042,13 +1062,39 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
                 />
               </div>
               <div className="space-y-2">
-                <Label>IBAN</Label>
+                <Label>SWIFT/BIC</Label>
                 <Input
-                  placeholder="EC00..."
-                  value={cuentaForm.iban || ''}
-                  onChange={(e) => setCuentaForm({ ...cuentaForm, iban: e.target.value })}
+                  placeholder="PICHECEQXXX"
+                  value={cuentaForm.swift_bic || ''}
+                  onChange={(e) => setCuentaForm({ ...cuentaForm, swift_bic: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Banco (Ecuador) - auto-rellena SWIFT/BIC</Label>
+              <Select
+                value={bancoSeleccionado}
+                onValueChange={(v) => {
+                  setBancoSeleccionado(v);
+                  const banco = BANCOS_EC[v];
+                  if (banco) {
+                    setCuentaForm((prev) => ({
+                      ...prev,
+                      nombre_banco: v,
+                      swift_bic: banco.swift_bic || prev.swift_bic || '',
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccione un banco" /></SelectTrigger>
+                <SelectContent>
+                  {Object.keys(BANCOS_EC).map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b} {BANCOS_EC[b].manual ? '(ingresar SWIFT/BIC manual)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1111,7 +1157,7 @@ export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProp
 
       {/* Dialog: Importar Extracto */}
       <Dialog open={showExtractoDialog} onOpenChange={setShowExtractoDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Importar Extracto Bancario</DialogTitle>
             <DialogDescription>Registre los datos del extracto bancario</DialogDescription>

@@ -401,5 +401,70 @@ async def scan_upload(
 
 
 def is_any_threat_found(results: list[ScanResult]) -> bool:
-    """Verifica si algún escáner detectó una amenaza"""
+    """Verifica si algun escaner detecto una amenaza"""
     return any(not r.is_clean for r in results)
+
+
+# Module-level cache for ClamAV availability (5-min TTL)
+_clamav_cache: Optional[bool] = None
+_clamav_cache_time: float = 0
+
+
+def check_clamav_available(force: bool = False) -> bool:
+    """
+    Verifica si ClamAV esta disponible probando conexion real.
+    Cachea el resultado por 5 minutos.
+    """
+    import time
+    global _clamav_cache, _clamav_cache_time
+
+    now = time.time()
+    if not force and _clamav_cache is not None and (now - _clamav_cache_time) < 300:
+        return _clamav_cache
+
+    scanner = ClamAVScanner()
+    result = scanner._try_connect()
+    _clamav_cache = result
+    _clamav_cache_time = now
+    return result
+
+
+# Module-level cache for VirusTotal availability (5-min TTL)
+_vt_cache: Optional[bool] = None
+_vt_cache_time: float = 0
+
+
+def check_virustotal_available(force: bool = False) -> bool:
+    """
+    Verifica si VirusTotal esta disponible probando la API key.
+    Cachea el resultado por 5 minutos.
+    """
+    import time
+    global _vt_cache, _vt_cache_time
+
+    now = time.time()
+    if not force and _vt_cache is not None and (now - _vt_cache_time) < 300:
+        return _vt_cache
+
+    if not settings.VIRUSTOTAL_ENABLED or not settings.VIRUSTOTAL_API_KEY:
+        _vt_cache = False
+        _vt_cache_time = now
+        return False
+
+    try:
+        import vt
+        # Try a simple API call to verify the key
+        import asyncio
+        async def _test():
+            async with vt.Client(settings.VIRUSTOTAL_API_KEY) as client:
+                await client.get_object("/domains/virustotal.com")
+                return True
+        result = asyncio.get_event_loop().run_until_complete(_test())
+        _vt_cache = result
+        _vt_cache_time = now
+        return result
+    except Exception as e:
+        logger.warning(f"VirusTotal no disponible: {e}")
+        _vt_cache = False
+        _vt_cache_time = now
+        return False

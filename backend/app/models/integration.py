@@ -91,6 +91,11 @@ class CuentaBancaria(Base):
         nullable=True,
         comment="IBAN de la cuenta",
     )
+    swift_bic: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Codigo SWIFT/BIC del banco",
+    )
     titular: Mapped[str] = mapped_column(
         String(200),
         nullable=False,

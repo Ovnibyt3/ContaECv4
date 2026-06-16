@@ -1,13 +1,12 @@
 """
 ContaEC - Configuración de la base de datos
-Soporte asíncrono para SQLite (aiosqlite) y PostgreSQL (asyncpg)
-Detección automática del tipo de base de datos según la URL configurada
+Soporte asíncrono para PostgreSQL (asyncpg)
 """
 from datetime import datetime
 from typing import AsyncGenerator
 from uuid import uuid4
 
-from sqlalchemy import MetaData, event
+from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -34,37 +33,18 @@ class Base(DeclarativeBase):
     metadata = metadata
 
 
-# Configuración del engine asíncrono
+# Configuración del engine asíncrono - PostgreSQL
 settings = get_settings()
-
-# Parámetros específicos según el tipo de base de datos
-engine_kwargs: dict = {}
-if settings.database_url_async.startswith("sqlite"):
-    # SQLite requiere check_same_thread=False en modo asíncrono
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
-else:
-    # PostgreSQL - pool de conexiones optimizado
-    engine_kwargs["pool_size"] = 20
-    engine_kwargs["max_overflow"] = 10
-    engine_kwargs["pool_pre_ping"] = True
-    engine_kwargs["pool_recycle"] = 3600
 
 engine = create_async_engine(
     settings.database_url_async,
     echo=settings.DEBUG,
-    **engine_kwargs,
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True,
+    pool_recycle=3600,
 )
 
-# Configuración específica para SQLite: habilitar Foreign Keys
-if settings.database_url_async.startswith("sqlite"):
-    @event.listens_for(engine.sync_engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        """Habilitar Foreign Keys en SQLite"""
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA busy_timeout=5000")
-        cursor.close()
 
 # Fábrica de sesiones asíncronas
 async_session_factory = async_sessionmaker(

@@ -326,6 +326,87 @@ async def toggle_user_active(
     }
 
 
+@router.put("/users/{user_id}/trial")
+async def modify_user_trial(
+    user_id: UUID,
+    trial_days: int = Query(..., ge=1, le=90, description="Número de días para el período de prueba"),
+    current_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Modificar el período de prueba de un usuario (admin only)"""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    now = datetime.now(timezone.utc)
+    user.is_trial = True
+    user.trial_start_date = now
+    user.trial_end_date = now + timedelta(days=trial_days)
+
+    await db.flush()
+
+    return {
+        "message": f"Período de prueba actualizado a {trial_days} días",
+        "user_id": str(user.id),
+        "trial_start_date": user.trial_start_date.isoformat(),
+        "trial_end_date": user.trial_end_date.isoformat(),
+        "trial_days": trial_days,
+    }
+
+
+@router.put("/users/{user_id}/end-trial")
+async def end_user_trial(
+    user_id: UUID,
+    current_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Finalizar el período de prueba de un usuario (admin only)"""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    user.is_trial = False
+    user.trial_start_date = None
+    user.trial_end_date = None
+
+    await db.flush()
+
+    return {
+        "message": "Período de prueba finalizado",
+        "user_id": str(user.id),
+    }
+
+
+@router.get("/trial-users")
+async def list_trial_users(
+    current_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Listar todos los usuarios en período de prueba"""
+    result = await db.execute(
+        select(User).where(User.is_trial == True).order_by(User.trial_end_date)
+    )
+    users = result.scalars().all()
+    now = datetime.now(timezone.utc)
+
+    return {
+        "trial_users": [
+            {
+                "id": str(u.id),
+                "email": u.email,
+                "full_name": u.full_name,
+                "is_active": u.is_active,
+                "trial_start_date": u.trial_start_date.isoformat() if u.trial_start_date else None,
+                "trial_end_date": u.trial_end_date.isoformat() if u.trial_end_date else None,
+                "trial_days_remaining": max(0, (u.trial_end_date - now).days) if u.trial_end_date else 0,
+            }
+            for u in users
+        ]
+    }
+
+
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: UUID,

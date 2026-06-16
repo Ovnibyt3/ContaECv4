@@ -333,12 +333,12 @@ function EmpleadosTab({ companyId }: { companyId: string }) {
               <div className="space-y-2"><Label>Departamento</Label><Input value={form.departamento} onChange={(e) => setForm({ ...form, departamento: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Tipo Contrato</Label><Select value={form.tipo_contrato} onValueChange={(v) => setForm({ ...form, tipo_contrato: v })}><SelectTrigger /><SelectContent><SelectItem value="indefinido">Indefinido</SelectItem><SelectItem value="fijo">Fijo</SelectItem><SelectItem value="temporal">Temporal</SelectItem><SelectItem value="pasantia">Pasantia</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2"><Label>Tipo Contrato</Label><Select value={form.tipo_contrato} onValueChange={(v) => setForm({ ...form, tipo_contrato: v })}><SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger><SelectContent><SelectItem value="indefinido">Indefinido</SelectItem><SelectItem value="fijo">Fijo</SelectItem><SelectItem value="por_obra">Por Obra</SelectItem><SelectItem value="temporal">Temporal</SelectItem><SelectItem value="pasantia">Pasantia</SelectItem></SelectContent></Select></div>
               <div className="space-y-2"><Label>Fecha Ingreso</Label><Input type="date" value={form.fecha_ingreso} onChange={(e) => setForm({ ...form, fecha_ingreso: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Sueldo Mensual ($)</Label><Input type="number" value={form.sueldo_mensual} onChange={(e) => setForm({ ...form, sueldo_mensual: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Tipo Pago</Label><Select value={form.tipo_pago} onValueChange={(v) => setForm({ ...form, tipo_pago: v })}><SelectTrigger /><SelectContent><SelectItem value="mensual">Mensual</SelectItem><SelectItem value="quincenal">Quincenal</SelectItem><SelectItem value="semanal">Semanal</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2"><Label>Tipo Pago</Label><Select value={form.tipo_pago} onValueChange={(v) => setForm({ ...form, tipo_pago: v })}><SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger><SelectContent><SelectItem value="mensual">Mensual</SelectItem><SelectItem value="quincenal">Quincenal</SelectItem><SelectItem value="semanal">Semanal</SelectItem></SelectContent></Select></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
@@ -483,7 +483,7 @@ function RolesPagoTab({ companyId }: { companyId: string }) {
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Mes</Label><Select value={genForm.mes} onValueChange={(v) => setGenForm({ ...genForm, mes: v })}><SelectTrigger /><SelectContent>{MESES.map((m, i) => (<SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>))}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Mes</Label><Select value={genForm.mes} onValueChange={(v) => setGenForm({ ...genForm, mes: v })}><SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger><SelectContent>{MESES.map((m, i) => (<SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>))}</SelectContent></Select></div>
               <div className="space-y-2"><Label>Anio</Label><Input type="number" value={genForm.anio} onChange={(e) => setGenForm({ ...genForm, anio: e.target.value })} /></div>
             </div>
             <div className="flex justify-end gap-2">
@@ -963,7 +963,7 @@ function LiquidacionesTab({ companyId }: { companyId: string }) {
   const [showCalculate, setShowCalculate] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
-  const [form, setForm] = useState({ employee_id: '', fecha_salida: '', motivo: 'renuncia' });
+  const [form, setForm] = useState({ employee_ids: [] as string[], fecha_salida: '', motivo: 'renuncia' });
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -985,18 +985,28 @@ function LiquidacionesTab({ companyId }: { companyId: string }) {
   useEffect(() => { loadData(); }, [loadData]);
 
   async function handleCalculate() {
-    if (!form.employee_id || !form.fecha_salida) { toast.error('Complete todos los campos'); return; }
+    if (form.employee_ids.length === 0 || !form.fecha_salida) { toast.error('Seleccione al menos un empleado y la fecha de salida'); return; }
     setCalculating(true);
     try {
-      await calcularLiquidacion({
-        company_id: companyId,
-        employee_id: form.employee_id,
-        fecha_salida: form.fecha_salida,
-        motivo: form.motivo,
-      });
-      toast.success('Liquidación calculada');
+      let successCount = 0;
+      let errorCount = 0;
+      for (const empId of form.employee_ids) {
+        try {
+          await calcularLiquidacion({
+            company_id: companyId,
+            employee_id: empId,
+            fecha_salida: form.fecha_salida,
+            motivo: form.motivo,
+          });
+          successCount++;
+        } catch {
+          errorCount++;
+        }
+      }
+      if (successCount > 0) toast.success(`${successCount} liquidacion(es) calculadas`);
+      if (errorCount > 0) toast.error(`${errorCount} liquidacion(es) con error`);
       setShowCalculate(false);
-      setForm({ employee_id: '', fecha_salida: '', motivo: 'renuncia' });
+      setForm({ employee_ids: [], fecha_salida: '', motivo: 'renuncia' });
       loadData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al calcular liquidación');
@@ -1096,13 +1106,35 @@ function LiquidacionesTab({ companyId }: { companyId: string }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Calcular Liquidación</DialogTitle>
-            <DialogDescription>Calcule la liquidación de un empleado</DialogDescription>
+            <DialogDescription>Calcule la liquidación de uno o más empleados</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Empleado *</Label><Select value={form.employee_id} onValueChange={(v) => setForm({ ...form, employee_id: v })}><SelectTrigger><SelectValue placeholder="Seleccionar empleado" /></SelectTrigger><SelectContent>{employees.map((e) => (<SelectItem key={e.id} value={e.id}>{e.apellidos} {e.nombres}</SelectItem>))}</SelectContent></Select></div>
+            <div className="space-y-2">
+              <Label>Empleados *</Label>
+              <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-1">
+                {employees.map((e) => (
+                  <label key={e.id} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.employee_ids.includes(e.id)}
+                      onChange={(ev) => {
+                        if (ev.target.checked) {
+                          setForm({ ...form, employee_ids: [...form.employee_ids, e.id] });
+                        } else {
+                          setForm({ ...form, employee_ids: form.employee_ids.filter((id) => id !== e.id) });
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-sm">{e.apellidos} {e.nombres}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">{form.employee_ids.length} seleccionado(s)</p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Fecha Salida *</Label><Input type="date" value={form.fecha_salida} onChange={(e) => setForm({ ...form, fecha_salida: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Motivo</Label><Select value={form.motivo} onValueChange={(v) => setForm({ ...form, motivo: v })}><SelectTrigger /><SelectContent>{MOTIVOS.map((m) => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Motivo</Label><Select value={form.motivo} onValueChange={(v) => setForm({ ...form, motivo: v })}><SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger><SelectContent>{MOTIVOS.map((m) => (<SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>))}</SelectContent></Select></div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowCalculate(false)}>Cancelar</Button>
@@ -1316,7 +1348,8 @@ function IRTab({ companyId }: { companyId: string }) {
           <CardTitle className="text-sm">Tabla de Impuesto a la Renta (Referencia)</CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="max-h-72">
+          <div className="overflow-x-auto">
+            <ScrollArea className="max-h-72">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1338,6 +1371,7 @@ function IRTab({ companyId }: { companyId: string }) {
               </TableBody>
             </Table>
           </ScrollArea>
+          </div>
         </CardContent>
       </Card>
     </div>

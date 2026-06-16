@@ -202,6 +202,11 @@ class CuentaContable(Base):
         nullable=True,
         comment="Etiqueta para clasificación especial (ej: banco, caja, clientes, IVA)",
     )
+    notas: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Notas adicionales sobre la cuenta",
+    )
     # Cuenta contable vinculada para automatización
     cuenta_contrapartida_id: Mapped[str | None] = mapped_column(
         PG_UUID(),

@@ -4,6 +4,7 @@ Predicciones, detección de fraude, chatbot, recomendaciones, auto-categorizaci�
 """
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -502,18 +503,27 @@ async def create_chatbot_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Crear una sesión de chatbot"""
-    await _get_company_for_user(db, data.company_id, current_user.id)
+    try:
+        await _get_company_for_user(db, data.company_id, current_user.id)
+    except HTTPException:
+        raise
 
-    sesion = MLChatbotSesion(
-        company_id=data.company_id,
-        user_id=current_user.id,
-        estado=ChatbotEstado.ACTIVA.value,
-        titulo=data.titulo or "Nueva conversación",
-        contexto=json.dumps({"mensajes_count": 0}),
-    )
+    try:
+        sesion = MLChatbotSesion(
+            company_id=data.company_id,
+            user_id=current_user.id,
+            estado=ChatbotEstado.ACTIVA.value,
+            titulo=data.titulo or "Nueva conversación",
+            contexto=json.dumps({"mensajes_count": 0}),
+        )
 
-    db.add(sesion)
-    await db.flush()
+        db.add(sesion)
+        await db.flush()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al crear sesión de chatbot: {str(e)}",
+        )
 
     await log_action(
         db=db,
@@ -619,6 +629,7 @@ async def chat_with_bot(
     return ChatResponse(
         mensaje_id=assistant_msg.id,
         respuesta=assistant_msg.contenido,
+        sesion_id=data.sesion_id,
         intencion_detectada=intencion,
         entidades=entidades_dict,
     )
@@ -877,16 +888,27 @@ async def create_category_rule(
     db: AsyncSession = Depends(get_db),
 ):
     """Crear una regla de categorización"""
-    await _get_company_for_user(db, data.company_id, current_user.id)
-
-    # Validate palabras_clave is valid JSON
     try:
-        json.loads(data.palabras_clave)
-    except (json.JSONDecodeError, TypeError):
-        raise HTTPException(
-            status_code=400,
-            detail="palabras_clave debe ser un JSON válido con una lista de palabras.",
-        )
+        await _get_company_for_user(db, data.company_id, current_user.id)
+    except HTTPException:
+        raise
+
+    # Validate palabras_clave is valid JSON (if provided and non-empty)
+    if data.palabras_clave:
+        try:
+            json.loads(data.palabras_clave)
+        except (json.JSONDecodeError, TypeError):
+            # If not valid JSON, treat as plain comma-separated words and convert to JSON array
+            words = [w.strip() for w in data.palabras_clave.split(",") if w.strip()]
+            data.palabras_clave = json.dumps(words)
+
+    # Validate regex if provided (optional - skip on invalid)
+    if data.patron_regex:
+        try:
+            re.compile(data.patron_regex)
+        except re.error:
+            # Invalid regex - silently clear it rather than rejecting
+            data.patron_regex = None
 
     regla = MLCategoriaRegla(
         company_id=data.company_id,
@@ -939,10 +961,16 @@ async def update_category_rule(
         try:
             json.loads(update_data["palabras_clave"])
         except (json.JSONDecodeError, TypeError):
-            raise HTTPException(
-                status_code=400,
-                detail="palabras_clave debe ser un JSON válido con una lista de palabras.",
-            )
+            # If not valid JSON, treat as plain comma-separated words and convert to JSON array
+            words = [w.strip() for w in update_data["palabras_clave"].split(",") if w.strip()]
+            update_data["palabras_clave"] = json.dumps(words)
+
+    # Validate regex if provided (optional - skip on invalid)
+    if "patron_regex" in update_data and update_data["patron_regex"]:
+        try:
+            re.compile(update_data["patron_regex"])
+        except re.error:
+            update_data["patron_regex"] = None
 
     for field, value in update_data.items():
         setattr(regla, field, value)

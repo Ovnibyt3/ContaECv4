@@ -306,7 +306,7 @@ function DashboardTab({ companyId }: { companyId: string }) {
               <TrendingUp className="h-4 w-4 text-emerald-500" />
               <p className="text-xs text-muted-foreground">Margen Total</p>
             </div>
-            <p className={`text-2xl font-bold ${(stats?.margen_total ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            <p className={`text-2xl font-bold ${(stats?.margen_total != null ? Number(stats.margen_total) : 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
               {formatCurrency(stats?.margen_total ?? 0)}
             </p>
           </CardContent>
@@ -335,7 +335,7 @@ function DashboardTab({ companyId }: { companyId: string }) {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Margen</span>
-              <span className={`font-bold ${(stats?.margen_total ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <span className={`font-bold ${(stats?.margen_total != null ? Number(stats.margen_total) : 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {formatCurrency(stats?.margen_total ?? 0)}
               </span>
             </div>
@@ -375,7 +375,7 @@ function DashboardTab({ companyId }: { companyId: string }) {
             <Separator />
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Horas Registradas</span>
-              <span className="font-medium">{(stats?.horas_totales ?? 0).toFixed(1)}h</span>
+              <span className="font-medium">{Number(stats?.horas_totales ?? 0).toFixed(1)}h</span>
             </div>
           </CardContent>
         </Card>
@@ -514,7 +514,7 @@ function ProyectosTab({ companyId, companies }: { companyId: string; companies: 
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Progress value={Number(p.progreso)} className="h-2 w-16" />
-                          <span className="text-xs">{Number(p.progreso).toFixed(0)}%</span>
+                          <span className="text-xs">{Number(p.progreso || 0).toFixed(0)}%</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -871,10 +871,10 @@ function ProyectoDetailDialog({ proyecto, open, onOpenChange, onRecalcular }: {
           <div className="space-y-4">
             {/* Progress & Financial Summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Progreso</p><div className="flex items-center gap-2"><Progress value={Number(p.progreso)} className="h-2 flex-1" /><span className="text-sm font-bold">{Number(p.progreso).toFixed(0)}%</span></div></CardContent></Card>
+              <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Progreso</p><div className="flex items-center gap-2"><Progress value={Number(p.progreso)} className="h-2 flex-1" /><span className="text-sm font-bold">{Number(p.progreso || 0).toFixed(0)}%</span></div></CardContent></Card>
               <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Presupuesto</p><p className="text-lg font-bold">{formatCurrency(p.presupuesto)}</p></CardContent></Card>
               <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Costo Real</p><p className="text-lg font-bold text-red-600">{formatCurrency(p.costo_real)}</p></CardContent></Card>
-              <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Margen</p><p className={`text-lg font-bold ${p.margen >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(p.margen)} ({Number(p.margen_porcentaje).toFixed(1)}%)</p></CardContent></Card>
+              <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Margen</p><p className={`text-lg font-bold ${p.margen >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(p.margen)} ({Number(p.margen_porcentaje || 0).toFixed(1)}%)</p></CardContent></Card>
             </div>
 
             {/* Dates */}
@@ -900,7 +900,7 @@ function ProyectoDetailDialog({ proyecto, open, onOpenChange, onRecalcular }: {
                         <span className="text-xs text-muted-foreground">{t.asignado_a || '-'}</span>
                         <div className="flex items-center gap-1">
                           <Progress value={Number(t.progreso)} className="h-1.5 w-12" />
-                          <span className="text-xs">{Number(t.progreso).toFixed(0)}%</span>
+                          <span className="text-xs">{Number(t.progreso || 0).toFixed(0)}%</span>
                         </div>
                       </div>
                     </div>
@@ -937,7 +937,7 @@ function ProyectoDetailDialog({ proyecto, open, onOpenChange, onRecalcular }: {
               {p.timesheets.length > 0 ? (
                 <div className="text-sm">
                   <span className="text-muted-foreground">Total horas: </span>
-                  <span className="font-medium">{p.timesheets.reduce((sum, t) => sum + Number(t.horas), 0).toFixed(1)}h</span>
+                  <span className="font-medium">{p.timesheets.reduce((sum, t) => sum + Number(t.horas || 0), 0).toFixed(1)}h</span>
                   <span className="mx-2">|</span>
                   <span className="text-muted-foreground">Costo: </span>
                   <span className="font-medium text-red-600">{formatCurrency(p.timesheets.reduce((sum, t) => sum + Number(t.costo_total), 0))}</span>
@@ -1093,12 +1093,12 @@ function TareasTab({ companyId }: { companyId: string }) {
                       <TableCell>{getPrioridadBadge(t.prioridad)}</TableCell>
                       <TableCell className="text-sm">{t.fase || '-'}</TableCell>
                       <TableCell className="text-sm">{t.asignado_a || '-'}</TableCell>
-                      <TableCell className="text-right">{Number(t.horas_estimadas).toFixed(1)}</TableCell>
-                      <TableCell className="text-right">{Number(t.horas_reales).toFixed(1)}</TableCell>
+                      <TableCell className="text-right">{Number(t.horas_estimadas || 0).toFixed(1)}</TableCell>
+                      <TableCell className="text-right">{Number(t.horas_reales || 0).toFixed(1)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Progress value={Number(t.progreso)} className="h-2 w-14" />
-                          <span className="text-xs">{Number(t.progreso).toFixed(0)}%</span>
+                          <span className="text-xs">{Number(t.progreso || 0).toFixed(0)}%</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -1470,7 +1470,7 @@ function RecursosTab({ companyId }: { companyId: string }) {
                         <TableCell>{getTipoRecursoBadge(r.tipo_recurso)}</TableCell>
                         <TableCell className="font-medium">{r.nombre}</TableCell>
                         <TableCell>{formatCurrency(r.costo_unitario)}</TableCell>
-                        <TableCell>{Number(r.cantidad).toFixed(0)}</TableCell>
+                        <TableCell>{Number(r.cantidad || 0).toFixed(0)}</TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(r.costo_total)}</TableCell>
                         <TableCell className="text-sm">
                           {r.fecha_asignacion ? formatDate(r.fecha_asignacion) : '-'}
@@ -1667,9 +1667,9 @@ function TimesheetTab({ companyId }: { companyId: string }) {
     }
   }
 
-  const totalHoras = timesheets.reduce((sum, t) => sum + Number(t.horas), 0);
+  const totalHoras = timesheets.reduce((sum, t) => sum + Number(t.horas || 0), 0);
   const totalCosto = timesheets.reduce((sum, t) => sum + Number(t.costo_total), 0);
-  const horasFacturables = timesheets.filter(t => t.es_facturable).reduce((sum, t) => sum + Number(t.horas), 0);
+  const horasFacturables = timesheets.filter(t => t.es_facturable).reduce((sum, t) => sum + Number(t.horas || 0), 0);
 
   return (
     <div className="space-y-4">
@@ -1722,7 +1722,7 @@ function TimesheetTab({ companyId }: { companyId: string }) {
                     <TableRow key={t.id}>
                       <TableCell className="text-sm">{formatDate(t.fecha)}</TableCell>
                       <TableCell className="font-medium">{t.empleado_nombre}</TableCell>
-                      <TableCell className="text-right">{Number(t.horas).toFixed(1)}</TableCell>
+                      <TableCell className="text-right">{Number(t.horas || 0).toFixed(1)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(t.tarifa_hora)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(t.costo_total)}</TableCell>
                       <TableCell className="text-sm max-w-48 truncate">{t.descripcion || '-'}</TableCell>
@@ -1927,7 +1927,7 @@ function RentabilidadTab({ companyId }: { companyId: string }) {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">% Margen Global</p>
-            <p className={`text-2xl font-bold ${margenPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{margenPct.toFixed(1)}%</p>
+            <p className={`text-2xl font-bold ${margenPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{Number(margenPct || 0).toFixed(1)}%</p>
           </CardContent>
         </Card>
       </div>
@@ -2031,13 +2031,13 @@ function RentabilidadTab({ companyId }: { companyId: string }) {
                     </TableCell>
                     <TableCell>
                       <Badge className={`${Number(p.margen_porcentaje) >= 20 ? 'bg-emerald-600' : Number(p.margen_porcentaje) >= 0 ? 'bg-amber-500' : 'bg-red-600'} text-white`}>
-                        {Number(p.margen_porcentaje).toFixed(1)}%
+                        {Number(p.margen_porcentaje || 0).toFixed(1)}%
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Progress value={Number(p.progreso)} className="h-2 w-14" />
-                        <span className="text-xs">{Number(p.progreso).toFixed(0)}%</span>
+                        <span className="text-xs">{Number(p.progreso || 0).toFixed(0)}%</span>
                       </div>
                     </TableCell>
                   </TableRow>

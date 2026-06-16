@@ -29,6 +29,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
+  Clock,
   Database,
   Heart,
   Loader2,
@@ -41,6 +42,7 @@ import {
   RefreshCw,
   UserCheck,
   UserX,
+  XCircle,
   Server,
   DollarSign,
   Edit2,
@@ -51,6 +53,9 @@ import {
   getAdminUsers,
   modifyUserLicense,
   toggleUserActive,
+  modifyUserTrial,
+  endUserTrial,
+  getTrialUsers,
   getSystemHealth,
   getSecurityIssues,
   type AdminStats,
@@ -93,6 +98,13 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
   const [editingPrices, setEditingPrices] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
 
+  // Trial management state
+  const [trialUsers, setTrialUsers] = useState<Array<{ id: string; email: string; full_name: string; is_active: boolean; trial_start_date: string | null; trial_end_date: string | null; trial_days_remaining: number }>>([]);
+  const [trialDialogOpen, setTrialDialogOpen] = useState(false);
+  const [selectedTrialUser, setSelectedTrialUser] = useState<{ id: string; email: string; full_name: string } | null>(null);
+  const [trialDaysForm, setTrialDaysForm] = useState(15);
+  const [modifyingTrial, setModifyingTrial] = useState(false);
+
   const loadAdminData = useCallback(async () => {
     setLoading(true);
     try {
@@ -134,6 +146,15 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
     }
   }, []);
 
+  const loadTrialUsers = useCallback(async () => {
+    try {
+      const data = await getTrialUsers();
+      setTrialUsers(data.trial_users || []);
+    } catch {
+      // No trial users or error
+    }
+  }, []);
+
   const handleSavePrices = async () => {
     setSavingPrices(true);
     try {
@@ -172,7 +193,8 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
   useEffect(() => {
     loadAdminData();
     loadLicensePrices();
-  }, [loadAdminData, loadLicensePrices]);
+    loadTrialUsers();
+  }, [loadAdminData, loadLicensePrices, loadTrialUsers]);
 
   async function handleModifyLicense() {
     if (!selectedUser) return;
@@ -206,6 +228,37 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
       license_type: user.license_type || '',
     });
     setLicenseDialogOpen(true);
+  }
+
+  function openTrialDialog(user: { id: string; email: string; full_name: string }) {
+    setSelectedTrialUser(user);
+    setTrialDaysForm(15);
+    setTrialDialogOpen(true);
+  }
+
+  async function handleModifyTrial() {
+    if (!selectedTrialUser) return;
+    setModifyingTrial(true);
+    try {
+      await modifyUserTrial(selectedTrialUser.id, trialDaysForm);
+      await loadTrialUsers();
+      setTrialDialogOpen(false);
+      toast.success(`Período de prueba actualizado a ${trialDaysForm} días`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al modificar período de prueba');
+    } finally {
+      setModifyingTrial(false);
+    }
+  }
+
+  async function handleEndTrial(userId: string) {
+    try {
+      await endUserTrial(userId);
+      await loadTrialUsers();
+      toast.success('Período de prueba finalizado');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al finalizar período de prueba');
+    }
   }
 
   const securityIssuesCount =
@@ -776,6 +829,83 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Trial Management Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  Usuarios en Período de Prueba
+                </CardTitle>
+                <CardDescription>
+                  Usuarios con trial activo y gestión de duración
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {trialUsers.length > 0 ? (
+                  <ScrollArea className="max-h-80">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre</TableHead>
+                          <TableHead>Correo</TableHead>
+                          <TableHead>Inicio Trial</TableHead>
+                          <TableHead>Fin Trial</TableHead>
+                          <TableHead>Días Rest.</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {trialUsers.map((tu) => (
+                          <TableRow key={tu.id}>
+                            <TableCell className="font-medium">{tu.full_name}</TableCell>
+                            <TableCell className="text-muted-foreground text-xs">{tu.email}</TableCell>
+                            <TableCell className="text-xs">
+                              {tu.trial_start_date ? new Date(tu.trial_start_date).toLocaleDateString('es-EC') : '-'}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {tu.trial_end_date ? new Date(tu.trial_end_date).toLocaleDateString('es-EC') : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={tu.trial_days_remaining > 0 ? 'default' : 'destructive'} className="text-xs">
+                                {tu.trial_days_remaining > 0 ? `${tu.trial_days_remaining}` : 'Expirado'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => openTrialDialog({ id: tu.id, email: tu.email, full_name: tu.full_name })}
+                                >
+                                  <Edit2 className="mr-1 h-3 w-3" />
+                                  Modificar
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleEndTrial(tu.id)}
+                                >
+                                  <XCircle className="mr-1 h-3 w-3" />
+                                  Finalizar
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center py-6">
+                    <Clock className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">No hay usuarios en período de prueba</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -868,6 +998,46 @@ export function ContaECAdmin({ onBack }: ContaECAdminProps) {
               </Button>
               <Button onClick={handleModifyLicense} disabled={modifying || !licenseForm.license_type}>
                 {modifying ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar Cambios'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trial Modification Dialog */}
+      <Dialog open={trialDialogOpen} onOpenChange={setTrialDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modificar Período de Prueba</DialogTitle>
+            <DialogDescription>
+              Modificar el período de prueba de {selectedTrialUser?.full_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="mod-trial-days">Días de prueba (1-90)</Label>
+              <Input
+                id="mod-trial-days"
+                type="number"
+                min={1}
+                max={90}
+                value={trialDaysForm}
+                onChange={(e) => setTrialDaysForm(parseInt(e.target.value) || 15)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setTrialDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleModifyTrial} disabled={modifyingTrial || trialDaysForm < 1 || trialDaysForm > 90}>
+                {modifyingTrial ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Guardando...

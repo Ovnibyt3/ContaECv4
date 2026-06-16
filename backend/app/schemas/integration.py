@@ -19,6 +19,7 @@ class CuentaBancariaCreate(BaseModel):
     tipo_cuenta: str = Field(default="corriente", pattern="^(ahorros|corriente)$")
     numero_cuenta: str = Field(..., min_length=1, max_length=50)
     iban: str | None = None
+    swift_bic: str | None = None
     titular: str = Field(..., min_length=1, max_length=200)
     moneda: str = Field(default="USD", max_length=3)
     saldo_inicial: Decimal = Field(default=Decimal("0"))
@@ -32,6 +33,7 @@ class CuentaBancariaUpdate(BaseModel):
     tipo_cuenta: str | None = None
     numero_cuenta: str | None = None
     iban: str | None = None
+    swift_bic: str | None = None
     titular: str | None = None
     moneda: str | None = None
     saldo_inicial: Decimal | None = None
@@ -48,6 +50,7 @@ class CuentaBancariaResponse(BaseModel):
     tipo_cuenta: str
     numero_cuenta: str
     iban: str | None
+    swift_bic: str | None
     titular: str
     moneda: str
     saldo_inicial: Decimal

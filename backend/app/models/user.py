@@ -129,6 +129,23 @@ class User(Base):
         nullable=True,
         comment="Fecha de expiración de la licencia",
     )
+    # Trial period fields
+    is_trial: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Indica si el usuario está en período de prueba",
+    )
+    trial_start_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Fecha de inicio del período de prueba",
+    )
+    trial_end_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Fecha de fin del período de prueba (15 días por defecto)",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -179,7 +196,15 @@ class User(Base):
 
     @property
     def is_license_valid(self) -> bool:
-        """Verifica si la licencia del usuario está vigente"""
+        """Verifica si la licencia o el período de prueba del usuario está vigente"""
+        # Check trial first
+        if self.is_trial and self.trial_end_date:
+            now = datetime.now(timezone.utc)
+            trial_end = self.trial_end_date
+            if trial_end.tzinfo is None:
+                trial_end = trial_end.replace(tzinfo=timezone.utc)
+            return now <= trial_end
+        # Then check license
         if not self.license_end_date:
             return False
         return datetime.now(timezone.utc) <= self.license_end_date

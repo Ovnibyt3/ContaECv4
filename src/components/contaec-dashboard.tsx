@@ -520,7 +520,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
                 />
               )}
               {activeNav === 'license' && (
-                <LicenseView license={license} licenseExpiring={licenseExpiring} />
+                <LicenseView license={license} licenseExpiring={licenseExpiring} user={user} />
               )}
               {activeNav === 'invoices' && (
                 <ContaECInvoices user={user} companies={companies} />
@@ -908,6 +908,32 @@ function DashboardView({
         </Alert>
       )}
 
+      {/* Trial Status Banner */}
+      {license?.is_trial && license.trial_days_remaining !== null && (
+        <Alert variant={license.trial_days_remaining <= 3 ? 'destructive' : 'default'}>
+          <Clock className="h-4 w-4" />
+          <AlertTitle>
+            {license.trial_days_remaining <= 0
+              ? 'Período de prueba finalizado'
+              : license.trial_days_remaining <= 3
+              ? 'Período de prueba por expirar'
+              : 'Período de prueba activo'}
+          </AlertTitle>
+          <AlertDescription>
+            {license.trial_days_remaining <= 0
+              ? 'Su período de prueba de 15 días ha finalizado. Adquiera una licencia para continuar usando ContaEC.'
+              : license.trial_days_remaining <= 3
+              ? `Quedan ${license.trial_days_remaining} día(s) de prueba. Adquiera una licencia para no perder acceso.`
+              : `Período de prueba: ${license.trial_days_remaining} días restantes. Adquiera una licencia para acceso completo.`}
+            {license.trial_end_date && (
+              <span className="block mt-1 text-xs">
+                Expira: {new Date(license.trial_end_date).toLocaleDateString('es-EC', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </span>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Welcome */}
       <div>
         <h2 className="text-2xl font-bold">
@@ -999,6 +1025,17 @@ function DashboardView({
                       >
                         {license.days_remaining} dias
                       </span>
+                    </div>
+                  </>
+                )}
+                {license.is_trial && license.trial_days_remaining !== null && (
+                  <>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Prueba (trial)</span>
+                      <Badge variant={license.trial_days_remaining > 0 ? 'default' : 'destructive'} className="text-xs">
+                        {license.trial_days_remaining > 0 ? `${license.trial_days_remaining} dias` : 'Expirado'}
+                      </Badge>
                     </div>
                   </>
                 )}
@@ -1560,9 +1597,11 @@ function SRIView({
 function LicenseView({
   license,
   licenseExpiring,
+  user,
 }: {
   license: LicenseStatusType | null;
   licenseExpiring: boolean;
+  user: UserType;
 }) {
   const [licenseOptions, setLicenseOptions] = useState<LicenseOptionsType | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -1596,6 +1635,42 @@ function LicenseView({
             Su licencia esta proxima a expirar. Contacte a T&amp;M Technology Ec para renovar.
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Trial Status in LicenseView */}
+      {license?.is_trial && license.trial_days_remaining !== null && (
+        <Card className={license.trial_days_remaining <= 3 ? 'border-amber-500' : ''}>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-500" />
+              Periodo de Prueba
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Estado</span>
+              <Badge variant={license.trial_days_remaining > 0 ? 'default' : 'destructive'}>
+                {license.trial_days_remaining > 0 ? 'Activo' : 'Expirado'}
+              </Badge>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Dias restantes</span>
+              <span className="text-sm font-medium">{license.trial_days_remaining} dias</span>
+            </div>
+            {license.trial_start_date && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Inicio</span>
+                <span className="text-sm">{new Date(license.trial_start_date).toLocaleDateString('es-EC')}</span>
+              </div>
+            )}
+            {license.trial_end_date && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Fin</span>
+                <span className="text-sm">{new Date(license.trial_end_date).toLocaleDateString('es-EC')}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {license ? (
@@ -1713,7 +1788,8 @@ function LicenseView({
                       <Button
                         className="w-full"
                         onClick={() => {
-                          const msg = `Hola, soy ${encodeURIComponent('usuario@email.com')}. Me interesa el plan ${encodeURIComponent(option.label)} de $${option.price}.`;
+                          const periodLabel = option.months === 1 ? '1 mes' : option.months === 3 ? '3 meses' : option.months === 6 ? '6 meses' : '12 meses';
+                          const msg = `Hola, quiero renovar mi licencia de ContaEC por ${periodLabel} ($${option.price.toFixed(2)} USD). Mi correo es: ${encodeURIComponent(user?.email || 'usuario@email.com')}.`;
                           window.open(`https://wa.me/${licenseOptions.contact_whatsapp}?text=${msg}`, '_blank');
                         }}
                       >

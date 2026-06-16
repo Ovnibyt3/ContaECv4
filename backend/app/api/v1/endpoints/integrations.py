@@ -9,6 +9,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.audit import log_action
 from app.core.database import get_db
@@ -227,6 +228,7 @@ async def create_cuenta_bancaria(
         tipo_cuenta=data.tipo_cuenta,
         numero_cuenta=data.numero_cuenta,
         iban=data.iban,
+        swift_bic=data.swift_bic,
         titular=data.titular,
         moneda=data.moneda,
         saldo_inicial=data.saldo_inicial,
@@ -260,23 +262,36 @@ async def list_cuentas_bancarias(
     db: AsyncSession = Depends(get_db),
 ):
     """Listar cuentas bancarias"""
-    query = (
-        select(CuentaBancaria)
-        .join(Company, CuentaBancaria.company_id == Company.id)
-        .where(Company.user_id == current_user.id)
-    )
+    try:
+        query = (
+            select(CuentaBancaria)
+            .options(
+                selectinload(CuentaBancaria.extractos),
+                selectinload(CuentaBancaria.movimientos),
+            )
+            .join(Company, CuentaBancaria.company_id == Company.id)
+            .where(Company.user_id == current_user.id)
+        )
 
-    if company_id:
-        await _get_company_for_user(db, company_id, current_user.id)
-        query = query.where(CuentaBancaria.company_id == company_id)
-    if is_active is not None:
-        query = query.where(CuentaBancaria.is_active == is_active)
+        if company_id:
+            await _get_company_for_user(db, company_id, current_user.id)
+            query = query.where(CuentaBancaria.company_id == company_id)
+        if is_active is not None:
+            query = query.where(CuentaBancaria.is_active == is_active)
 
-    query = query.order_by(CuentaBancaria.created_at.desc())
+        query = query.order_by(CuentaBancaria.created_at.desc())
 
-    result = await db.execute(query)
-    cuentas = result.scalars().all()
-    return [CuentaBancariaResponse.model_validate(c) for c in cuentas]
+        result = await db.execute(query)
+        cuentas = result.scalars().all()
+        return [CuentaBancariaResponse.model_validate(c) for c in cuentas]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing bank accounts: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al listar cuentas bancarias: {str(e)}",
+        )
 
 
 @router.get("/bank/accounts/{account_id}", response_model=CuentaBancariaResponse)
@@ -760,7 +775,10 @@ async def create_ecommerce_connector(
     db: AsyncSession = Depends(get_db),
 ):
     """Crear un conector e-commerce"""
-    await _get_company_for_user(db, data.company_id, current_user.id)
+    try:
+        await _get_company_for_user(db, data.company_id, current_user.id)
+    except HTTPException:
+        raise
 
     # Validate plataforma
     valid_plataformas = {p.value for p in EcommercePlataforma}
@@ -770,40 +788,49 @@ async def create_ecommerce_connector(
             detail=f"Plataforma invalida: {data.plataforma}",
         )
 
-    connector = EcommerceConnector(
-        company_id=data.company_id,
-        user_id=current_user.id,
-        nombre=data.nombre,
-        plataforma=data.plataforma,
-        url_tienda=data.url_tienda,
-        api_key=data.api_key,
-        api_secret=data.api_secret,
-        access_token=data.access_token,
-        refresh_token=data.refresh_token,
-        configuracion_extra=data.configuracion_extra,
-        sincronizacion_auto=data.sincronizacion_auto,
-        frecuencia_sync=data.frecuencia_sync,
-        sync_productos=data.sync_productos,
-        sync_ordenes=data.sync_ordenes,
-        sync_clientes=data.sync_clientes,
-        sync_inventario=data.sync_inventario,
-    )
+    try:
+        connector = EcommerceConnector(
+            company_id=data.company_id,
+            user_id=current_user.id,
+            nombre=data.nombre,
+            plataforma=data.plataforma,
+            url_tienda=data.url_tienda,
+            api_key=data.api_key,
+            api_secret=data.api_secret,
+            access_token=data.access_token,
+            refresh_token=data.refresh_token,
+            configuracion_extra=data.configuracion_extra,
+            sincronizacion_auto=data.sincronizacion_auto,
+            frecuencia_sync=data.frecuencia_sync,
+            sync_productos=data.sync_productos,
+            sync_ordenes=data.sync_ordenes,
+            sync_clientes=data.sync_clientes,
+            sync_inventario=data.sync_inventario,
+        )
 
-    db.add(connector)
-    await db.flush()
+        db.add(connector)
+        await db.flush()
 
-    await log_action(
-        db=db,
-        user_id=current_user.id,
-        user_email=current_user.email,
-        action="CREATE",
-        entity_type="ecommerce_connector",
-        entity_id=connector.id,
-        description=f"Conector e-commerce creado: {connector.nombre} ({connector.plataforma})",
-        ip_address=request.client.host if request.client else None,
-    )
+        await log_action(
+            db=db,
+            user_id=current_user.id,
+            user_email=current_user.email,
+            action="CREATE",
+            entity_type="ecommerce_connector",
+            entity_id=connector.id,
+            description=f"Conector e-commerce creado: {connector.nombre} ({connector.plataforma})",
+            ip_address=request.client.host if request.client else None,
+        )
 
-    return EcommerceConnectorResponse.model_validate(connector)
+        return EcommerceConnectorResponse.model_validate(connector)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating e-commerce connector: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al crear conector e-commerce: {str(e)}",
+        )
 
 
 @router.get("/ecommerce/connectors", response_model=list[EcommerceConnectorResponse])
@@ -815,25 +842,35 @@ async def list_ecommerce_connectors(
     db: AsyncSession = Depends(get_db),
 ):
     """Listar conectores e-commerce"""
-    query = (
-        select(EcommerceConnector)
-        .join(Company, EcommerceConnector.company_id == Company.id)
-        .where(Company.user_id == current_user.id)
-    )
+    try:
+        query = (
+            select(EcommerceConnector)
+            .options(selectinload(EcommerceConnector.sincronizaciones))
+            .join(Company, EcommerceConnector.company_id == Company.id)
+            .where(Company.user_id == current_user.id)
+        )
 
-    if company_id:
-        await _get_company_for_user(db, company_id, current_user.id)
-        query = query.where(EcommerceConnector.company_id == company_id)
-    if plataforma:
-        query = query.where(EcommerceConnector.plataforma == plataforma)
-    if is_active is not None:
-        query = query.where(EcommerceConnector.is_active == is_active)
+        if company_id:
+            await _get_company_for_user(db, company_id, current_user.id)
+            query = query.where(EcommerceConnector.company_id == company_id)
+        if plataforma:
+            query = query.where(EcommerceConnector.plataforma == plataforma)
+        if is_active is not None:
+            query = query.where(EcommerceConnector.is_active == is_active)
 
-    query = query.order_by(EcommerceConnector.created_at.desc())
+        query = query.order_by(EcommerceConnector.created_at.desc())
 
-    result = await db.execute(query)
-    connectors = result.scalars().all()
-    return [EcommerceConnectorResponse.model_validate(c) for c in connectors]
+        result = await db.execute(query)
+        connectors = result.scalars().all()
+        return [EcommerceConnectorResponse.model_validate(c) for c in connectors]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing e-commerce connectors: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al listar conectores e-commerce: {str(e)}",
+        )
 
 
 @router.get("/ecommerce/connectors/{connector_id}", response_model=EcommerceConnectorResponse)

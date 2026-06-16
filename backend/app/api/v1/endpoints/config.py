@@ -5,6 +5,7 @@ Firma electrónica, SMTP, modo sandbox/producción, VirusTotal, perfil
 import os
 import logging
 import asyncio
+import smtplib
 import aiofiles
 from datetime import datetime, timezone
 from uuid import UUID
@@ -19,12 +20,22 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.encryption import encrypt_field, decrypt_field
 from app.core.config import get_settings
-from app.core.scanner import scan_upload, is_any_threat_found
+from app.core.scanner import scan_upload, is_any_threat_found, check_clamav_available, check_virustotal_available
 from app.models.user import User, UserConfig
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["Configuración"])
 settings = get_settings()
+
+
+def _check_clamav() -> bool:
+    """Verifica disponibilidad de ClamAV con cache de 5 min"""
+    return check_clamav_available()
+
+
+def _check_virustotal() -> bool:
+    """Verifica disponibilidad de VirusTotal con cache de 5 min"""
+    return check_virustotal_available()
 
 
 @router.get("/user-config")
@@ -64,6 +75,7 @@ async def get_user_config(
         "virustotal_enabled": config.virustotal_enabled,
         # Firma digital
         "has_digital_signature": bool(config.digital_signature_path),
+        "has_backup_key": bool(current_user.backup_encryption_key),
         "signature_status": signature_status,
         "signature_expiry_date": config.signature_expiry_date.isoformat() if config.signature_expiry_date else None,
         "signature_days_left": signature_days_left,
@@ -89,8 +101,8 @@ async def get_user_config(
             "license_end_date": current_user.license_end_date.isoformat() if current_user.license_end_date else None,
         },
         # Escáneres
-        "clamav_available": settings.CLAMAV_ENABLED,
-        "virustotal_available": settings.VIRUSTOTAL_ENABLED and bool(settings.VIRUSTOTAL_API_KEY),
+        "clamav_available": _check_clamav(),
+        "virustotal_available": _check_virustotal(),
     }
 
 
@@ -164,7 +176,7 @@ async def upload_digital_signature(
         from cryptography.hazmat.primitives.serialization import pkcs12
 
         private_key, certificate, additional_certs = pkcs12.load_key_and_certificates(
-            content, password.encode()
+            content, password.encode('utf-8')
         )
 
         if certificate:
@@ -210,14 +222,27 @@ async def upload_digital_signature(
                 warnings.append("No se encontró clave privada. No se podrá firmar comprobantes.")
 
     except ValueError as e:
-        if "password" in str(e).lower() or "mac" in str(e).lower():
+        error_msg = str(e).lower()
+        if "password" in error_msg or "mac" in error_msg:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Contraseña incorrecta para la firma electrónica.",
             )
-        logger.warning(f"Error leyendo certificado: {e}")
+        elif "deserialize" in error_msg or "parse" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Archivo de firma corrupto o no es un archivo PKCS#12 valido.",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error al procesar la firma: {str(e)}",
+            )
     except Exception as e:
-        logger.warning(f"No se pudo leer el certificado: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al procesar el archivo de firma. Verifique que sea un archivo .p12 o .pfx valido. ({str(e)})",
+        )
 
     # Guardar configuración encriptada
     if not old_config:
@@ -347,33 +372,13 @@ async def configure_smtp(
     db: AsyncSession = Depends(get_db),
 ):
     """Configurar SMTP para envío de correos"""
-    # Validar puerto
     if data.smtp_port < 1 or data.smtp_port > 65535:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Puerto SMTP inválido (1-65535).",
         )
 
-    # Proveedores predefinidos
-    smtp_providers = {
-        "gmail": {"host": "smtp.gmail.com", "port": 465, "ssl": True},
-        "zoho": {"host": "smtp.zoho.com", "port": 465, "ssl": True},
-        "outlook": {"host": "smtp-mail.outlook.com", "port": 587, "ssl": False},
-        "office365": {"host": "smtp.office365.com", "port": 587, "ssl": False},
-    }
-
-    # Auto-configurar si el host coincide con un proveedor conocido
-    smtp_host = data.smtp_host
-    smtp_port = data.smtp_port
-    smtp_ssl = data.smtp_ssl
-    host_lower = smtp_host.lower()
-    for provider, config_data in smtp_providers.items():
-        if provider in host_lower or host_lower in config_data["host"]:
-            smtp_host = config_data["host"]
-            smtp_port = config_data["port"]
-            smtp_ssl = config_data["ssl"]
-            break
-
+    # Use user-provided values directly (no auto-normalization)
     result = await db.execute(
         select(UserConfig).where(UserConfig.user_id == current_user.id)
     )
@@ -382,64 +387,120 @@ async def configure_smtp(
         config = UserConfig(user_id=current_user.id)
         db.add(config)
 
-    config.smtp_host = smtp_host
-    config.smtp_port = smtp_port
+    config.smtp_host = data.smtp_host
+    config.smtp_port = data.smtp_port
     config.smtp_user = data.smtp_user
     config.smtp_password = encrypt_field(data.smtp_password, settings.ENCRYPTION_KEY)
     config.smtp_protocol = data.smtp_protocol
-    config.smtp_ssl = smtp_ssl
+    config.smtp_ssl = data.smtp_ssl
 
     await db.flush()
 
     return {
         "message": "Configuración SMTP guardada exitosamente.",
-        "smtp_host": smtp_host,
-        "smtp_port": smtp_port,
+        "smtp_host": data.smtp_host,
+        "smtp_port": data.smtp_port,
         "smtp_user": data.smtp_user,
-        "smtp_ssl": smtp_ssl,
+        "smtp_ssl": data.smtp_ssl,
     }
 
 
 @router.post("/test-smtp")
 async def test_smtp(
     current_user: User = Depends(get_current_user),
+    company_id: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Probar la configuración SMTP enviando un correo de prueba"""
+    """Probar la configuracion SMTP enviando un correo de prueba"""
+    from app.models.company import Company
+
+    # Try company-level SMTP first if company_id provided
+    company_smtp = None
+    if company_id:
+        try:
+            cid = UUID(company_id)
+            comp_result = await db.execute(
+                select(Company).where(Company.id == cid, Company.user_id == current_user.id)
+            )
+            comp = comp_result.scalars().first()
+            if comp and comp.smtp_host:
+                company_smtp = comp
+        except Exception:
+            pass
+
+    # Fallback to user-level config
     result = await db.execute(
         select(UserConfig).where(UserConfig.user_id == current_user.id)
     )
-    config = result.scalars().first()
+    user_config = result.scalars().first()
 
-    if not config or not config.smtp_host:
+    # Determine which config to use
+    smtp_host = company_smtp.smtp_host if company_smtp else (user_config.smtp_host if user_config else None)
+    smtp_port = company_smtp.smtp_port if company_smtp else (user_config.smtp_port if user_config else None)
+    smtp_user = company_smtp.smtp_user if company_smtp else (user_config.smtp_user if user_config else None)
+    smtp_password_enc = company_smtp.smtp_password if company_smtp else (user_config.smtp_password if user_config else None)
+    smtp_ssl = company_smtp.smtp_ssl if company_smtp else (user_config.smtp_ssl if user_config else True)
+
+    if not smtp_host:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay configuración SMTP. Configure primero el correo.",
+            detail="No hay configuracion SMTP. Configure primero el correo.",
         )
 
-    try:
-        import smtplib
+    def _send_test_email():
         from email.mime.text import MIMEText
 
-        smtp_password = decrypt_field(config.smtp_password, settings.ENCRYPTION_KEY)
+        smtp_password = decrypt_field(smtp_password_enc, settings.ENCRYPTION_KEY)
 
-        if config.smtp_ssl:
-            server = smtplib.SMTP_SSL(config.smtp_host, config.smtp_port, timeout=10)
+        company_name = company_smtp.razon_social if company_smtp else "ContaEC"
+
+        if smtp_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15)
         else:
-            server = smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=10)
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
             server.starttls()
 
-        server.login(config.smtp_user, smtp_password)
+        server.login(smtp_user, smtp_password)
 
-        msg = MIMEText("ContaEC - Prueba de configuración SMTP exitosa.\n\nSi recibió este correo, su configuración es correcta.", "plain")
-        msg["Subject"] = "ContaEC - Prueba SMTP"
-        msg["From"] = config.smtp_user
+        msg = MIMEText(
+            f"ContaEC - Prueba de configuracion SMTP exitosa.\n"
+            f"\n"
+            f"Empresa: {company_name}\n"
+            f"Servidor: {smtp_host}:{smtp_port}\n"
+            f"\n"
+            f"Si recibio este correo, su configuracion es correcta.",
+            "plain"
+        )
+        msg["Subject"] = f"ContaEC - Prueba SMTP ({company_name})"
+        msg["From"] = smtp_user
         msg["To"] = current_user.email
 
-        server.sendmail(config.smtp_user, current_user.email, msg.as_string())
+        server.sendmail(smtp_user, current_user.email, msg.as_string())
         server.quit()
 
+    try:
+        await asyncio.to_thread(_send_test_email)
         return {"message": "Correo de prueba enviado exitosamente."}
+    except smtplib.SMTPAuthenticationError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Autenticacion fallida. Verifique usuario y contraseña. Para Gmail, use una 'Contraseña de aplicacion' (no su contraseña normal)."
+        )
+    except smtplib.SMTPConnectError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se pudo conectar al servidor SMTP ({smtp_host}:{smtp_port}). Verifique host, puerto y que no este bloqueado por firewall."
+        )
+    except TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Timeout al conectar a {smtp_host}:{smtp_port}. Verifique que el puerto sea correcto."
+        )
+    except smtplib.SMTPException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error SMTP: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -638,3 +699,102 @@ async def upload_company_logo(
     await db.flush()
 
     return {"message": "Logotipo cargado exitosamente.", "logo_path": file_path}
+
+
+# ==========================================
+# Company-level configuration endpoints
+# ==========================================
+
+@router.get("/companies/{company_id}")
+async def get_company_config(
+    company_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Obtener la configuracion de una empresa especifica"""
+    from app.models.company import Company
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.user_id == current_user.id)
+    )
+    company = result.scalars().first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    return {
+        "id": str(company.id),
+        "ruc": company.ruc,
+        "razon_social": company.razon_social,
+        "nombre_comercial": company.nombre_comercial,
+        "logo_path": company.logo_path,
+        "firma_electronica_path": company.firma_electronica_path,
+        "correo": company.correo,
+        "telefono": company.telefono,
+        "smtp_host": company.smtp_host,
+        "smtp_port": company.smtp_port,
+        "smtp_user": company.smtp_user,
+        "smtp_protocol": company.smtp_protocol,
+        "smtp_ssl": company.smtp_ssl,
+        "environment_mode": company.environment_mode,
+        "virustotal_enabled": company.virustotal_enabled,
+    }
+
+
+@router.put("/companies/{company_id}")
+async def update_company_config(
+    company_id: UUID,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualizar la configuracion de una empresa especifica"""
+    from app.models.company import Company
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.user_id == current_user.id)
+    )
+    company = result.scalars().first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    # Update fields if provided
+    if "logo_path" in data:
+        company.logo_path = data["logo_path"]
+    if "firma_electronica_path" in data:
+        company.firma_electronica_path = data["firma_electronica_path"]
+    if "firma_electronica_password" in data:
+        company.firma_electronica_password = encrypt_field(data["firma_electronica_password"], settings.ENCRYPTION_KEY)
+    if "correo" in data:
+        company.correo = data["correo"]
+    if "telefono" in data:
+        company.telefono = data["telefono"]
+    if "smtp_host" in data:
+        company.smtp_host = data["smtp_host"]
+    if "smtp_port" in data:
+        company.smtp_port = data["smtp_port"]
+    if "smtp_user" in data:
+        company.smtp_user = data["smtp_user"]
+    if "smtp_password" in data:
+        company.smtp_password = encrypt_field(data["smtp_password"], settings.ENCRYPTION_KEY)
+    if "smtp_protocol" in data:
+        company.smtp_protocol = data["smtp_protocol"]
+    if "smtp_ssl" in data:
+        company.smtp_ssl = data["smtp_ssl"]
+    if "environment_mode" in data:
+        company.environment_mode = data["environment_mode"]
+    if "virustotal_enabled" in data:
+        company.virustotal_enabled = data["virustotal_enabled"]
+
+    await db.flush()
+
+    return {"message": "Configuracion de empresa actualizada exitosamente."}
+
+
+@router.get("/clamav-status")
+async def get_clamav_status(
+    current_user: User = Depends(get_current_user),
+    force: bool = False,
+):
+    """Verificar disponibilidad de ClamAV (con opcion de forzar re-chequeo)"""
+    return {
+        "clamav_available": check_clamav_available(force=force),
+        "cached": not force,
+    }

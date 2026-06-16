@@ -164,40 +164,74 @@ async def list_clients(
 ):
     """
     Listar clientes de las empresas del usuario.
-    
+
     Opcionalmente filtrado por empresa, tipo de identificación y estado activo.
     Incluye el cliente Consumidor Final por defecto si no existe.
     """
-    # Consulta base: clientes de empresas del usuario
-    query = (
-        select(Client)
-        .join(Company, Client.company_id == Company.id)
-        .where(Company.user_id == current_user.id)
-    )
-    
-    # Filtro de empresa
-    if company_id:
-        await _get_company_for_user(db, company_id, current_user.id)
-        query = query.where(Client.company_id == company_id)
-        
-        # Asegurar que exista Consumidor Final para la empresa
-        await _ensure_consumidor_final(db, company_id)
-    
-    # Filtro de tipo de identificación
-    if tipo_identificacion:
-        query = query.where(Client.tipo_identificacion == tipo_identificacion)
-    
-    # Filtro de estado activo
-    if is_active is not None:
-        query = query.where(Client.is_active == is_active)
-    
-    # Ordenar por razón social y paginar
-    query = query.order_by(Client.razon_social).offset(skip).limit(limit)
-    
-    result = await db.execute(query)
-    clients = result.scalars().all()
-    
-    return [ClientResponse.model_validate(c) for c in clients]
+    try:
+        # Consulta base: clientes de empresas del usuario
+        query = (
+            select(Client)
+            .join(Company, Client.company_id == Company.id)
+            .where(Company.user_id == current_user.id)
+        )
+
+        # Filtro de empresa
+        if company_id:
+            await _get_company_for_user(db, company_id, current_user.id)
+            query = query.where(Client.company_id == company_id)
+
+            # Asegurar que exista Consumidor Final para la empresa (non-blocking)
+            try:
+                await _ensure_consumidor_final(db, company_id)
+            except Exception:
+                logger.warning(f"Could not ensure Consumidor Final for company {company_id}", exc_info=True)
+
+        # Filtro de tipo de identificación
+        if tipo_identificacion:
+            query = query.where(Client.tipo_identificacion == tipo_identificacion)
+
+        # Filtro de estado activo
+        if is_active is not None:
+            query = query.where(Client.is_active == is_active)
+
+        # Ordenar por razón social y paginar
+        query = query.order_by(Client.razon_social).offset(skip).limit(limit)
+
+        result = await db.execute(query)
+        clients = result.scalars().all()
+
+        response_clients = []
+        for c in clients:
+            try:
+                response_clients.append(ClientResponse.model_validate(c))
+            except Exception:
+                logger.warning(f"Could not serialize client {c.id}", exc_info=True)
+                # Still include client with nulls for problematic fields
+                response_clients.append(ClientResponse(
+                    id=c.id,
+                    company_id=c.company_id,
+                    tipo_identificacion=c.tipo_identificacion,
+                    identificacion=c.identificacion,
+                    razon_social=c.razon_social,
+                    direccion=c.direccion,
+                    email=None,
+                    telefono=c.telefono,
+                    is_default_consumer=c.is_default_consumer,
+                    is_active=c.is_active,
+                    created_at=c.created_at,
+                    updated_at=c.updated_at,
+                ))
+
+        return response_clients
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing clients: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al listar clientes: {str(e)}",
+        )
 
 
 @router.get("/{client_id}", response_model=ClientResponse)

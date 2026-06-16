@@ -57,7 +57,7 @@ from app.schemas.accounting import (
     PeriodoFiscalUpdate,
 )
 
-router = APIRouter(tags=["Contabilidad"])
+router = APIRouter(prefix="/accounting", tags=["Contabilidad"])
 
 
 # ==========================================

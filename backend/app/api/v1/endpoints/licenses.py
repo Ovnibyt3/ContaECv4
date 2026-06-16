@@ -154,12 +154,27 @@ def has_feature(license_type: str, feature: str) -> bool:
 async def get_license_status(
     current_user: User = Depends(get_current_user),
 ):
-    """Obtener estado de la licencia del usuario actual con límites del tier"""
+    """Obtener estado de la licencia del usuario actual con límites del tier y información de trial"""
     now = datetime.now(timezone.utc)
-    
+
     is_expired = False
     days_remaining = None
-    
+
+    # Trial info
+    is_trial = current_user.is_trial or False
+    trial_days_remaining = None
+    trial_end_date_str = None
+
+    if is_trial and current_user.trial_end_date:
+        trial_end = current_user.trial_end_date
+        if trial_end.tzinfo is None:
+            trial_end = trial_end.replace(tzinfo=timezone.utc)
+        trial_end_date_str = trial_end.isoformat()
+        if trial_end < now:
+            trial_days_remaining = 0
+        else:
+            trial_days_remaining = (trial_end - now).days
+
     if current_user.license_end_date:
         end_date = current_user.license_end_date
         if end_date.tzinfo is None:
@@ -169,10 +184,14 @@ async def get_license_status(
             days_remaining = 0
         else:
             days_remaining = (end_date - now).days
-    
+
+    # If on trial and trial is still active, don't mark as expired yet
+    if is_trial and trial_days_remaining is not None and trial_days_remaining > 0:
+        is_expired = False
+
     # Incluir límites del tier
     tier_info = get_tier_limits(current_user.license_type) if current_user.license_type else None
-    
+
     return {
         "license_type": current_user.license_type if current_user.license_type else None,
         "license_start_date": current_user.license_start_date.isoformat() if current_user.license_start_date else None,
@@ -181,6 +200,11 @@ async def get_license_status(
         "days_remaining": days_remaining,
         "is_active": current_user.is_active,
         "tier_limits": tier_info,
+        # Trial info
+        "is_trial": is_trial,
+        "trial_start_date": current_user.trial_start_date.isoformat() if current_user.trial_start_date else None,
+        "trial_end_date": trial_end_date_str,
+        "trial_days_remaining": trial_days_remaining,
     }
 
 

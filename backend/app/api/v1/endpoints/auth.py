@@ -3,7 +3,7 @@ ContaEC - Endpoints de Autenticación
 Registro, login, refresh token con rotación, revocación de tokens, perfil de usuario
 """
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -53,6 +53,8 @@ async def register(request: Request, user_data: UserRegister, db: AsyncSession =
         )
 
     # Crear usuario
+    now = datetime.now(timezone.utc)
+    trial_end = now + timedelta(days=15)
     user = User(
         email=user_data.email,
         full_name=user_data.full_name,
@@ -63,6 +65,10 @@ async def register(request: Request, user_data: UserRegister, db: AsyncSession =
         license_type=LicenseType.MENSUAL,
         is_active=True,
         is_admin=False,
+        # Trial period: 15 days
+        is_trial=True,
+        trial_start_date=now,
+        trial_end_date=trial_end,
     )
     db.add(user)
     await db.flush()
@@ -110,13 +116,22 @@ async def login(request: Request, login_data: UserLogin, db: AsyncSession = Depe
             detail="Cuenta desactivada. Contacte al administrador."
         )
 
-    # Verificar licencia
-    if user.license_end_date:
+    # Verificar licencia / trial
+    now = datetime.now(timezone.utc)
+    on_valid_trial = False
+    if user.is_trial and user.trial_end_date:
+        trial_end = user.trial_end_date
+        if trial_end.tzinfo is None:
+            trial_end = trial_end.replace(tzinfo=timezone.utc)
+        if trial_end >= now:
+            on_valid_trial = True
+
+    if not on_valid_trial and user.license_end_date:
         # Handle both timezone-aware and naive datetimes
         end_date = user.license_end_date
         if end_date.tzinfo is None:
             end_date = end_date.replace(tzinfo=timezone.utc)
-        if end_date < datetime.now(timezone.utc):
+        if end_date < now:
             user.is_active = False
             await db.commit()
             raise HTTPException(

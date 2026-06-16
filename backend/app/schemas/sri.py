@@ -201,45 +201,38 @@ IVA_TARIFAS: list[IVATarifa] = [
 ]
 
 # Tarifas de ICE - Tabla 18 (Catálogo completo de productos sujetos a ICE)
+# Códigos oficiales SRI de 4 dígitos según Ficha Técnica v2.32 (Octubre 2025)
 ICE_TARIFAS: list[ICETarifa] = [
-    # Bebidas alcohólicas
-    ICETarifa(codigo="301", descripcion="Cerveza", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.041698")),
-    ICETarifa(codigo="302", descripcion="Bebidas gaseosas", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.018744")),
-    ICETarifa(codigo="303", descripcion="Ron y aguardiente", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.052925")),
-    ICETarifa(codigo="304", descripcion="Vino y otras bebidas alcohólicas", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.037636")),
-    ICETarifa(codigo="305", descripcion="Whisky", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.072769")),
-    ICETarifa(codigo="306", descripcion="Vodka y gin", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.054577")),
-    ICETarifa(codigo="307", descripcion="Licores y crema de licores", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.054577")),
-    ICETarifa(codigo="308", descripcion="Piscos y brandy", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.054577")),
-    ICETarifa(codigo="309", descripcion="Tequila y mezcal", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.054577")),
     # Tabaco
-    ICETarifa(codigo="310", descripcion="Cigarrillos rubios", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.110855")),
-    ICETarifa(codigo="311", descripcion="Cigarrillos negros", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.110855")),
-    ICETarifa(codigo="312", descripcion="Tabaco elaborado", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.110855")),
-    # Vehículos
-    ICETarifa(codigo="313", descripcion="Vehículos motorizados de transporte terrestre hasta 3.5 ton", tarifa_ad_valorem=Decimal("5"), tarifa_especifica=None),
-    ICETarifa(codigo="314", descripcion="Vehículos motorizados de transporte terrestre de 3.5 a 8 ton", tarifa_ad_valorem=Decimal("5"), tarifa_especifica=None),
-    ICETarifa(codigo="315", descripcion="Vehículos motorizados de transporte terrestre de más de 8 ton", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=None),
-    ICETarifa(codigo="316", descripcion="Vehículos motorizados para transporte de 10 o más personas", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=None),
-    ICETarifa(codigo="317", descripcion="Vehículos motorizados de transporte terrestre - camionetas y furgonetas", tarifa_ad_valorem=Decimal("5"), tarifa_especifica=None),
-    ICETarifa(codigo="318", descripcion="Motos y motocicletas", tarifa_ad_valorem=Decimal("5"), tarifa_especifica=None),
-    ICETarifa(codigo="319", descripcion="Cuadrones y vehículos similares", tarifa_ad_valorem=Decimal("5"), tarifa_especifica=None),
-    ICETarifa(codigo="320", descripcion="Aviones, helicópteros y demás aeronaves", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=None),
-    ICETarifa(codigo="321", descripcion="Barcos, yates y demás embarcaciones", tarifa_ad_valorem=Decimal("10"), tarifa_especifica=None),
+    ICETarifa(codigo="3011", descripcion="Cigarrillos rubios", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.17")),
+    ICETarifa(codigo="3021", descripcion="Cigarrillos negros", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.17")),
+    ICETarifa(codigo="3023", descripcion="Productos del tabaco excepto cigarrillos", tarifa_ad_valorem=Decimal("150"), tarifa_especifica=None),
+    # Bebidas alcohólicas
+    ICETarifa(codigo="3031", descripcion="Bebidas alcohólicas (excepto cerveza)", tarifa_ad_valorem=Decimal("75"), tarifa_especifica=Decimal("10.36")),
+    ICETarifa(codigo="3041", descripcion="Cerveza industrial (gran, mediana y pequeña escala)", tarifa_ad_valorem=Decimal("75"), tarifa_especifica=None),
+    # Bebidas gaseosas
+    ICETarifa(codigo="3053", descripcion="Bebidas gaseosas con alto contenido de azúcar (>=25g/500ml)", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.19")),
+    ICETarifa(codigo="3054", descripcion="Bebidas gaseosas con bajo contenido de azúcar (<25g/500ml)", tarifa_ad_valorem=Decimal("10"), tarifa_especifica=None),
+    # Bebidas energizantes
+    ICETarifa(codigo="3101", descripcion="Bebidas energizantes", tarifa_ad_valorem=Decimal("10"), tarifa_especifica=None),
+    # Vehículos por rango de PVP
+    ICETarifa(codigo="3073", descripcion="Vehículos motorizados PVP hasta USD 20.000", tarifa_ad_valorem=Decimal("5"), tarifa_especifica=None),
+    ICETarifa(codigo="3075", descripcion="Vehículos motorizados PVP entre USD 20.000 y USD 30.000", tarifa_ad_valorem=Decimal("15"), tarifa_especifica=None),
+    ICETarifa(codigo="3077", descripcion="Vehículos motorizados PVP entre USD 30.000 y USD 40.000", tarifa_ad_valorem=Decimal("20"), tarifa_especifica=None),
+    ICETarifa(codigo="3078", descripcion="Vehículos motorizados PVP entre USD 40.000 y USD 50.000", tarifa_ad_valorem=Decimal("25"), tarifa_especifica=None),
+    ICETarifa(codigo="3079", descripcion="Vehículos motorizados PVP entre USD 50.000 y USD 60.000", tarifa_ad_valorem=Decimal("30"), tarifa_especifica=None),
+    ICETarifa(codigo="3080", descripcion="Vehículos motorizados PVP superior a USD 70.000", tarifa_ad_valorem=Decimal("35"), tarifa_especifica=None),
+    # Aeronaves y embarcaciones
+    ICETarifa(codigo="3081", descripcion="Aviones, tricares, yates, barcos de recreo", tarifa_ad_valorem=Decimal("15"), tarifa_especifica=None),
+    # Servicios
+    ICETarifa(codigo="3092", descripcion="Servicios de televisión prepagada", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=None),
+    ICETarifa(codigo="3093", descripcion="Servicios de telefonía móvil avanzada", tarifa_ad_valorem=Decimal("15"), tarifa_especifica=None),
+    ICETarifa(codigo="3660", descripcion="Cuotas, membresías, afiliaciones a clubes y casas de afiliación", tarifa_ad_valorem=Decimal("35"), tarifa_especifica=None),
     # Otros productos
-    ICETarifa(codigo="322", descripcion="Armas de fuego", tarifa_ad_valorem=Decimal("100"), tarifa_especifica=None),
-    ICETarifa(codigo="323", descripcion="Municiones y explosivos", tarifa_ad_valorem=Decimal("100"), tarifa_especifica=None),
-    ICETarifa(codigo="324", descripcion="Fuegos artificiales", tarifa_ad_valorem=Decimal("50"), tarifa_especifica=None),
-    ICETarifa(codigo="325", descripcion="Juegos de azar y apuestas", tarifa_ad_valorem=Decimal("15"), tarifa_especifica=None),
-    ICETarifa(codigo="326", descripcion="Focos incandescentes", tarifa_ad_valorem=Decimal("100"), tarifa_especifica=None),
-    ICETarifa(codigo="327", descripcion="Bebidas energéticas", tarifa_ad_valorem=Decimal("10"), tarifa_especifica=None),
-    ICETarifa(codigo="328", descripcion="Concentrados para bebidas energéticas", tarifa_ad_valorem=Decimal("10"), tarifa_especifica=None),
-    ICETarifa(codigo="329", descripcion="Bebidas con azúcar en cantidad superior a 25g/500ml", tarifa_ad_valorem=Decimal("18"), tarifa_especifica=None),
-    ICETarifa(codigo="330", descripcion="Servicios de televisión pagada", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.016529")),
-    ICETarifa(codigo="331", descripcion="Servicios de telecomunicaciones móvil avanzada", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=Decimal("0.014160")),
-    ICETarifa(codigo="332", descripcion="Servicios de casinos, salas de juego y bingos", tarifa_ad_valorem=Decimal("35"), tarifa_especifica=None),
-    ICETarifa(codigo="333", descripcion="Perfumes y aguas de tocador", tarifa_ad_valorem=Decimal("20"), tarifa_especifica=None),
-    ICETarifa(codigo="334", descripcion="Vehículos híbridos y eléctricos", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=None),
+    ICETarifa(codigo="3610", descripcion="Perfumes y aguas de tocador", tarifa_ad_valorem=Decimal("20"), tarifa_especifica=None),
+    ICETarifa(codigo="3620", descripcion="Videojuegos", tarifa_ad_valorem=Decimal("0"), tarifa_especifica=None),
+    ICETarifa(codigo="3630", descripcion="Armas de fuego, deportivas y municiones", tarifa_ad_valorem=Decimal("300"), tarifa_especifica=None),
+    ICETarifa(codigo="3640", descripcion="Focos incandescentes", tarifa_ad_valorem=Decimal("100"), tarifa_especifica=None),
 ]
 
 # Retenciones de IVA - Tabla 19

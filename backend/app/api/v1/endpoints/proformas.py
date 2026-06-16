@@ -152,113 +152,122 @@ async def create_proforma(
     db: AsyncSession = Depends(get_db),
 ):
     """Crear una nueva proforma"""
-    company = await _get_company_for_user(db, data.company_id, current_user.id)
+    try:
+        company = await _get_company_for_user(db, data.company_id, current_user.id)
 
-    # Client info
-    cliente_tipo_identificacion = "07"
-    cliente_identificacion = "9999999999999"
-    cliente_razon_social = "CONSUMIDOR FINAL"
-    cliente_direccion = None
-    cliente_email = None
-    cliente_telefono = None
+        # Client info
+        cliente_tipo_identificacion = "07"
+        cliente_identificacion = "9999999999999"
+        cliente_razon_social = "CONSUMIDOR FINAL"
+        cliente_direccion = None
+        cliente_email = None
+        cliente_telefono = None
 
-    if data.client_id:
-        result = await db.execute(
-            select(Client).where(
-                Client.id == data.client_id,
-                Client.company_id == data.company_id,
-                Client.is_active == True,
+        if data.client_id:
+            result = await db.execute(
+                select(Client).where(
+                    Client.id == data.client_id,
+                    Client.company_id == data.company_id,
+                    Client.is_active == True,
+                )
             )
+            client = result.scalars().first()
+            if not client:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Cliente no encontrado o no pertenece a la empresa.",
+                )
+            cliente_tipo_identificacion = client.tipo_identificacion
+            cliente_identificacion = client.identificacion
+            cliente_razon_social = client.razon_social
+            cliente_direccion = client.direccion
+            cliente_email = client.email
+            cliente_telefono = client.telefono
+
+        # Calculate totals
+        totales = _calcular_totales_proforma(data.detalles)
+
+        # Get sequential
+        secuencial = company.get_next_secuencial_proforma()
+
+        # Parse fecha_validez
+        fecha_validez = None
+        if data.fecha_validez:
+            try:
+                fecha_validez = datetime.fromisoformat(data.fecha_validez).replace(tzinfo=timezone.utc)
+            except ValueError:
+                pass
+
+        proforma = Proforma(
+            company_id=data.company_id,
+            client_id=data.client_id,
+            user_id=current_user.id,
+            secuencial=secuencial,
+            fecha_emision=datetime.now(timezone.utc),
+            fecha_validez=fecha_validez,
+            estado=ProformaEstado.BORRADOR,
+            cliente_tipo_identificacion=cliente_tipo_identificacion,
+            cliente_identificacion=cliente_identificacion,
+            cliente_razon_social=cliente_razon_social,
+            cliente_direccion=cliente_direccion,
+            cliente_email=cliente_email,
+            cliente_telefono=cliente_telefono,
+            subtotal_sin_impuestos=totales["subtotal_sin_impuestos"],
+            subtotal_iva_0=totales["subtotal_iva_0"],
+            subtotal_iva_5=totales["subtotal_iva_5"],
+            subtotal_iva_8=totales["subtotal_iva_8"],
+            subtotal_iva_12=totales["subtotal_iva_12"],
+            subtotal_iva_13=totales["subtotal_iva_13"],
+            subtotal_iva_14=totales["subtotal_iva_14"],
+            subtotal_iva_15=totales["subtotal_iva_15"],
+            subtotal_no_objeto_iva=totales["subtotal_no_objeto_iva"],
+            subtotal_exento_iva=totales["subtotal_exento_iva"],
+            total_iva=totales["total_iva"],
+            total_ice=totales["total_ice"],
+            total_descuento=totales["total_descuento"],
+            total_con_impuestos=totales["total_con_impuestos"],
+            forma_pago=data.forma_pago,
+            observaciones=data.observaciones,
+            info_adicional=json.dumps(data.info_adicional) if data.info_adicional else None,
         )
-        client = result.scalars().first()
-        if not client:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cliente no encontrado o no pertenece a la empresa.",
+        db.add(proforma)
+        await db.flush()
+
+        for i, det_data in enumerate(data.detalles):
+            det_result = totales["detalle_resultados"][i]
+            detalle = ProformaDetalle(
+                proforma_id=proforma.id,
+                product_id=det_data.product_id,
+                codigo_principal=det_data.codigo_principal,
+                codigo_auxiliar=det_data.codigo_auxiliar,
+                descripcion=det_data.descripcion,
+                cantidad=det_data.cantidad,
+                unidad_medida=det_data.unidad_medida,
+                precio_unitario=det_data.precio_unitario,
+                descuento=det_data.descuento,
+                precio_total_sin_impuestos=det_result["precio_total_sin_impuestos"],
+                iva_codigo=det_data.iva_codigo,
+                iva_porcentaje=det_data.iva_porcentaje,
+                iva_valor=det_result["iva_valor"],
+                ice_codigo=det_data.ice_codigo,
+                ice_porcentaje=det_data.ice_porcentaje,
+                ice_valor=det_result["ice_valor"],
             )
-        cliente_tipo_identificacion = client.tipo_identificacion
-        cliente_identificacion = client.identificacion
-        cliente_razon_social = client.razon_social
-        cliente_direccion = client.direccion
-        cliente_email = client.email
-        cliente_telefono = client.telefono
+            db.add(detalle)
 
-    # Calculate totals
-    totales = _calcular_totales_proforma(data.detalles)
+        await db.flush()
 
-    # Get sequential
-    secuencial = company.get_next_secuencial_proforma()
+        logger.info(f"Proforma creada: secuencial={secuencial}, empresa={company.ruc}")
 
-    # Parse fecha_validez
-    fecha_validez = None
-    if data.fecha_validez:
-        try:
-            fecha_validez = datetime.fromisoformat(data.fecha_validez).replace(tzinfo=timezone.utc)
-        except ValueError:
-            pass
-
-    proforma = Proforma(
-        company_id=data.company_id,
-        client_id=data.client_id,
-        user_id=current_user.id,
-        secuencial=secuencial,
-        fecha_emision=datetime.now(timezone.utc),
-        fecha_validez=fecha_validez,
-        estado=ProformaEstado.BORRADOR,
-        cliente_tipo_identificacion=cliente_tipo_identificacion,
-        cliente_identificacion=cliente_identificacion,
-        cliente_razon_social=cliente_razon_social,
-        cliente_direccion=cliente_direccion,
-        cliente_email=cliente_email,
-        cliente_telefono=cliente_telefono,
-        subtotal_sin_impuestos=totales["subtotal_sin_impuestos"],
-        subtotal_iva_0=totales["subtotal_iva_0"],
-        subtotal_iva_5=totales["subtotal_iva_5"],
-        subtotal_iva_8=totales["subtotal_iva_8"],
-        subtotal_iva_12=totales["subtotal_iva_12"],
-        subtotal_iva_13=totales["subtotal_iva_13"],
-        subtotal_iva_14=totales["subtotal_iva_14"],
-        subtotal_iva_15=totales["subtotal_iva_15"],
-        subtotal_no_objeto_iva=totales["subtotal_no_objeto_iva"],
-        subtotal_exento_iva=totales["subtotal_exento_iva"],
-        total_iva=totales["total_iva"],
-        total_ice=totales["total_ice"],
-        total_descuento=totales["total_descuento"],
-        total_con_impuestos=totales["total_con_impuestos"],
-        forma_pago=data.forma_pago,
-        observaciones=data.observaciones,
-        info_adicional=json.dumps(data.info_adicional) if data.info_adicional else None,
-    )
-    db.add(proforma)
-    await db.flush()
-
-    for i, det_data in enumerate(data.detalles):
-        det_result = totales["detalle_resultados"][i]
-        detalle = ProformaDetalle(
-            proforma_id=proforma.id,
-            product_id=det_data.product_id,
-            codigo_principal=det_data.codigo_principal,
-            codigo_auxiliar=det_data.codigo_auxiliar,
-            descripcion=det_data.descripcion,
-            cantidad=det_data.cantidad,
-            unidad_medida=det_data.unidad_medida,
-            precio_unitario=det_data.precio_unitario,
-            descuento=det_data.descuento,
-            precio_total_sin_impuestos=det_result["precio_total_sin_impuestos"],
-            iva_codigo=det_data.iva_codigo,
-            iva_porcentaje=det_data.iva_porcentaje,
-            iva_valor=det_result["iva_valor"],
-            ice_codigo=det_data.ice_codigo,
-            ice_porcentaje=det_data.ice_porcentaje,
-            ice_valor=det_result["ice_valor"],
+        return ProformaResponse.model_validate(proforma)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating proforma: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al crear la proforma: {str(e)}",
         )
-        db.add(detalle)
-
-    await db.flush()
-
-    logger.info(f"Proforma creada: secuencial={secuencial}, empresa={company.ruc}")
-
-    return ProformaResponse.model_validate(proforma)
 
 
 @router.get("", response_model=list[ProformaListResponse])

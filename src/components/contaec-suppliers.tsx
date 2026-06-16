@@ -270,7 +270,7 @@ export function ContaECSuppliers({ user, companies }: ContaECSuppliersProps) {
 
       {/* Supplier Create/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Nuevo Proveedor'}</DialogTitle>
             <DialogDescription>{editingSupplier ? 'Modifique los datos del proveedor' : 'Registre un nuevo proveedor'}</DialogDescription>
@@ -352,7 +352,7 @@ export function ContaECSuppliers({ user, companies }: ContaECSuppliersProps) {
 
       {/* Template Create Dialog */}
       <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nueva Plantilla</DialogTitle><DialogDescription>Cree una plantilla de correo</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Nombre</Label><Input value={templateForm.nombre} onChange={(e) => setTemplateForm({ ...templateForm, nombre: e.target.value })} /></div>

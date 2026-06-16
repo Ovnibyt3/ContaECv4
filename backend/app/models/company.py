@@ -271,6 +271,52 @@ class Company(Base):
         nullable=True,
         comment="Nombre que aparece en los recibos",
     )
+    # SMTP por empresa
+    smtp_host: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Host del servidor SMTP",
+    )
+    smtp_port: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Puerto SMTP",
+    )
+    smtp_user: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Usuario SMTP",
+    )
+    smtp_password: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Contraseña SMTP (cifrada)",
+    )
+    smtp_protocol: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="Protocolo SMTP (TLS/SSL)",
+    )
+    smtp_ssl: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="Usar SSL para SMTP",
+    )
+    # Ambiente por empresa
+    environment_mode: Mapped[str] = mapped_column(
+        String(20),
+        default="sandbox",
+        nullable=False,
+        comment="Modo de ambiente: sandbox/production",
+    )
+    # VirusTotal por empresa
+    virustotal_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Habilitar escaneo con VirusTotal",
+    )
     # Estado
     is_active: Mapped[bool] = mapped_column(
         Boolean,

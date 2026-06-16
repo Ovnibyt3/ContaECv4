@@ -1374,7 +1374,7 @@ function SesionesTab({ companyId, companies }: { companyId: string; companies: C
 
       {/* Close Session Dialog */}
       <Dialog open={!!showCloseDialog} onOpenChange={(o) => !o && setShowCloseDialog(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Cerrar Caja</DialogTitle>
             <DialogDescription>
@@ -1411,7 +1411,7 @@ function SesionesTab({ companyId, companies }: { companyId: string; companies: C
 
       {/* Session Detail Dialog */}
       <Dialog open={!!showDetailDialog} onOpenChange={(o) => !o && setShowDetailDialog(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle de Sesion</DialogTitle>
           </DialogHeader>

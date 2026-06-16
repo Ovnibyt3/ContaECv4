@@ -43,6 +43,7 @@ import {
   HardDrive,
   RefreshCw,
   Trash2,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
@@ -64,6 +65,10 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   getUserConfig,
+  getCompanies,
+  getCompanyConfig,
+  updateCompanyConfig,
+  getClamavStatus,
   uploadDigitalSignature,
   toggleVirusTotal,
   configureSMTP,
@@ -71,6 +76,7 @@ import {
   switchEnvironmentMode,
   updateProfile,
   setBackupKey,
+  changePassword,
   uploadCompanyLogo,
   validateSignature,
   getBackups,
@@ -78,6 +84,8 @@ import {
   downloadBackup,
   restoreBackup,
   type UserConfig,
+  type Company,
+  type CompanyConfig,
   type SignatureValidation,
   type BackupInfo,
   type RestoreBackupResponse,
@@ -161,13 +169,31 @@ function RegularUserSettings() {
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Company selector state
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [companyConfig, setCompanyConfig] = useState<CompanyConfig | null>(null);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getUserConfig();
-      setConfig(data);
+      const [userData, companiesData] = await Promise.all([
+        getUserConfig(),
+        getCompanies(),
+      ]);
+      setConfig(userData);
+      setCompanies(companiesData);
+      if (companiesData.length > 0) {
+        setSelectedCompanyId(companiesData[0].id);
+        // Load company config for first company
+        try {
+          const cc = await getCompanyConfig(companiesData[0].id);
+          setCompanyConfig(cc);
+        } catch {
+          // Company config not available yet
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar configuracion');
     } finally {
@@ -178,6 +204,15 @@ function RegularUserSettings() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // Load company config when selected company changes
+  useEffect(() => {
+    if (selectedCompanyId) {
+      getCompanyConfig(selectedCompanyId)
+        .then(cc => setCompanyConfig(cc))
+        .catch(() => setCompanyConfig(null));
+    }
+  }, [selectedCompanyId]);
 
   if (loading) {
     return (
@@ -224,6 +259,35 @@ function RegularUserSettings() {
         </div>
       </div>
 
+      {/* Company Selector */}
+      {companies.length > 1 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              Empresa Activa
+            </CardTitle>
+            <CardDescription>
+              Seleccione la empresa para la cual desea configurar los ajustes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Seleccione una empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.razon_social} ({c.ruc})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="profile" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="profile" className="gap-1.5">
@@ -257,23 +321,23 @@ function RegularUserSettings() {
         </TabsContent>
 
         <TabsContent value="signature">
-          <SignatureTab config={config} onConfigUpdate={loadConfig} />
+          <SignatureTab config={config} companyConfig={companyConfig} selectedCompanyId={selectedCompanyId} onConfigUpdate={loadConfig} />
         </TabsContent>
 
         <TabsContent value="environment">
-          <EnvironmentTab config={config} onConfigUpdate={loadConfig} />
+          <EnvironmentTab config={config} companyConfig={companyConfig} selectedCompanyId={selectedCompanyId} onConfigUpdate={loadConfig} />
         </TabsContent>
 
         <TabsContent value="smtp">
-          <SMTPTab config={config} onConfigUpdate={loadConfig} />
+          <SMTPTab config={config} companyConfig={companyConfig} selectedCompanyId={selectedCompanyId} onConfigUpdate={loadConfig} />
         </TabsContent>
 
         <TabsContent value="security">
-          <SecurityTab config={config} onConfigUpdate={loadConfig} />
+          <SecurityTab config={config} companyConfig={companyConfig} selectedCompanyId={selectedCompanyId} onConfigUpdate={loadConfig} />
         </TabsContent>
 
         <TabsContent value="backups">
-          <BackupsTab />
+          <BackupsTab config={config} selectedCompanyId={selectedCompanyId} />
         </TabsContent>
       </Tabs>
     </div>
@@ -500,9 +564,13 @@ function ProfileTab({
 // ─── Digital Signature Tab ──────────────────────────────────────
 function SignatureTab({
   config,
+  companyConfig,
+  selectedCompanyId,
   onConfigUpdate,
 }: {
   config: UserConfig;
+  companyConfig: CompanyConfig | null;
+  selectedCompanyId: string;
   onConfigUpdate: () => void;
 }) {
   const [sigFile, setSigFile] = useState<File | null>(null);
@@ -519,6 +587,12 @@ function SignatureTab({
     setMessage(null);
     try {
       await uploadDigitalSignature(sigFile, sigPassword);
+      // Also update company config if a company is selected
+      if (selectedCompanyId) {
+        try {
+          await updateCompanyConfig(selectedCompanyId, { firma_electronica_path: 'pending' });
+        } catch { /* ignore */ }
+      }
       setMessage({ type: 'success', text: 'Firma electronica cargada correctamente' });
       setSigFile(null);
       setSigPassword('');
@@ -614,6 +688,12 @@ function SignatureTab({
           <CardDescription>Estado actual de su firma digital registrada</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {companyConfig?.firma_electronica_path && selectedCompanyId && (
+            <div className="flex items-center gap-2 text-sm text-amber-600">
+              <Building2 className="h-4 w-4" />
+              <span className="font-medium">Usando firma de la empresa seleccionada</span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Estado</span>
             {getStatusBadge(config.signature_status)}
@@ -905,9 +985,13 @@ function SignatureTab({
 // ─── Environment Tab ────────────────────────────────────────────
 function EnvironmentTab({
   config,
+  companyConfig,
+  selectedCompanyId,
   onConfigUpdate,
 }: {
   config: UserConfig;
+  companyConfig: CompanyConfig | null;
+  selectedCompanyId: string;
   onConfigUpdate: () => void;
 }) {
   const [switching, setSwitching] = useState(false);
@@ -1145,7 +1229,17 @@ function EnvironmentTab({
 }
 
 // ─── SMTP Tab ───────────────────────────────────────────────────
-function SMTPTab({ config, onConfigUpdate }: { config: UserConfig; onConfigUpdate: () => void }) {
+function SMTPTab({
+  config,
+  companyConfig,
+  selectedCompanyId,
+  onConfigUpdate,
+}: {
+  config: UserConfig;
+  companyConfig: CompanyConfig | null;
+  selectedCompanyId: string;
+  onConfigUpdate: () => void;
+}) {
   const [smtpHost, setSmtpHost] = useState(config.smtp_host || '');
   const [smtpPort, setSmtpPort] = useState(config.smtp_port?.toString() || '587');
   const [smtpUser, setSmtpUser] = useState(config.smtp_user || '');
@@ -1195,7 +1289,7 @@ function SMTPTab({ config, onConfigUpdate }: { config: UserConfig; onConfigUpdat
     setTesting(true);
     setMessage(null);
     try {
-      const result = await testSMTP();
+      const result = await testSMTP(selectedCompanyId || undefined);
       if (result.success) {
         setMessage({ type: 'success', text: 'Prueba de correo exitosa. Revise su bandeja.' });
       } else {
@@ -1398,7 +1492,7 @@ function SMTPTab({ config, onConfigUpdate }: { config: UserConfig; onConfigUpdat
 }
 
 // ─── Backups Tab ─────────────────────────────────────────────────
-function BackupsTab() {
+function BackupsTab({ config, selectedCompanyId }: { config: UserConfig; selectedCompanyId: string }) {
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -1426,6 +1520,14 @@ function BackupsTab() {
   }, [loadBackups]);
 
   async function handleCreateBackup() {
+    if (!config.has_backup_key) {
+      setMessage({ type: 'error', text: 'Debe configurar primero su clave de cifrado. Vaya a la pestaña Seguridad → Clave de Cifrado de Respaldos.' });
+      return;
+    }
+    if (!selectedCompanyId) {
+      setMessage({ type: 'error', text: 'Debe seleccionar una empresa primero.' });
+      return;
+    }
     setCreating(true);
     setMessage(null);
     try {
@@ -1581,13 +1683,20 @@ function BackupsTab() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Alert className="mb-4">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Clave de cifrado requerida</AlertTitle>
-              <AlertDescription>
-                Asegurese de haber configurado una clave de cifrado en la pestana de Seguridad antes de crear respaldos.
-              </AlertDescription>
-            </Alert>
+            {config.has_backup_key ? (
+              <div className="flex items-center gap-2 text-sm text-emerald-600 mb-4 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2">
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="font-medium">Clave de cifrado configurada ✓</span>
+              </div>
+            ) : (
+              <Alert className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Clave de cifrado requerida</AlertTitle>
+                <AlertDescription>
+                  Configure una clave de cifrado en la pestana de Seguridad antes de crear respaldos.
+                </AlertDescription>
+              </Alert>
+            )}
             <Button onClick={handleCreateBackup} disabled={creating} className="w-full">
               {creating ? (
                 <>
@@ -1769,14 +1878,60 @@ function BackupsTab() {
 }
 
 // ─── Security Tab ───────────────────────────────────────────────
-function SecurityTab({ config, onConfigUpdate }: { config: UserConfig; onConfigUpdate: () => void }) {
+function SecurityTab({
+  config,
+  companyConfig,
+  selectedCompanyId,
+  onConfigUpdate,
+}: {
+  config: UserConfig;
+  companyConfig: CompanyConfig | null;
+  selectedCompanyId: string;
+  onConfigUpdate: () => void;
+}) {
   const [vtEnabled, setVtEnabled] = useState(config.virustotal_enabled);
   const [vtToggling, setVtToggling] = useState(false);
+  const [clamavAvailable, setClamavAvailable] = useState(config.clamav_available);
+  const [virustotalAvailable, setVirustotalAvailable] = useState(config.virustotal_available);
+  const [recheckingClamav, setRecheckingClamav] = useState(false);
   const [backupKey, setBackupKey] = useState('');
   const [backupKeyConfirm, setBackupKeyConfirm] = useState('');
   const [savingKey, setSavingKey] = useState(false);
   const [showBackupKey, setShowBackupKey] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Password change state
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [changingPw, setChangingPw] = useState(false);
+
+  async function handleChangePassword() {
+    if (newPw !== confirmPw) {
+      setMessage({ type: 'error', text: 'Las contraseñas nuevas no coinciden' });
+      return;
+    }
+    if (newPw.length < 8) {
+      setMessage({ type: 'error', text: 'La nueva contraseña debe tener al menos 8 caracteres' });
+      return;
+    }
+    setChangingPw(true);
+    setMessage(null);
+    try {
+      await changePassword(currentPw, newPw);
+      setMessage({ type: 'success', text: 'Contraseña actualizada correctamente. Use la nueva contraseña en su proximo inicio de sesion.' });
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Error al cambiar contraseña',
+      });
+    } finally {
+      setChangingPw(false);
+    }
+  }
 
   async function handleToggleVirusTotal(enabled: boolean) {
     setVtToggling(true);
@@ -1795,6 +1950,18 @@ function SecurityTab({ config, onConfigUpdate }: { config: UserConfig; onConfigU
       });
     } finally {
       setVtToggling(false);
+    }
+  }
+
+  async function handleRecheckClamav() {
+    setRecheckingClamav(true);
+    try {
+      const status = await getClamavStatus(true);
+      setClamavAvailable(status.clamav_available);
+    } catch {
+      // ignore
+    } finally {
+      setRecheckingClamav(false);
     }
   }
 
@@ -1858,20 +2025,31 @@ function SecurityTab({ config, onConfigUpdate }: { config: UserConfig; onConfigU
                 Local
               </Badge>
             </div>
-            <Badge variant={config.clamav_available ? 'default' : 'secondary'}>
-              {config.clamav_available ? (
-                <>
-                  <CheckCircle2 className="mr-1 h-3 w-3" />
-                  Disponible
-                </>
-              ) : (
-                <>
-                  <XCircle className="mr-1 h-3 w-3" />
-                  No disponible
-                </>
-              )}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={clamavAvailable ? 'default' : 'secondary'}>
+                {clamavAvailable ? (
+                  <>
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                    Disponible
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="mr-1 h-3 w-3" />
+                    No disponible
+                  </>
+                )}
+              </Badge>
+              <Button variant="ghost" size="sm" onClick={handleRecheckClamav} disabled={recheckingClamav}>
+                {recheckingClamav ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              </Button>
+            </div>
           </div>
+          {!clamavAvailable && (
+            <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+              <p className="font-medium mb-1">Para instalar ClamAV en el servidor:</p>
+              <code className="bg-background px-1 py-0.5 rounded">sudo apt install clamav-daemon &amp;&amp; sudo systemctl enable --now clamav-daemon</code>
+            </div>
+          )}
 
           <Separator />
 
@@ -1888,7 +2066,7 @@ function SecurityTab({ config, onConfigUpdate }: { config: UserConfig; onConfigU
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {config.virustotal_available ? (
+              {virustotalAvailable ? (
                 <>
                   <Badge variant={vtEnabled ? 'default' : 'secondary'} className="mr-2">
                     {vtEnabled ? 'Habilitado' : 'Deshabilitado'}
@@ -1923,60 +2101,82 @@ function SecurityTab({ config, onConfigUpdate }: { config: UserConfig; onConfigU
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="backup-key">Clave de Cifrado</Label>
-            <div className="relative">
-              <Input
-                id="backup-key"
-                type={showBackupKey ? 'text' : 'password'}
-                value={backupKey}
-                onChange={(e) => setBackupKey(e.target.value)}
-                placeholder="Minimo 8 caracteres"
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowBackupKey(!showBackupKey)}
-              >
-                {showBackupKey ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
+          {config.has_backup_key && !backupKey ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-emerald-600">
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="font-medium">Clave de cifrado configurada</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setBackupKey(' ')}>
+                <Lock className="mr-2 h-4 w-4" />
+                Cambiar Clave
               </Button>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="backup-key">Clave de Cifrado</Label>
+                <div className="relative">
+                  <Input
+                    id="backup-key"
+                    type={showBackupKey ? 'text' : 'password'}
+                    value={backupKey}
+                    onChange={(e) => setBackupKey(e.target.value)}
+                    placeholder="Minimo 8 caracteres"
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowBackupKey(!showBackupKey)}
+                  >
+                    {showBackupKey ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="backup-key-confirm">Confirmar Clave</Label>
-            <Input
-              id="backup-key-confirm"
-              type={showBackupKey ? 'text' : 'password'}
-              value={backupKeyConfirm}
-              onChange={(e) => setBackupKeyConfirm(e.target.value)}
-              placeholder="Repita la clave"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="backup-key-confirm">Confirmar Clave</Label>
+                <Input
+                  id="backup-key-confirm"
+                  type={showBackupKey ? 'text' : 'password'}
+                  value={backupKeyConfirm}
+                  onChange={(e) => setBackupKeyConfirm(e.target.value)}
+                  placeholder="Repita la clave"
+                />
+              </div>
 
-          <Button
-            onClick={handleSaveBackupKey}
-            disabled={savingKey || !backupKey || !backupKeyConfirm}
-          >
-            {savingKey ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              <>
-                <Lock className="mr-2 h-4 w-4" />
-                Configurar Clave
-              </>
-            )}
-          </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSaveBackupKey}
+                  disabled={savingKey || !backupKey || !backupKeyConfirm}
+                >
+                  {savingKey ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="mr-2 h-4 w-4" />
+                      {config.has_backup_key ? 'Actualizar Clave' : 'Configurar Clave'}
+                    </>
+                  )}
+                </Button>
+                {config.has_backup_key && backupKey && (
+                  <Button variant="outline" onClick={() => { setBackupKey(''); setBackupKeyConfirm(''); }}>
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -1992,23 +2192,29 @@ function SecurityTab({ config, onConfigUpdate }: { config: UserConfig; onConfigU
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="current-password">Contrasena Actual</Label>
-            <Input id="current-password" type="password" placeholder="Contrasena actual" />
+            <Input id="current-password" type="password" placeholder="Contrasena actual" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-password">Nueva Contrasena</Label>
-            <Input id="new-password" type="password" placeholder="Nueva contrasena" />
+            <Input id="new-password" type="password" placeholder="Minimo 8 caracteres" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm-password">Confirmar Nueva Contrasena</Label>
-            <Input id="confirm-password" type="password" placeholder="Repita la nueva contrasena" />
+            <Input id="confirm-password" type="password" placeholder="Repita la nueva contrasena" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />
           </div>
-          <Button variant="outline">
-            <KeyRound className="mr-2 h-4 w-4" />
-            Cambiar Contrasena
+          <Button onClick={handleChangePassword} disabled={changingPw || !currentPw || !newPw || !confirmPw}>
+            {changingPw ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Cambiando...
+              </>
+            ) : (
+              <>
+                <KeyRound className="mr-2 h-4 w-4" />
+                Cambiar Contrasena
+              </>
+            )}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            Funcionalidad disponible en proxima actualizacion.
-          </p>
         </CardContent>
       </Card>
     </div>

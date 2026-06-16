@@ -258,6 +258,16 @@ interface Company {
   // Informacion adicional
   codigo_artesano: string | null;
   nombre_recibos: string | null;
+  // SMTP por empresa
+  smtp_host: string | null;
+  smtp_port: number | null;
+  smtp_user: string | null;
+  smtp_protocol: string | null;
+  smtp_ssl: boolean;
+  // Ambiente por empresa
+  environment_mode: string;
+  // VirusTotal por empresa
+  virustotal_enabled: boolean;
   // Estado
   is_active: boolean;
   created_at: string;
@@ -301,6 +311,37 @@ async function updateCompany(id: string, data: Partial<Company>): Promise<Compan
 
 async function deleteCompany(id: string): Promise<void> {
   return apiDelete<void>(`/v1/companies/${id}`);
+}
+
+// Company config (per-company settings)
+interface CompanyConfig {
+  id: string;
+  ruc: string;
+  razon_social: string;
+  nombre_comercial: string | null;
+  logo_path: string | null;
+  firma_electronica_path: string | null;
+  correo: string | null;
+  telefono: string | null;
+  smtp_host: string | null;
+  smtp_port: number | null;
+  smtp_user: string | null;
+  smtp_protocol: string | null;
+  smtp_ssl: boolean;
+  environment_mode: string;
+  virustotal_enabled: boolean;
+}
+
+async function getCompanyConfig(companyId: string): Promise<CompanyConfig> {
+  return apiGet<CompanyConfig>(`/v1/config/companies/${companyId}`);
+}
+
+async function updateCompanyConfig(companyId: string, data: Partial<CompanyConfig>): Promise<{ message: string }> {
+  return apiPut<{ message: string }>(`/v1/config/companies/${companyId}`, data);
+}
+
+async function getClamavStatus(force = false): Promise<{ clamav_available: boolean; cached: boolean }> {
+  return apiGet<{ clamav_available: boolean; cached: boolean }>(`/v1/config/clamav-status?force=${force}`);
 }
 
 interface SRICompanyData {
@@ -450,6 +491,19 @@ async function toggleUserActive(userId: string, isActive: boolean): Promise<{ me
   return apiPut<{ message: string }>(`/v1/admin/users/${userId}/active?is_active=${isActive}`);
 }
 
+// Trial management functions
+async function modifyUserTrial(userId: string, trialDays: number): Promise<{ message: string; user_id: string; trial_start_date: string; trial_end_date: string; trial_days: number }> {
+  return apiPut<{ message: string; user_id: string; trial_start_date: string; trial_end_date: string; trial_days: number }>(`/v1/admin/users/${userId}/trial?trial_days=${trialDays}`);
+}
+
+async function endUserTrial(userId: string): Promise<{ message: string; user_id: string }> {
+  return apiPut<{ message: string; user_id: string }>(`/v1/admin/users/${userId}/end-trial`);
+}
+
+async function getTrialUsers(): Promise<{ trial_users: Array<{ id: string; email: string; full_name: string; is_active: boolean; trial_start_date: string | null; trial_end_date: string | null; trial_days_remaining: number }> }> {
+  return apiGet('/v1/admin/trial-users');
+}
+
 async function getSystemHealth(): Promise<{
   system: Record<string, unknown>;
   database: Record<string, unknown>;
@@ -473,6 +527,11 @@ interface LicenseStatus {
   is_expired: boolean;
   days_remaining: number | null;
   is_active: boolean;
+  // Trial info
+  is_trial: boolean;
+  trial_start_date: string | null;
+  trial_end_date: string | null;
+  trial_days_remaining: number | null;
 }
 
 interface LicenseOptions {
@@ -587,6 +646,7 @@ interface UserConfig {
   environment_mode: 'sandbox' | 'production';
   virustotal_enabled: boolean;
   has_digital_signature: boolean;
+  has_backup_key: boolean;
   signature_status: 'none' | 'valid' | 'expired' | 'expiring_soon' | 'uploaded';
   signature_expiry_date: string | null;
   signature_days_left: number | null;
@@ -675,8 +735,11 @@ async function configureSMTP(data: {
   return apiPost<{ message: string }>('/v1/config/smtp', data);
 }
 
-async function testSMTP(): Promise<{ message: string; success: boolean }> {
-  return apiPost<{ message: string; success: boolean }>('/v1/config/test-smtp');
+async function testSMTP(companyId?: string): Promise<{ message: string; success: boolean }> {
+  const url = companyId
+    ? `/v1/config/test-smtp?company_id=${companyId}`
+    : '/v1/config/test-smtp';
+  return apiPost<{ message: string; success: boolean }>(url);
 }
 
 async function switchEnvironmentMode(mode: 'sandbox' | 'production'): Promise<{ message: string }> {
@@ -694,6 +757,14 @@ async function updateProfile(data: {
 
 async function setBackupKey(key: string): Promise<{ message: string }> {
   return apiPost<{ message: string }>('/v1/config/backup-key', { key });
+}
+
+async function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  return apiPut<{ message: string }>('/v1/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+    confirm_new_password: newPassword,
+  });
 }
 
 async function uploadCompanyLogo(file: File): Promise<{ message: string; logo_path: string }> {
@@ -843,8 +914,15 @@ interface ProductCreate {
   precio_unitario: number;
   iva_codigo: string;
   iva_porcentaje: number;
+  iva_incluido?: boolean;
   ice_codigo?: string;
   ice_porcentaje?: number;
+  valor_ice_unitario?: number;
+  valor_irbpnr?: number;
+  subsidio?: number;
+  categoria?: string;
+  detalle?: string;
+  imagen?: string;
   unidad_medida?: string;
   descuento?: number;
 }
@@ -859,8 +937,15 @@ interface ProductResponse {
   precio_unitario: number;
   iva_codigo: string;
   iva_porcentaje: number;
+  iva_incluido: boolean | null;
   ice_codigo: string | null;
   ice_porcentaje: number | null;
+  valor_ice_unitario: number | null;
+  valor_irbpnr: number | null;
+  subsidio: number | null;
+  categoria: string | null;
+  detalle: string | null;
+  imagen: string | null;
   unidad_medida: string;
   descuento: number;
   is_active: boolean;
@@ -2601,145 +2686,169 @@ async function recalcularPresupuesto(id: string): Promise<PresupuestoAnual> {
 interface CRMOpportunity {
   id: string;
   company_id: string;
+  lead_id: string | null;
   client_id: string | null;
-  titulo: string;
-  descripcion: string | null;
-  etapa: string; // prospecto, calificacion, propuesta, negociacion, cierre_ganado, cierre_perdido
-  valor_estimado: number;
-  probabilidad: number;
-  fecha_cierre_estimada: string | null;
-  fecha_cierre_real: string | null;
-  responsable: string | null;
-  fuente: string | null; // web, referido, llamado, email, otro
-  proforma_id: string | null;
-  comprobante_id: string | null;
-  segmento: string | null;
-  prioridad: string; // baja, media, alta, critica
-  is_active: boolean;
+  pipeline_id: string;
+  stage_id: string;
+  name: string;
+  description: string | null;
+  estimated_amount: number;
+  probability: number;
+  expected_close_date: string | null;
+  actual_close_date: string | null;
+  status: string;
+  assigned_to: string | null;
+  lost_reason: string | null;
   created_at: string;
   updated_at: string;
-  // Joined
-  cliente_razon_social?: string;
-  cliente_email?: string | null;
-  cliente_telefono?: string | null;
+  // Enriched fields from backend OpportunityWithDetails
+  lead_name?: string | null;
+  client_name?: string | null;
+  stage_name?: string | null;
+  stage_color?: string | null;
+  pipeline_name?: string | null;
+  weighted_amount?: number | null;
+  // Legacy aliases for component compatibility
+  titulo?: string;
+  etapa?: string;
+  valor_estimado?: number;
+  fecha_cierre_estimada?: string | null;
+  cliente_razon_social?: string | null;
 }
 
 interface CRMOpportunityCreate {
   company_id: string;
+  name: string;
+  pipeline_id: string;
+  stage_id: string;
   client_id?: string;
-  titulo: string;
-  descripcion?: string;
-  etapa?: string;
-  valor_estimado: number;
-  probabilidad?: number;
-  fecha_cierre_estimada?: string;
-  responsable?: string;
-  fuente?: string;
-  segmento?: string;
-  prioridad?: string;
+  lead_id?: string;
+  description?: string;
+  estimated_amount?: number;
+  probability?: number;
+  expected_close_date?: string;
+  status?: string;
+  assigned_to?: string;
 }
 
 interface CRMOpportunityUpdate {
-  titulo?: string;
-  descripcion?: string;
-  etapa?: string;
-  valor_estimado?: number;
-  probabilidad?: number;
-  fecha_cierre_estimada?: string;
-  fecha_cierre_real?: string;
-  responsable?: string;
-  fuente?: string;
-  segmento?: string;
-  prioridad?: string;
+  name?: string;
+  description?: string;
+  pipeline_id?: string;
+  stage_id?: string;
   client_id?: string;
+  lead_id?: string;
+  estimated_amount?: number;
+  probability?: number;
+  expected_close_date?: string;
+  actual_close_date?: string;
+  status?: string;
+  assigned_to?: string;
+  lost_reason?: string;
 }
 
 interface CRMActivity {
   id: string;
   company_id: string;
   opportunity_id: string | null;
-  client_id: string | null;
-  tipo: string; // llamada, email, reunion, nota, tarea, cotizacion
-  asunto: string;
-  descripcion: string | null;
-  fecha_actividad: string;
-  fecha_recordatorio: string | null;
-  estado: string; // pendiente, completada, cancelada
-  responsable: string | null;
-  is_active: boolean;
+  lead_id: string | null;
+  user_id: string;
+  type: string; // llamada, email, reunion, tarea, nota
+  subject: string;
+  description: string | null;
+  scheduled_at: string | null;
+  completed_at: string | null;
+  status: string; // pendiente, completada, cancelada
+  result: string | null;
   created_at: string;
-  updated_at: string;
-  // Joined
-  cliente_razon_social?: string;
-  oportunidad_titulo?: string;
+  // Legacy aliases for component compatibility
+  tipo?: string;
+  asunto?: string;
+  descripcion?: string | null;
+  fecha_actividad?: string | null;
+  estado?: string;
+  oportunidad_titulo?: string | null;
 }
 
 interface CRMActivityCreate {
   company_id: string;
+  type: string;
+  subject: string;
   opportunity_id?: string;
-  client_id?: string;
-  tipo: string;
-  asunto: string;
-  descripcion?: string;
-  fecha_actividad: string;
-  fecha_recordatorio?: string;
-  estado?: string;
-  responsable?: string;
+  lead_id?: string;
+  description?: string;
+  scheduled_at?: string;
+  status?: string;
+  result?: string;
 }
 
 interface CRMActivityUpdate {
-  tipo?: string;
-  asunto?: string;
-  descripcion?: string;
-  fecha_actividad?: string;
-  fecha_recordatorio?: string;
-  estado?: string;
-  responsable?: string;
+  type?: string;
+  subject?: string;
+  description?: string;
+  opportunity_id?: string;
+  lead_id?: string;
+  scheduled_at?: string;
+  completed_at?: string;
+  status?: string;
+  result?: string;
 }
 
 interface CRMSegment {
   id: string;
   company_id: string;
-  nombre: string;
-  descripcion: string | null;
+  name: string;
+  description: string | null;
+  type: string; // manual, regla, rfm
+  rules: string | null; // JSON string
+  rfm_score: string | null; // JSON string
   color: string | null;
-  criterio: string | null; // JSON string with filter criteria
-  cliente_count: number;
   is_active: boolean;
+  client_members: Array<{ id: string; segment_id: string; client_id: string; created_at: string }> | null;
   created_at: string;
   updated_at: string;
+  // Legacy aliases
+  nombre?: string;
+  criterio?: string | null;
+  cliente_count?: number;
 }
 
 interface CRMSegmentCreate {
   company_id: string;
-  nombre: string;
-  descripcion?: string;
+  name: string;
+  type: string;
+  description?: string;
+  rules?: string;
+  rfm_score?: string;
   color?: string;
-  criterio?: string;
 }
 
 interface CRMAutomation {
   id: string;
   company_id: string;
-  nombre: string;
-  descripcion: string | null;
-  evento_disparador: string; // nueva_oportunidad, cambio_etapa, actividad_vencida, etc.
-  condiciones: string | null; // JSON string
-  acciones: string; // JSON string with actions
+  name: string;
+  trigger_type: string; // lead_creado, oportunidad_ganada, stage_changed, etc.
+  trigger_conditions: string | null; // JSON string
+  actions: string | null; // JSON string
   is_active: boolean;
-  ejecuciones_count: number;
-  ultima_ejecucion: string | null;
+  last_triggered_at: string | null;
+  trigger_count: number;
   created_at: string;
   updated_at: string;
+  // Legacy aliases
+  nombre?: string;
+  evento_disparador?: string;
+  condiciones?: string | null;
+  ejecuciones_count?: number;
+  ultima_ejecucion?: string | null;
 }
 
 interface CRMAutomationCreate {
   company_id: string;
-  nombre: string;
-  descripcion?: string;
-  evento_disparador: string;
-  condiciones?: string;
-  acciones: string;
+  name: string;
+  trigger_type: string;
+  trigger_conditions?: string;
+  actions?: string;
   is_active?: boolean;
 }
 
@@ -3219,6 +3328,7 @@ interface CuentaBancariaResponse {
   tipo_cuenta: string;
   numero_cuenta: string;
   iban: string | null;
+  swift_bic: string | null;
   titular: string;
   moneda: string;
   saldo_inicial: number;
@@ -3238,6 +3348,7 @@ interface CuentaBancariaCreate {
   tipo_cuenta?: string;
   numero_cuenta: string;
   iban?: string;
+  swift_bic?: string;
   titular: string;
   moneda?: string;
   saldo_inicial?: number;
@@ -3251,6 +3362,7 @@ interface CuentaBancariaUpdate {
   tipo_cuenta?: string;
   numero_cuenta?: string;
   iban?: string;
+  swift_bic?: string;
   titular?: string;
   moneda?: string;
   saldo_inicial?: number;
@@ -3644,8 +3756,7 @@ interface MLChatbotMensaje {
 }
 
 interface MLChatRequest {
-  company_id: string;
-  sesion_id?: string;
+  sesion_id: string;
   mensaje: string;
 }
 
@@ -3743,6 +3854,7 @@ interface CuentaContable {
   total_creditos: number;
   descripcion: string | null;
   etiqueta: string | null;
+  notas: string | null;
   cuenta_contrapartida_id: string | null;
   is_active: boolean;
   created_at: string;
@@ -3762,6 +3874,7 @@ interface CuentaContableCreate {
   saldo_inicial?: number;
   descripcion?: string | null;
   etiqueta?: string | null;
+  notas?: string | null;
   cuenta_contrapartida_id?: string | null;
 }
 
@@ -4531,6 +4644,9 @@ export {
   uploadCompanyFile,
   updateCompany,
   deleteCompany,
+  getCompanyConfig,
+  updateCompanyConfig,
+  getClamavStatus,
   getSRITipoImpuesto,
   getSRIIVARates,
   getSRIDocumentTypes,
@@ -4541,6 +4657,9 @@ export {
   getAdminUsers,
   modifyUserLicense,
   toggleUserActive,
+  modifyUserTrial,
+  endUserTrial,
+  getTrialUsers,
   getSystemHealth,
   getSecurityIssues,
   getLicenseStatus,
@@ -4569,6 +4688,7 @@ export {
   switchEnvironmentMode,
   updateProfile,
   setBackupKey,
+  changePassword,
   uploadCompanyLogo,
   validateSignature,
   // Comprobante functions

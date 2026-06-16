@@ -214,7 +214,7 @@ function OrdenesTab({ companyId }: { companyId: string }) {
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nueva Orden de Compra</DialogTitle><DialogDescription>Cree una nueva orden de compra</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Proveedor</Label><Select value={form.supplier_id} onValueChange={(v) => setForm({ ...form, supplier_id: v })}><SelectTrigger><SelectValue placeholder="Seleccione proveedor" /></SelectTrigger><SelectContent>{suppliers.map((s) => (<SelectItem key={s.id} value={s.id}>{s.razon_social}</SelectItem>))}</SelectContent></Select></div>
@@ -371,7 +371,7 @@ function CuentasTab({ companyId }: { companyId: string }) {
 
       {/* Create Cuenta Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nueva Cuenta por Pagar</DialogTitle><DialogDescription>Registre una nueva cuenta por pagar</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Proveedor</Label><Select value={createForm.supplier_id} onValueChange={(v) => setCreateForm({ ...createForm, supplier_id: v })}><SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger><SelectContent>{suppliers.map((s) => (<SelectItem key={s.id} value={s.id}>{s.razon_social}</SelectItem>))}</SelectContent></Select></div>
@@ -498,7 +498,7 @@ function RetencionesTab({ companyId }: { companyId: string }) {
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nueva Retencion de Compra</DialogTitle><DialogDescription>Cree una retencion en fuente para una compra</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Proveedor</Label><Select value={form.supplier_id} onValueChange={(v) => setForm({ ...form, supplier_id: v })}><SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger><SelectContent>{suppliers.map((s) => (<SelectItem key={s.id} value={s.id}>{s.razon_social}</SelectItem>))}</SelectContent></Select></div>

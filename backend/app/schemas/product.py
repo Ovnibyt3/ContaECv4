@@ -57,6 +57,10 @@ class ProductCreate(BaseModel):
         description="Porcentaje de IVA (0, 5, 8, 12, 13, 14, 15)",
         examples=["13.00"],
     )
+    iva_incluido: bool | None = Field(
+        None,
+        description="Indica si el IVA está incluido en el precio unitario",
+    )
     ice_codigo: str | None = Field(
         None,
         max_length=3,
@@ -66,6 +70,36 @@ class ProductCreate(BaseModel):
         None,
         ge=0,
         description="Porcentaje de ICE (si aplica)",
+    )
+    valor_ice_unitario: Decimal | None = Field(
+        None,
+        ge=0,
+        description="Valor ICE unitario en moneda",
+    )
+    valor_irbpnr: Decimal | None = Field(
+        None,
+        ge=0,
+        description="Valor del impuesto IRBP_NR por unidad",
+    )
+    subsidio: Decimal | None = Field(
+        None,
+        ge=0,
+        description="Subsidio aplicable al producto",
+    )
+    categoria: str | None = Field(
+        None,
+        max_length=100,
+        description="Categoría del producto",
+    )
+    detalle: str | None = Field(
+        None,
+        max_length=500,
+        description="Detalle adicional del producto",
+    )
+    imagen: str | None = Field(
+        None,
+        max_length=500,
+        description="Ruta o URL de la imagen del producto",
     )
     unidad_medida: str = Field(
         default="Unidad",
@@ -156,6 +190,40 @@ class ProductUpdate(BaseModel):
         ge=0,
         description="Porcentaje de ICE",
     )
+    valor_ice_unitario: Decimal | None = Field(
+        None,
+        ge=0,
+        description="Valor ICE unitario",
+    )
+    valor_irbpnr: Decimal | None = Field(
+        None,
+        ge=0,
+        description="Valor IRBP_NR",
+    )
+    iva_incluido: bool | None = Field(
+        None,
+        description="IVA incluido en precio",
+    )
+    subsidio: Decimal | None = Field(
+        None,
+        ge=0,
+        description="Subsidio",
+    )
+    categoria: str | None = Field(
+        None,
+        max_length=100,
+        description="Categoría",
+    )
+    detalle: str | None = Field(
+        None,
+        max_length=500,
+        description="Detalle",
+    )
+    imagen: str | None = Field(
+        None,
+        max_length=500,
+        description="Imagen",
+    )
     unidad_medida: str | None = Field(
         None,
         max_length=50,
@@ -212,8 +280,15 @@ class ProductResponse(BaseModel):
     precio_unitario: Decimal = Field(..., description="Precio unitario sin impuestos")
     iva_codigo: str = Field(..., description="Código de tarifa IVA")
     iva_porcentaje: Decimal = Field(..., description="Porcentaje de IVA")
+    iva_incluido: bool | None = Field(None, description="Indica si el IVA está incluido en el precio")
     ice_codigo: str | None = Field(None, description="Código de tarifa ICE")
     ice_porcentaje: Decimal | None = Field(None, description="Porcentaje de ICE")
+    valor_ice_unitario: Decimal | None = Field(None, description="Valor ICE unitario")
+    valor_irbpnr: Decimal | None = Field(None, description="Valor IRBP_NR (impuesto a vehículos)")
+    subsidio: Decimal | None = Field(None, description="Subsidio aplicable")
+    categoria: str | None = Field(None, description="Categoría del producto")
+    detalle: str | None = Field(None, description="Detalle adicional del producto")
+    imagen: str | None = Field(None, description="Ruta de la imagen del producto")
     unidad_medida: str = Field(..., description="Unidad de medida")
     descuento: Decimal = Field(..., description="Porcentaje de descuento")
     codigo_barras: str | None = Field(None, description="Código de barras EAN/UPC")

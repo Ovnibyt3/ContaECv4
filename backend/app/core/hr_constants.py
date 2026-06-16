@@ -8,8 +8,8 @@ from decimal import Decimal
 # ==========================================
 # Tasas IESS 2024
 # ==========================================
-IESS_PERSONAL_RATE = Decimal("9.45")    # Aporte personal del empleado al IESS
-IESS_PATRONAL_RATE = Decimal("11.15")   # Aporte patronal del empleador al IESS
+IESS_PERSONAL_RATE = Decimal("9.35")    # Aporte personal del empleado al IESS
+IESS_PATRONAL_RATE = Decimal("12.15")   # Aporte patronal del empleador al IESS
 IESS_RIESGOS_RATE = Decimal("0.5")      # Seguro de Riesgos del Trabajo (empleador)
 SECAP_RATE = Decimal("0.2")             # Servicio Ecuatoriano de Capacitación Profesional
 CENACES_RATE = Decimal("0.1")           # Consejo Nacional de Evaluación y Acreditación

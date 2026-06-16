@@ -147,6 +147,7 @@ class ChatResponse(BaseModel):
     """Response del chatbot con intención detectada y entidades"""
     mensaje_id: str
     respuesta: str
+    sesion_id: str
     intencion_detectada: str | None = None
     entidades: dict | None = None
 

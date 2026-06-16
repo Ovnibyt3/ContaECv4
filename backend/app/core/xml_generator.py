@@ -31,15 +31,19 @@ from lxml import etree
 
 logger = logging.getLogger(__name__)
 
-# XSD schema directory (store locally for offline validation)
+# SRI XSD schema directory and version configuration
+# Version can be overridden via SRI_XML_VERSION env var (default: "1.1.0")
+# Supported versions: "1.0.0", "1.1.0", "2.0.0", "2.1.0"
+import os
+_SRI_XML_VERSION = os.environ.get("SRI_XML_VERSION", "1.1.0")
 _XSD_DIR = Path(__file__).parent.parent / "xsd"
 _XSD_FILES = {
-    "01": "factura_V1.1.0.xsd",
-    "03": "liquidacionCompra_V1.1.0.xsd",
-    "04": "notaCredito_V1.1.0.xsd",
-    "05": "notaDebito_V1.1.0.xsd",
-    "06": "guiaRemision_V1.1.0.xsd",
-    "07": "comprobanteRetencion_V1.1.0.xsd",
+    "01": f"factura_V{_SRI_XML_VERSION}.xsd",
+    "03": f"liquidacionCompra_V{_SRI_XML_VERSION}.xsd",
+    "04": f"notaCredito_V{_SRI_XML_VERSION}.xsd",
+    "05": f"notaDebito_V{_SRI_XML_VERSION}.xsd",
+    "06": f"guiaRemision_V{_SRI_XML_VERSION}.xsd",
+    "07": f"comprobanteRetencion_V{_SRI_XML_VERSION}.xsd",
 }
 
 
@@ -96,7 +100,7 @@ TIPO_COMPROBANTE_MAP: dict[str, str] = {
 }
 
 # Versión del comprobante según SRI
-COMPROBANTE_VERSION = "1.1.0"
+COMPROBANTE_VERSION = _SRI_XML_VERSION
 
 
 # ==========================================

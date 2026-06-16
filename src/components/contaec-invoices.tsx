@@ -145,14 +145,12 @@ const TIPOS_IDENTIFICACION: { codigo: string; descripcion: string }[] = [
 ];
 
 const FORMAS_PAGO: { codigo: string; descripcion: string }[] = [
-  { codigo: '01', descripcion: 'Sin utilizacion del sistema financiero' },
-  { codigo: '15', descripcion: 'Compensacion de deudas' },
-  { codigo: '16', descripcion: 'Tarjeta de debito' },
-  { codigo: '17', descripcion: 'Dinero electronico' },
-  { codigo: '18', descripcion: 'Tarjeta prepago' },
-  { codigo: '19', descripcion: 'Tarjeta de credito' },
-  { codigo: '20', descripcion: 'Otros con utilizacion del sistema financiero' },
-  { codigo: '21', descripcion: 'Endoso de titulos' },
+  { codigo: '01', descripcion: 'Efectivo' },
+  { codigo: '02', descripcion: 'Tarjeta' },
+  { codigo: '03', descripcion: 'Cheque' },
+  { codigo: '04', descripcion: 'Transferencia' },
+  { codigo: '05', descripcion: 'Otro con utilizacion del sistema financiero - transferencia' },
+  { codigo: '06', descripcion: 'Otro con utilizacion del sistema financiero - efectivo' },
 ];
 
 const IVA_RATES: { codigo: string; porcentaje: number; descripcion: string }[] = [
@@ -825,7 +823,7 @@ function ComprobanteListado({ companyId }: { companyId: string }) {
 
       {/* XML Dialog */}
       <Dialog open={xmlDialog.open} onOpenChange={(o) => setXmlDialog({ ...xmlDialog, open: o })}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh]">
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>XML del Comprobante</DialogTitle>
             <DialogDescription>Contenido XML firmado del comprobante</DialogDescription>
@@ -840,7 +838,7 @@ function ComprobanteListado({ companyId }: { companyId: string }) {
 
       {/* Detail Dialog */}
       <Dialog open={detailDialog.open} onOpenChange={(o) => setDetailDialog({ ...detailDialog, open: o })}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle del Comprobante</DialogTitle>
             <DialogDescription>
@@ -2252,8 +2250,17 @@ function ProductosTab({ companyId }: { companyId: string }) {
     descripcion: '',
     tipo: 'B',
     precio_unitario: 0,
-    iva_codigo: '2',
-    iva_porcentaje: 12,
+    iva_codigo: '4',
+    iva_porcentaje: 15,
+    iva_incluido: false,
+    ice_codigo: '',
+    ice_porcentaje: 0,
+    valor_ice_unitario: 0,
+    valor_irbpnr: 0,
+    subsidio: 0,
+    categoria: '',
+    detalle: '',
+    imagen: '',
     unidad_medida: 'Unidad',
     descuento: 0,
   });
@@ -2284,8 +2291,17 @@ function ProductosTab({ companyId }: { companyId: string }) {
       descripcion: '',
       tipo: 'B',
       precio_unitario: 0,
-      iva_codigo: '2',
-      iva_porcentaje: 12,
+      iva_codigo: '4',
+      iva_porcentaje: 15,
+      iva_incluido: false,
+      ice_codigo: '',
+      ice_porcentaje: 0,
+      valor_ice_unitario: 0,
+      valor_irbpnr: 0,
+      subsidio: 0,
+      categoria: '',
+      detalle: '',
+      imagen: '',
       unidad_medida: 'Unidad',
       descuento: 0,
     });
@@ -2303,6 +2319,15 @@ function ProductosTab({ companyId }: { companyId: string }) {
       precio_unitario: product.precio_unitario,
       iva_codigo: product.iva_codigo,
       iva_porcentaje: product.iva_porcentaje,
+      iva_incluido: product.iva_incluido || false,
+      ice_codigo: product.ice_codigo || '',
+      ice_porcentaje: product.ice_porcentaje || 0,
+      valor_ice_unitario: product.valor_ice_unitario || 0,
+      valor_irbpnr: product.valor_irbpnr || 0,
+      subsidio: product.subsidio || 0,
+      categoria: product.categoria || '',
+      detalle: product.detalle || '',
+      imagen: product.imagen || '',
       unidad_medida: product.unidad_medida,
       descuento: product.descuento,
     });
@@ -2439,21 +2464,44 @@ function ProductosTab({ companyId }: { companyId: string }) {
 
       {/* Product Create/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editProduct ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
             <DialogDescription>
               {editProduct ? 'Modifique los datos del producto' : 'Registre un nuevo producto o servicio'}
             </DialogDescription>
           </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4">
+            {/* Row 1: Categoria, Imagen */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Codigo Principal</Label>
+                <Label>Categoria</Label>
+                <Input
+                  value={form.categoria || ''}
+                  onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                  placeholder="General"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Imagen (URL)</Label>
+                <Input
+                  value={form.imagen || ''}
+                  onChange={(e) => setForm({ ...form, imagen: e.target.value })}
+                  placeholder="/images/product.png"
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Codigo Principal, Codigo Auxiliar */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Codigo Principal *</Label>
                 <Input
                   value={form.codigo_principal}
                   onChange={(e) => setForm({ ...form, codigo_principal: e.target.value })}
                   placeholder="COD001"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -2465,27 +2513,20 @@ function ProductosTab({ companyId }: { companyId: string }) {
                 />
               </div>
             </div>
+
+            {/* Row 3: Nombre (descripcion) */}
             <div className="space-y-2">
-              <Label>Descripcion</Label>
+              <Label>Nombre *</Label>
               <Input
                 value={form.descripcion}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-                placeholder="Descripcion del producto o servicio"
+                placeholder="Nombre del producto o servicio"
+                required
               />
             </div>
+
+            {/* Row 4: Precio Unitario, Subsidio */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="B">Bien</SelectItem>
-                    <SelectItem value="S">Servicio</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label>Precio Unitario</Label>
                 <Input
@@ -2496,10 +2537,22 @@ function ProductosTab({ companyId }: { companyId: string }) {
                   onChange={(e) => setForm({ ...form, precio_unitario: parseFloat(e.target.value) || 0 })}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Subsidio</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.subsidio || 0}
+                  onChange={(e) => setForm({ ...form, subsidio: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
             </div>
+
+            {/* Row 5: IVA, IVA Incluido */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tasa IVA</Label>
+                <Label>IVA</Label>
                 <Select
                   value={form.iva_codigo}
                   onValueChange={(v) => {
@@ -2519,6 +2572,92 @@ function ProductosTab({ companyId }: { companyId: string }) {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 flex items-end pb-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.iva_incluido || false}
+                    onChange={(e) => setForm({ ...form, iva_incluido: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm">IVA incluido en precio</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Row 6: ICE, Valor ICE Unitario (conditional) */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>ICE</Label>
+                <Select
+                  value={form.ice_codigo || ''}
+                  onValueChange={(v) => {
+                    setForm({ ...form, ice_codigo: v || null });
+                    if (!v) setForm({ ...form, ice_codigo: null, valor_ice_unitario: 0 });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin ICE" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sin ICE</SelectItem>
+                    <SelectItem value="1">Codigo 1</SelectItem>
+                    <SelectItem value="2">Codigo 2</SelectItem>
+                    <SelectItem value="3">Codigo 3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.ice_codigo && (
+                <div className="space-y-2">
+                  <Label>Valor ICE Unitario</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.valor_ice_unitario || 0}
+                    onChange={(e) => setForm({ ...form, valor_ice_unitario: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Row 7: Valor IRBPNR */}
+            <div className="space-y-2">
+              <Label>Valor IRBP_NR</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.valor_irbpnr || 0}
+                onChange={(e) => setForm({ ...form, valor_irbpnr: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+
+            {/* Row 8: Detalle, Descripcion */}
+            <div className="space-y-2">
+              <Label>Detalle</Label>
+              <Textarea
+                value={form.detalle || ''}
+                onChange={(e) => setForm({ ...form, detalle: e.target.value })}
+                placeholder="Detalle adicional del producto"
+                rows={2}
+              />
+            </div>
+
+            {/* Row 9: Tipo, Unidad de Medida */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="B">Bien</SelectItem>
+                    <SelectItem value="S">Servicio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label>Unidad de Medida</Label>
                 <Input
@@ -2529,6 +2668,7 @@ function ProductosTab({ companyId }: { companyId: string }) {
               </div>
             </div>
           </div>
+          </ScrollArea>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>
               Cancelar
@@ -2797,6 +2937,8 @@ function ClientesTab({ companyId }: { companyId: string }) {
                   value={form.identificacion}
                   onChange={(e) => setForm({ ...form, identificacion: e.target.value })}
                   placeholder="1712345678"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
                 />
               </div>
             </div>
@@ -2832,6 +2974,8 @@ function ClientesTab({ companyId }: { companyId: string }) {
                   value={form.telefono || ''}
                   onChange={(e) => setForm({ ...form, telefono: e.target.value })}
                   placeholder="0991234567"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
                 />
               </div>
             </div>
@@ -3202,7 +3346,7 @@ function ProformasTab({ companyId, onNewProforma }: { companyId: string; onNewPr
 
       {/* Detail Dialog */}
       <Dialog open={detailDialog.open} onOpenChange={(o) => setDetailDialog({ ...detailDialog, open: o })}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle de Proforma</DialogTitle>
             <DialogDescription>

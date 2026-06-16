@@ -27,6 +27,7 @@ class CuentaContableCreate(BaseModel):
     saldo_inicial: Decimal = Decimal("0")
     descripcion: str | None = None
     etiqueta: str | None = None
+    notas: str | None = None
     cuenta_contrapartida_id: str | None = None
 
 
@@ -42,6 +43,7 @@ class CuentaContableUpdate(BaseModel):
     saldo_inicial: Decimal | None = None
     descripcion: str | None = None
     etiqueta: str | None = None
+    notas: str | None = None
     cuenta_contrapartida_id: str | None = None
     is_active: bool | None = None
 
@@ -64,6 +66,7 @@ class CuentaContableResponse(BaseModel):
     total_creditos: Decimal
     descripcion: str | None = None
     etiqueta: str | None = None
+    notas: str | None = None
     cuenta_contrapartida_id: str | None = None
     is_active: bool
     created_at: datetime

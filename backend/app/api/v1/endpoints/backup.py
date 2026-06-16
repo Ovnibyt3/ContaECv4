@@ -89,7 +89,7 @@ async def create_backup_data(user_id: str, encryption_key: str) -> dict:
             products_data = result.scalars().all()
 
         backup = {
-            "version": "1.2.0",
+            "version": "5.0.0",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "user": {
                 "email": user.email,

@@ -131,23 +131,32 @@ async def list_warehouses(
     db: AsyncSession = Depends(get_db),
 ):
     """Listar almacenes de la empresa"""
-    query = (
-        select(Warehouse)
-        .join(Company, Warehouse.company_id == Company.id)
-        .where(Company.user_id == current_user.id)
-    )
+    try:
+        query = (
+            select(Warehouse)
+            .join(Company, Warehouse.company_id == Company.id)
+            .where(Company.user_id == current_user.id)
+        )
 
-    if company_id:
-        await _get_company_for_user(db, company_id, current_user.id)
-        query = query.where(Warehouse.company_id == company_id)
-    if is_active is not None:
-        query = query.where(Warehouse.is_active == is_active)
+        if company_id:
+            await _get_company_for_user(db, company_id, current_user.id)
+            query = query.where(Warehouse.company_id == company_id)
+        if is_active is not None:
+            query = query.where(Warehouse.is_active == is_active)
 
-    query = query.order_by(Warehouse.created_at.desc()).offset(skip).limit(limit)
+        query = query.order_by(Warehouse.created_at.desc()).offset(skip).limit(limit)
 
-    result = await db.execute(query)
-    warehouses = result.scalars().all()
-    return [WarehouseResponse.model_validate(w) for w in warehouses]
+        result = await db.execute(query)
+        warehouses = result.scalars().all()
+        return [WarehouseResponse.model_validate(w) for w in warehouses]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing warehouses: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al listar almacenes: {str(e)}",
+        )
 
 
 @router.post("", response_model=WarehouseResponse, status_code=status.HTTP_201_CREATED)

@@ -333,17 +333,17 @@ export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
 
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
+    if (!activeSesionId) {
+      toast.error('Primero crea una sesion de chat');
+      return;
+    }
     setSendingChat(true);
     try {
       const request: MLChatRequest = {
-        company_id: companyId,
-        sesion_id: activeSesionId || undefined,
+        sesion_id: activeSesionId,
         mensaje: chatInput.trim(),
       };
       const response = await sendMLChatMessage(request);
-      if (!activeSesionId) {
-        setActiveSesionId(response.sesion_id);
-      }
       setChatInput('');
       if (response.sesion_id) {
         loadMensajes(response.sesion_id);
@@ -676,6 +676,14 @@ export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
 
         {/* Tab: FRAUDE */}
         <TabsContent value="fraude" className="space-y-4">
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-sm text-muted-foreground">
+                Analisis de fraude: detecta transacciones inusuales comparando patrones historicos.
+                Alertas sobre montos atipicos, frecuencias anormales o cambios sospechosos.
+              </p>
+            </CardContent>
+          </Card>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Select value={filterSeveridad} onValueChange={(v) => setFilterSeveridad(v === 'all' ? '' : v)}>
@@ -1046,6 +1054,19 @@ export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
 
         {/* Tab: CATEGORIZACION */}
         <TabsContent value="categorizacion" className="space-y-4">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Patron Regex: expresion regular que busca coincidencias en la descripcion.
+                  Ejemplo: <code className="bg-muted px-1 rounded">.*SUPERMERCADO.*</code> para compras en supermercados
+                </p>
+                <p>
+                  Prioridad: 1 = maxima (se evalua primero), 10 = minima.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Reglas de Categorizacion</h3>
             <Button onClick={() => {
@@ -1266,7 +1287,7 @@ export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
 
       {/* Dialog: Prediccion Detail */}
       <Dialog open={showPrediccionDetail} onOpenChange={setShowPrediccionDetail}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle de Prediccion</DialogTitle>
             <DialogDescription>
@@ -1420,6 +1441,10 @@ export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
                 value={reglaForm.patron_regex || ''}
                 onChange={(e) => setReglaForm({ ...reglaForm, patron_regex: e.target.value })}
               />
+              <p className="text-xs text-muted-foreground">
+                Patron Regex: expresion regular que busca coincidencias en la descripcion.
+                Ejemplo: <code className="bg-muted px-1 rounded">.*SUPERMERCADO.*</code> para compras en supermercados
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Prioridad</Label>
@@ -1430,6 +1455,9 @@ export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
                 value={reglaForm.prioridad || 1}
                 onChange={(e) => setReglaForm({ ...reglaForm, prioridad: parseInt(e.target.value) || 1 })}
               />
+              <p className="text-xs text-muted-foreground">
+                Prioridad: 1 = maxima (se evalua primero), 10 = minima.
+              </p>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-4">

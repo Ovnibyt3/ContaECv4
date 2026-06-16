@@ -221,7 +221,7 @@ function PlanCuentasTab({ companyId, onRefresh }: { companyId: string; onRefresh
   const [seeding, setSeeding] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<CuentaContableCreate>({
-    codigo: '', nombre: '', tipo: 'activo', naturaleza: 'deudora', nivel: 1, es_cuenta_movimiento: true, es_imputable: true, saldo_inicial: 0,
+    codigo: '', nombre: '', tipo: 'activo', naturaleza: 'deudora', nivel: 1, es_cuenta_movimiento: true, es_imputable: true, saldo_inicial: 0, notas: '',
   });
 
   const loadData = useCallback(async () => {
@@ -259,7 +259,7 @@ function PlanCuentasTab({ companyId, onRefresh }: { companyId: string; onRefresh
       await createCuentaContable(form, companyId);
       toast({ title: 'Cuenta creada', description: `${form.codigo} - ${form.nombre}` });
       setShowCreate(false);
-      setForm({ codigo: '', nombre: '', tipo: 'activo', naturaleza: 'deudora', nivel: 1, es_cuenta_movimiento: true, es_imputable: true, saldo_inicial: 0 });
+      setForm({ codigo: '', nombre: '', tipo: 'activo', naturaleza: 'deudora', nivel: 1, es_cuenta_movimiento: true, es_imputable: true, saldo_inicial: 0, notas: '' });
       loadData();
       onRefresh();
     } catch (err) {
@@ -321,7 +321,7 @@ function PlanCuentasTab({ companyId, onRefresh }: { companyId: string; onRefresh
                 </thead>
                 <tbody>
                   {cuentas.map(c => (
-                    <tr key={c.id} className="border-t hover:bg-muted/30">
+                    <tr key={c.id} className="border-t hover:bg-muted/30 cursor-pointer" onClick={() => { setForm({ codigo: c.codigo, nombre: c.nombre, tipo: c.tipo, naturaleza: c.naturaleza, nivel: c.nivel, es_cuenta_movimiento: c.es_cuenta_movimiento, es_imputable: c.es_imputable, saldo_inicial: c.saldo_inicial, notas: c.notas || '', descripcion: c.descripcion }); setShowCreate(true); }}>
                       <td className="px-4 py-2 font-mono text-xs">{c.codigo}</td>
                       <td className="px-4 py-2">{c.nombre}</td>
                       <td className="px-4 py-2"><Badge className={tipoCuentaColor(c.tipo)}>{c.tipo}</Badge></td>
@@ -329,7 +329,7 @@ function PlanCuentasTab({ companyId, onRefresh }: { companyId: string; onRefresh
                       <td className="px-4 py-2 text-center">{c.nivel}</td>
                       <td className="px-4 py-2 text-right font-mono text-xs">{fmtMoney(c.saldo_actual)}</td>
                       <td className="px-4 py-2 text-right">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(c.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </td>
                     </tr>
                   ))}
@@ -350,7 +350,7 @@ function PlanCuentasTab({ companyId, onRefresh }: { companyId: string; onRefresh
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nueva Cuenta Contable</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -377,6 +377,8 @@ function PlanCuentasTab({ companyId, onRefresh }: { companyId: string; onRefresh
                 </Select>
               </div>
             </div>
+            <div className="space-y-2"><Label>Descripción</Label><Input value={form.descripcion || ''} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="Descripción de la cuenta" /></div>
+            <div className="space-y-2"><Label>Notas</Label><textarea className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} placeholder="Notas adicionales..." /></div>
             <div className="space-y-2"><Label>Saldo Inicial</Label><Input type="number" value={form.saldo_inicial || 0} onChange={e => setForm({ ...form, saldo_inicial: Number(e.target.value) })} /></div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>

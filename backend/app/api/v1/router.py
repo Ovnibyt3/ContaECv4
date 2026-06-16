@@ -4,7 +4,7 @@ Agrupa todos los endpoints de la versión 1
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, admin, companies, config, licenses, backup, uploads, comprobantes, products, clients, proformas, audit, email_templates, email_receiver, smtp_profiles, suppliers, purchases, warehouses, ubicaciones, pos, bi, budgets, projects, integrations, ml_ai, accounting, notifications, user_roles, crm, cuentas_pagar
+from app.api.v1.endpoints import auth, admin, companies, config, licenses, backup, uploads, comprobantes, products, clients, proformas, audit, email_templates, email_receiver, smtp_profiles, suppliers, purchases, warehouses, ubicaciones, pos, bi, budgets, projects, integrations, ml_ai, accounting, notifications, user_roles, crm, cuentas_pagar, employees, payroll, exports, imports, kardex
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -97,3 +97,18 @@ api_router.include_router(crm.router)
 
 # Cuentas por Pagar (gestión de pagos, renegociación, exportación)
 api_router.include_router(cuentas_pagar.router)
+
+# Empleados (RRHH)
+api_router.include_router(employees.router)
+
+# Nómina / Rol de Pago
+api_router.include_router(payroll.router)
+
+# Exportaciones
+api_router.include_router(exports.router)
+
+# Importaciones
+api_router.include_router(imports.router)
+
+# Kardex
+api_router.include_router(kardex.router)

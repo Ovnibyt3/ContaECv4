@@ -103,57 +103,66 @@ async def open_cash_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Abrir una nueva sesión de caja"""
-    await _get_company_for_user(db, data.company_id, current_user.id)
+    try:
+        await _get_company_for_user(db, data.company_id, current_user.id)
 
-    # Verificar que no haya otra sesión abierta para la misma caja
-    existing = await db.execute(
-        select(POSCashSession).where(
-            POSCashSession.company_id == data.company_id,
-            POSCashSession.numero_caja == data.numero_caja,
-            POSCashSession.estado == CajaEstado.ABIERTA.value,
+        # Verificar que no haya otra sesión abierta para la misma caja
+        existing = await db.execute(
+            select(POSCashSession).where(
+                POSCashSession.company_id == data.company_id,
+                POSCashSession.numero_caja == data.numero_caja,
+                POSCashSession.estado == CajaEstado.ABIERTA.value,
+            )
         )
-    )
-    if existing.scalars().first():
+        if existing.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Ya existe una sesión abierta para la caja '{data.numero_caja}'.",
+            )
+
+        # Verificar almacén si se proporciona
+        if data.warehouse_id:
+            wh_result = await db.execute(
+                select(Warehouse).where(
+                    Warehouse.id == data.warehouse_id,
+                    Warehouse.company_id == data.company_id,
+                    Warehouse.is_active == True,
+                )
+            )
+            if not wh_result.scalars().first():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Almacén no encontrado o no pertenece a la empresa.",
+                )
+
+        session = POSCashSession(
+            company_id=data.company_id,
+            warehouse_id=data.warehouse_id,
+            numero_caja=data.numero_caja,
+            user_id=current_user.id,
+            estado=CajaEstado.ABIERTA.value,
+            fecha_apertura=datetime.now(timezone.utc),
+            monto_apertura=data.monto_apertura,
+        )
+        db.add(session)
+        await db.flush()
+
+        await log_action(
+            db=db, user_id=current_user.id, user_email=current_user.email,
+            action="CREATE", entity_type="pos_cash_session", entity_id=session.id,
+            description=f"Sesión de caja abierta: {data.numero_caja} con USD {data.monto_apertura}",
+            ip_address=request.client.host if request.client else None,
+        )
+
+        return POSCashSessionResponse.model_validate(session)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error opening POS session: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Ya existe una sesión abierta para la caja '{data.numero_caja}'.",
+            detail=f"Error al abrir la sesión de caja: {str(e)}",
         )
-
-    # Verificar almacén si se proporciona
-    if data.warehouse_id:
-        wh_result = await db.execute(
-            select(Warehouse).where(
-                Warehouse.id == data.warehouse_id,
-                Warehouse.company_id == data.company_id,
-                Warehouse.is_active == True,
-            )
-        )
-        if not wh_result.scalars().first():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Almacén no encontrado o no pertenece a la empresa.",
-            )
-
-    session = POSCashSession(
-        company_id=data.company_id,
-        warehouse_id=data.warehouse_id,
-        numero_caja=data.numero_caja,
-        user_id=current_user.id,
-        estado=CajaEstado.ABIERTA.value,
-        fecha_apertura=datetime.now(timezone.utc),
-        monto_apertura=data.monto_apertura,
-    )
-    db.add(session)
-    await db.flush()
-
-    await log_action(
-        db=db, user_id=current_user.id, user_email=current_user.email,
-        action="CREATE", entity_type="pos_cash_session", entity_id=session.id,
-        description=f"Sesión de caja abierta: {data.numero_caja} con USD {data.monto_apertura}",
-        ip_address=request.client.host if request.client else None,
-    )
-
-    return POSCashSessionResponse.model_validate(session)
 
 
 @router.get("/sessions", response_model=list[POSCashSessionResponse])
