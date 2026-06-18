@@ -356,7 +356,7 @@ function PipelineTab({ companyId }: { companyId: string }) {
                       )}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold">{formatCurrency(opp.valor_estimado ?? 0)}</span>
-                        <span className="text-xs text-muted-foreground">{opp.probabilidad}%</span>
+                        <span className="text-xs text-muted-foreground">{opp.probability}%</span>
                       </div>
                       <div className="flex gap-1 pt-1">
                         {ETAPAS_PIPELINE.filter((e) => e.key !== stage.key).slice(0, 3).map((e) => (
