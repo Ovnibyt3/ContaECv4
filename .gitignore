@@ -60,3 +60,4 @@ server.log
 .qwen/settings.json.orig
 .qwen/skills/
 .qwen/skills/**/*
+.blackboxcli/

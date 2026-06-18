@@ -285,7 +285,7 @@ function PipelineTab({ companyId }: { companyId: string }) {
   const pipelineStages = ETAPAS_PIPELINE.map((etapa) => ({
     ...etapa,
     opportunities: opportunities.filter((o) => o.etapa === etapa.key),
-    totalValue: opportunities.filter((o) => o.etapa === etapa.key).reduce((sum, o) => sum + o.valor_estimado, 0),
+    totalValue: opportunities.filter((o) => o.etapa === etapa.key).reduce((sum, o) => sum + (o.valor_estimado ?? 0), 0),
   }));
 
   return (
@@ -355,7 +355,7 @@ function PipelineTab({ companyId }: { companyId: string }) {
                         <p className="text-xs text-muted-foreground">{opp.cliente_razon_social}</p>
                       )}
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">{formatCurrency(opp.valor_estimado)}</span>
+                        <span className="text-sm font-semibold">{formatCurrency(opp.valor_estimado ?? 0)}</span>
                         <span className="text-xs text-muted-foreground">{opp.probabilidad}%</span>
                       </div>
                       <div className="flex gap-1 pt-1">
