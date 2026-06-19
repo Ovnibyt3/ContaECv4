@@ -564,6 +564,8 @@ sudo systemctl status clamav-freshclam
 # o usar socket Unix:
 # LocalSocket /var/run/clamav/clamd.ctl
 ```
+
+```bash
 ### 4.11 Creacion de symlink
 ln -sf /opt/contaec/backend/uploads /opt/contaec/public/uploads
 ls -la /opt/contaec/public/
