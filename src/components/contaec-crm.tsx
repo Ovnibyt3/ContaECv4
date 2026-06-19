@@ -810,7 +810,7 @@ function ActividadesTab({ companyId }: { companyId: string }) {
                       <TableCell>{getActividadTipoBadge(act.tipo)}</TableCell>
                       <TableCell className="font-medium">{act.asunto}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{act.descripcion || '-'}</TableCell>
-                      <TableCell className="text-sm">{formatDate(act.fecha_actividad)}</TableCell>
+                      <TableCell className="text-sm">{formatDate(act.fecha_actividad ?? null)}</TableCell>
                       <TableCell>{getActividadBadge(act.estado)}</TableCell>
                       <TableCell className="text-sm">{act.oportunidad_titulo || '-'}</TableCell>
                       <TableCell className="text-right">
@@ -978,6 +978,7 @@ function AutomatizacionesTab({ companyId }: { companyId: string }) {
         nombre: a.name,
         evento_disparador: a.trigger_type,
         condiciones: a.trigger_conditions,
+        acciones: a.actions,
         ejecuciones_count: a.trigger_count,
         ultima_ejecucion: a.last_triggered_at,
       }));
@@ -1056,8 +1057,7 @@ function AutomatizacionesTab({ companyId }: { companyId: string }) {
                       <TableCell className="font-medium">{auto.nombre}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          {TRIGGERS[auto.evento_disparador] || auto.evento_disparador}
-                        </Badge>
+                          {auto.evento_disparador ? TRIGGERS[auto.evento_disparador] || auto.evento_disparador : '-'}</Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{auto.acciones}</TableCell>
                       <TableCell className="text-center">{auto.ejecuciones_count}</TableCell>
