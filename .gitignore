@@ -55,9 +55,4 @@ prompt
 server.log
 # Skills directory
 /skills/
-.qwen/*
-.qwen/settings.json
-.qwen/settings.json.orig
-.qwen/skills/
-.qwen/skills/**/*
-.blackboxcli/
+CLAUDE.md
