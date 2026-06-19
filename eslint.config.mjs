@@ -6,9 +6,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// eslint-config-next exports are CommonJS, so we need to access the config property
-const coreWebVitalsConfig = nextCoreWebVitals.config || nextCoreWebVitals;
-const typescriptConfig = nextTypescript.config || nextTypescript;
+// eslint-config-next with ESM exports the config array directly
+const coreWebVitalsConfig = nextCoreWebVitals;
+const typescriptConfig = nextTypescript;
 
 const eslintConfig = [...coreWebVitalsConfig, ...typescriptConfig, {
   rules: {
