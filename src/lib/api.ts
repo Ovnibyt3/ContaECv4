@@ -2839,6 +2839,7 @@ interface CRMAutomation {
   nombre?: string;
   evento_disparador?: string;
   condiciones?: string | null;
+  acciones?: string;
   ejecuciones_count?: number;
   ultima_ejecucion?: string | null;
 }
