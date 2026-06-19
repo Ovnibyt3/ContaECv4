@@ -314,7 +314,7 @@ async function deleteCompany(id: string): Promise<void> {
 }
 
 // Company config (per-company settings)
-interface CompanyConfig {
+export interface CompanyConfig {
   id: string;
   ruc: string;
   razon_social: string;

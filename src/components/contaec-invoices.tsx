@@ -2592,8 +2592,8 @@ function ProductosTab({ companyId }: { companyId: string }) {
                 <Select
                   value={form.ice_codigo || ''}
                   onValueChange={(v) => {
-                    setForm({ ...form, ice_codigo: v || null });
-                    if (!v) setForm({ ...form, ice_codigo: null, valor_ice_unitario: 0 });
+                    setForm({ ...form, ice_codigo: v === '' ? undefined : v });
+                    if (!v) setForm({ ...form, ice_codigo: undefined, valor_ice_unitario: 0 });
                   }}
                 >
                   <SelectTrigger>
