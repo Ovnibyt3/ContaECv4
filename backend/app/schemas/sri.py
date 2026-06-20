@@ -19,6 +19,55 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# ==========================================
+# Esquemas de tipos de contribuyente y régimen
+# (Deben ir ANTES de las funciones que los usan)
+# ==========================================
+
+class ContribuyenteTipo(BaseModel):
+    """
+    Tipo de contribuyente según clasificación del SRI.
+    Determina las obligaciones tributarias del contribuyente.
+    """
+    codigo: str = Field(..., description="Código del tipo de contribuyente")
+    nombre: str = Field(..., description="Nombre del tipo de contribuyente")
+    descripcion: str = Field(..., description="Descripción detallada del tipo de contribuyente")
+    obligaciones: list[str] = Field(
+        default_factory=list,
+        description="Lista de obligaciones tributarias asociadas",
+    )
+    umbral_ingresos: Decimal | None = Field(
+        None,
+        description="Umbral de ingresos anuales en USD (si aplica)",
+    )
+
+
+class RegimenTipo(BaseModel):
+    """
+    Tipo de régimen tributario según clasificación del SRI.
+    Determina el régimen impositivo aplicable al contribuyente.
+    """
+    codigo: str = Field(..., description="Código del régimen tributario")
+    nombre: str = Field(..., description="Nombre del régimen tributario")
+    descripcion: str = Field(..., description="Descripción detallada del régimen")
+    declaraciones_requeridas: list[str] = Field(
+        default_factory=list,
+        description="Declaraciones que debe presentar",
+    )
+    umbral_ingresos_minimo: Decimal | None = Field(
+        None,
+        description="Umbral mínimo de ingresos anuales en USD",
+    )
+    umbral_ingresos_maximo: Decimal | None = Field(
+        None,
+        description="Umbral máximo de ingresos anuales en USD",
+    )
+
+
+# ==========================================
+# Funciones helper de contribuyente y régimen
+# ==========================================
+
 def get_contribuyente_by_codigo(codigo: str) -> ContribuyenteTipo | None:
     """
     Obtiene información de un tipo de contribuyente por su código.
@@ -501,46 +550,6 @@ ESTADOS_COMPROBANTE: list[EstadoComprobante] = [
     EstadoComprobante(siglas="ANU", nombre="Anulado - Comprobante anulado por el emisor"),
     EstadoComprobante(siglas="CON", nombre="Contingencia - Comprobante generado en modo contingencia"),
 ]
-
-class ContribuyenteTipo(BaseModel):
-    """
-    Tipo de contribuyente según clasificación del SRI.
-    Determina las obligaciones tributarias del contribuyente.
-    """
-    codigo: str = Field(..., description="Código del tipo de contribuyente")
-    nombre: str = Field(..., description="Nombre del tipo de contribuyente")
-    descripcion: str = Field(..., description="Descripción detallada del tipo de contribuyente")
-    obligaciones: list[str] = Field(
-        default_factory=list,
-        description="Lista de obligaciones tributarias asociadas",
-    )
-    umbral_ingresos: Decimal | None = Field(
-        None,
-        description="Umbral de ingresos anuales en USD (si aplica)",
-    )
-
-
-class RegimenTipo(BaseModel):
-    """
-    Tipo de régimen tributario según clasificación del SRI.
-    Determina el régimen impositivo aplicable al contribuyente.
-    """
-    codigo: str = Field(..., description="Código del régimen tributario")
-    nombre: str = Field(..., description="Nombre del régimen tributario")
-    descripcion: str = Field(..., description="Descripción detallada del régimen")
-    declaraciones_requeridas: list[str] = Field(
-        default_factory=list,
-        description="Declaraciones que debe presentar",
-    )
-    umbral_ingresos_minimo: Decimal | None = Field(
-        None,
-        description="Umbral mínimo de ingresos anuales en USD",
-    )
-    umbral_ingresos_maximo: Decimal | None = Field(
-        None,
-        description="Umbral máximo de ingresos anuales en USD",
-    )
-
 
 # ==========================================
 # Datos completos de catálogos del SRI
