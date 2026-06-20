@@ -166,6 +166,29 @@ sudo systemctl status postgresql@17-main
 sudo ss -tlnp | grep 5432
 pg_isready -h localhost -p 5432
 
+# Configurar permanentemente en /etc/environment
+sudo nano /etc/environment
+# Agregar estas lineas
+LANG=C.UTF-8
+LC_ALL=C.UTF-8
+LANGUAGE=C.UTF-8
+
+# Aplicar
+source /etc/environment
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+locale
+
+# Verifica que ya no aparezca el error
+perl -v
+
+# Generar el locale
+sudo locale-gen es_EC.UTF-8
+# Reconfigurar locales
+sudo dpkg-reconfigure locales
+# Selecciona es_EC.UTF-8 como default
+locale -a | grep es_EC
+
 # Comando para instalar es_EC.UTF-8 
 # 1. Instalar el paquete locales
 sudo apt-get install locales
@@ -1522,7 +1545,7 @@ systemctl restart contaec-backend contaec-frontend
 | Componentes React | 70+ dominio + 45 UI (+1 email-template-editor, +1 bi-dashboard, +1 budgets, +1 crm, +1 projects, +1 integrations, +1 ml-ai) |
 | Funciones API (frontend) | ~400 |
 | Tipos TypeScript | ~210 |
-| Traducciones i18n | ~130 keys × 3 idiomas |
+| Traducciones i18n | ~350 keys × 3 idiomas (next-intl) |
 | Librerías Python | 27 |
 | Módulos Core | 17 (+2 en Fase 1: payroll_calculations.py, ir_calculation.py) |
 | Fases Completadas | 13/13 ✅ (Fase 0-13 completas per Plan_Maestro.md) |
@@ -1531,3 +1554,207 @@ systemctl restart contaec-backend contaec-frontend
 
 **ContaEC** - Sistema Contable y Facturación Electrónica del Ecuador  
 © 2024 T&M Technology Ec | info@tymtechnology.shop | 0960068866
+
+---
+
+## Migración a next-intl (Internacionalización)
+
+El sistema utiliza **next-intl v3** para la gestión de traducciones. Esta sección describe la configuración y migración desde el i18n customizado.
+
+### Archivos de Configuración
+
+| Archivo | Propósito |
+|---------|-----------|
+| `messages/es.json` | Traducciones en español (350+ keys) |
+| `messages/en.json` | Traducciones en inglés |
+| `messages/pt.json` | Traducciones en portugués |
+| `src/i18n.ts` | Configuración `getRequestConfig` de next-intl |
+| `src/i18n-config.ts` | Configuración de locales y helpers |
+| `src/middleware.ts` | Middleware para detección de idioma |
+| `src/app/layout.tsx` | `NextIntlClientProvider` envolviendo la app |
+| `next-intl.config.ts` | Plugin de next-intl para Next.js |
+| `next.config.ts` | Integrado con `withNextIntl` |
+| `package.json` | Dependencia `next-intl@^3.26.0` |
+
+### Locales Soportados
+
+| Código | Nombre | Default |
+|--------|--------|---------|
+| `es` | Español (Ecuador) | ✅ |
+| `en` | English (US) | |
+| `pt` | Português (Brasil) | |
+
+### URL Structure
+
+```
+https://conta.tymtechnology.shop/           # → Redirige a /es (default)
+https://conta.tymtechnology.shop/es/        # Español
+https://conta.tymtechnology.shop/en/        # English
+https://conta.tymtechnology.shop/pt/        # Portuguese
+```
+
+### Instalación en Producción
+
+```bash
+cd /opt/contaec
+bun install              # Instala next-intl automáticamente
+bun run build            # Build de producción
+systemctl restart contaec-frontend
+```
+
+### Migración de Componentes
+
+**Patrón para actualizar componentes que usan traducciones:**
+
+```typescript
+// ANTES (i18n customizado - OBSOLETO)
+import { useI18n } from '@/lib/i18n-context';
+const { t } = useI18n();
+t('nav.dashboard')
+
+// AHORA (next-intl)
+import { useTranslations } from 'next-intl';
+const t = useTranslations('Navigation');
+t('dashboard')
+```
+
+**Ejemplo completo - Componente Cliente:**
+
+```typescript
+'use client';
+import { useTranslations } from 'next-intl';
+
+export function DashboardWelcome() {
+  const t = useTranslations('Dashboard');
+  
+  return (
+    <div>
+      <h1>{t('welcome')}</h1>
+      <p>{t('companies')}</p>
+      <span>{t('days_remaining', { days: 5 })}</span>
+    </div>
+  );
+}
+```
+
+**Ejemplo - Componente Servidor:**
+
+```typescript
+import { getTranslations } from 'next-intl/server';
+
+export default async function Dashboard() {
+  const t = await getTranslations('Navigation');
+  
+  return <h1>{t('dashboard')}</h1>;
+}
+```
+
+### Interpolación de Variables
+
+```typescript
+// messages/es.json
+{
+  "Dashboard": {
+    "days_remaining": "{days} días restantes"
+  }
+}
+
+// Componente
+t('days_remaining', { days: 5 })  // "5 días restantes"
+```
+
+### Formateo de Fechas y Números
+
+```typescript
+import { useTranslations, useTimeZone } from 'next-intl';
+
+export function FechaContable({ fecha, monto }) {
+  const t = useTranslations();
+  const timeZone = useTimeZone();
+  
+  return (
+    <div>
+      {/* Fecha formateada */}
+      <span>{t.formatDate(fecha, { timeZone })}</span>
+      
+      {/* Número como moneda */}
+      <span>{t.formatNumber(monto, { style: 'currency', currency: 'USD' })}</span>
+    </div>
+  );
+}
+```
+
+### Selector de Idioma
+
+```typescript
+'use client';
+import { useLocale } from 'next-intl';
+import { locales, localeNames } from '@/i18n-config';
+import { usePathname, useRouter } from 'next/navigation';
+
+export function LocaleSwitcher() {
+  const locale = useLocale();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  function handleLocaleChange(newLocale: string) {
+    const newPath = pathname.replace(/^\/[a-z]{2}/, `/${newLocale}`);
+    router.push(newPath);
+  }
+
+  return (
+    <Select value={locale} onValueChange={handleLocaleChange}>
+      {locales.map((loc) => (
+        <SelectItem key={loc} value={loc}>
+          {localeNames[loc]}
+        </SelectItem>
+      ))}
+    </Select>
+  );
+}
+```
+
+### Archivos Obsoletos (Eliminar después de migrar)
+
+Después de actualizar todos los componentes:
+
+```bash
+rm src/lib/i18n.ts              # 1097 líneas - traducciones hardcodeadas
+rm src/lib/i18n-context.tsx     # Contexto React customizado
+```
+
+### Comandos Útiles
+
+```bash
+# Buscar componentes que necesitan migración
+grep -r "useI18n" src/components/ --include="*.tsx"
+
+# Verificar instalación
+bun list next-intl
+
+# Build de producción
+bun run build
+```
+
+### Solución de Problemas
+
+| Error | Solución |
+|-------|----------|
+| `Module not found: next-intl` | Ejecutar `bun install` |
+| `Messages not loaded` | Verificar `NextIntlClientProvider` en layout.tsx |
+| `Locale segment not found` | El middleware requiere `/es/`, `/en/`, `/pt/` en las rutas |
+| Traducciones no actualizadas | Ejecutar `bun run build` y reiniciar frontend |
+
+### Helper para Códigos Legacy
+
+Si necesitas compatibilidad con códigos legacy (es_EC, en_US, pt_BR):
+
+```typescript
+import { legacyToNextIntl, nextIntlToLegacy } from '@/i18n-config';
+
+// Convertir de legacy a next-intl
+const newLocale = legacyToNextIntl('es_EC'); // retorna 'es'
+
+// Convertir de next-intl a legacy (para API calls, DB, etc.)
+const legacyCode = nextIntlToLegacy('es'); // retorna 'es_EC'
+```

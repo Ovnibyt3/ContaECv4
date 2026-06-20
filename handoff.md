@@ -1,25 +1,17 @@
 # Handoff Document - ContaECv4
 
-**Fecha:** 2026-06-19  
+**Fecha:** 2026-06-20  
 **Autor:** Claude Code  
-**Sesión:** Continuación de context window anterior (FASE 11-13 validación)
+**Sesión:** Continuación - Migración a next-intl
 
 ---
 
 ## Objetivo Principal
 
-Revisar y confirmar el estado de los errores reportados en `errores.md` (715 líneas de errores documentados por el usuario) y aplicar correcciones donde sea posible.
+Completar la migración del sistema i18n customizado a **next-intl v3**, configurando todos los archivos necesarios para instalación en producción SIN instalar dependencias localmente.
 
-El archivo original contiene errores de:
-- Contabilidad (404 en endpoints)
-- IA/ML (500/422 en chatbot y categorización)
-- Integraciones (500 en bank/accounts y ecommerce/connectors)
-- CRM (400/422 en leads, oportunidades, actividades, segmentos, automatizaciones)
-- POS (500 en sessions)
-- Presupuestos (500)
-- RRHH (404 en employees, payroll)
-- Productos/Clientes/Proveedores (500 al cargar)
-- UI/UX (textarea oculta botones)
+El usuario especificó explícitamente:
+> "acaba la migracion a next-intl en lugar de i18n, pero no instales nada en este computador solo configura los archivos para que se pueda instalar en produccion"
 
 ---
 
@@ -27,38 +19,34 @@ El archivo original contiene errores de:
 
 ### ✅ Completado
 
-1. **Validación de endpoints backend** - Todos los endpoints principales existen:
-   - Contabilidad: `accounting.py` con cueroas-contables, cueas-por-cobrar, pagos, periodos-fiscales
-   - ML/IA: `ml_ai.py` con chatbot/sessions, chatbot/chat, categorize/rules
-   - Integraciones: `integrations.py` con bank/accounts, ecommerce/connectors
-   - CRM: `crm.py` con leads, opportunities, activities, segments, automations
-   - POS: `pos.py` con sessions
-   - Presupuestos: `budgets.py` con endpoints CRUD
-   - RRHH: `employees.py`, `payroll.py` con endpoints
+1. **Archivos de traducción creados:**
+   - `messages/es.json` - 350+ keys en español
+   - `messages/en.json` - Traducciones en inglés
+   - `messages/pt.json` - Traducciones en portugués
 
-2. **CRM - Todos los errores de validación corregidos:**
-   - Segmentos: JSON parsing + validación implementada
-   - Automatizaciones: JSON parsing para condiciones y acciones
-   - Textarea: scrollbar aplicado (`max-h-40 overflow-y-auto`)
-   - Help text: ejemplos claros agregados
+2. **Configuración next-intl implementada:**
+   - `next-intl.config.ts` - Plugin configuration
+   - `src/i18n.ts` - getRequestConfig setup
+   - `src/i18n-config.ts` - Locales, helpers, conversión legacy
+   - `src/middleware.ts` - Detección de idioma (URL, cookie, header)
+   - `src/app/layout.tsx` - NextIntlClientProvider con getLocale/getMessages
+   - `src/lib/i18n-provider.tsx` - Proveedor opcional
+   - `next.config.ts` - Integrado con withNextIntl
+   - `package.json` - next-intl@^3.26.0 agregado
 
-3. **Documentación generada:**
-   - `ESTADO_ERRORES.md` - Análisis completo de 15 categorías de errores
-   - Este archivo `handoff.md` - Estado y próximos pasos
+3. **Documentación:**
+   - `README.md` - Sección completa "Migración a next-intl" agregada
+   - Archivos `.md` temporales eliminados (MIGRACION_NEXT_INTL.md, INSTALL_NEXT_INTL.md)
 
-### ⚠️ Pendiente (Requiere Acción)
+### 📋 Pendiente (Para producción)
 
-| Módulo | Error | Causa Probable | Acción Requerida |
-|--------|-------|----------------|------------------|
-| RRHH | 404 en `/api/v1/employees`, `/payroll/generate` | Frontend path incorrecto | Revisar `src/components/contaec-hr.tsx` o similar |
-| Productos | 500 en `GET /products` después de POST | Error serialización o company_id | Revisar logs: `journalctl -u contaec-backend -f` |
-| Clientes | 500 en `GET /clients` | Error serialización o company_id | Revisar logs |
-| Proveedores | 500 en `GET /suppliers` | Error serialización o company_id | Revisar logs |
-| POS | 500 en `POST /pos/sessions` | Validación de datos faltante | Revisar logs + schema POS |
-| Presupuestos | 500 en `POST /budgets` | Validación de cuentas fallando | Revisar logs + schema budget |
-| Integraciones | 500 en bank/accounts, ecommerce/connectors | Error en creación o test de conexión | Revisar logs + credenciales |
-| Licencias | No implementado | Sistema no existe | Desarrollo nuevo requerido |
-| IESS | Cálculo automático no implementado | Flujo manual vs automático | Buscar porcentajes SRI 2026 |
+| Tarea | Comando/Acción | Prioridad |
+|-------|----------------|-----------|
+| Instalar dependencias | `cd /opt/contaec && bun install` | 🔥 Alta |
+| Build producción | `bun run build` | 🔥 Alta |
+| Reiniciar frontend | `systemctl restart contaec-frontend` | 🔥 Alta |
+| Migrar componentes | Actualizar `useI18n()` → `useTranslations()` | Media |
+| Eliminar archivos obsoletos | `rm src/lib/i18n.ts`, `rm src/lib/i18n-context.tsx` | Baja |
 
 ---
 
@@ -68,41 +56,31 @@ El archivo original contiene errores de:
 
 | Archivo | Cambios | Líneas ~ |
 |---------|---------|----------|
-| `src/components/contaec-crm.tsx` | 6 edits aplicados | 1800+ |
-
-**Cambios específicos en `contaec-crm.tsx`:**
-
-1. **CreateSegmentDialog** (líneas ~1544-1622):
-   - Agregado JSON parsing para `rules` con try/catch
-   - Mensaje de error claro si JSON inválido
-   - Help text para Tipo de segmento
-
-2. **CreateAutomationDialog** (líneas ~1624-1720):
-   - Agregado JSON parsing para `trigger_conditions`
-   - Agregado JSON parsing para `actions`
-   - Mensajes de error con ejemplos prácticos
-
-3. **Textarea updates** (6 componentes):
-   - `CreateLeadDialog` - Notas textarea
-   - `EditLeadDialog` - Notas textarea
-   - `CreateOpportunityDialog` - Descripción textarea
-   - `EditOpportunityDialog` - Descripción textarea
-   - `CreateActivityDialog` - Descripción textarea
-   - `CreateSegmentDialog` - Descripción textarea
-   - Todos: `className="overflow-y-auto max-h-40"`
-
-4. **Help text improvements**:
-   - Segmentos Tipo: explicación de cada opción
-   - Reglas JSON placeholder: ejemplo concreto
-   - Condiciones JSON placeholder: ejemplo concreto
-   - Acciones JSON placeholder: ejemplo concreto
+| `src/app/layout.tsx` | NextIntlClientProvider + getLocale/getMessages | +15 líneas |
+| `next.config.ts` | withNextIntl integration | +4 líneas |
+| `package.json` | next-intl@^3.26.0 dependency | +1 línea |
+| `README.md` | Sección next-intl completa | +200 líneas |
 
 ### Creados
 
-| Archivo | Propósito |
-|---------|-----------|
-| `ESTADO_ERRORES.md` | Análisis completo de errores (15 categorías) |
-| `handoff.md` | Este documento - estado y próximos pasos |
+| Archivo | Propósito | Líneas ~ |
+|---------|-----------|----------|
+| `messages/es.json` | Traducciones español (350+ keys) | 364 |
+| `messages/en.json` | Traducciones inglés | 364 |
+| `messages/pt.json` | Traducciones portugués | 364 |
+| `next-intl.config.ts` | Plugin configuration | 8 |
+| `src/i18n.ts` | getRequestConfig + timeZone + formats | 35 |
+| `src/i18n-config.ts` | Locales, helpers legacy↔next-intl | 45 |
+| `src/middleware.ts` | Locale detection middleware | 35 |
+| `src/lib/i18n-provider.tsx` | I18nProvider opcional | 50 |
+| `handoff.md` | Este documento | - |
+
+### Eliminados
+
+| Archivo | Razón |
+|---------|-------|
+| `MIGRACION_NEXT_INTL.md` | Contenido movido a README.md |
+| `INSTALL_NEXT_INTL.md` | Contenido movido a README.md |
 
 ---
 
@@ -110,193 +88,164 @@ El archivo original contiene errores de:
 
 ### Exitoso
 
-1. **Verificación de endpoints backend** - Grep en todos los `endpoints/*.py` confirmó que las rutas existen
-2. **Comparación frontend vs backend schemas** - Los campos requeridos coinciden
-3. **Fix de validación JSON** - Los dialogs ahora parsean antes de enviar
-4. **Fix de UI scrollbar** - Textarea con `max-h-40 overflow-y-auto`
+1. **Migración completa de configuración** - Todos los archivos next-intl configurados
+2. **Traducciones migradas** - 350+ keys de i18n.ts convertidas a formato namespaced JSON
+3. **Layout actualizado** - async Server Component con NextIntlClientProvider
+4. **Middleware configurado** - Detección automática de locale (URL, cookie, Accept-Language)
+5. **Documentación consolidada** - Todo en README.md como solicitó el usuario
 
-### Fallido / No Completado
+### Patrón de Migración Documentado
 
-1. **Test en vivo** - No se puede testear contra producción sin credenciales
-2. **Revisión de logs** - Requiere acceso SSH al servidor
-3. **Fix de RRHH 404** - No encontré el archivo frontend `contaec-hr.tsx` o similar
-4. **Fix de Productos/Clientes 500** - Requiere ver logs del backend
+```typescript
+// ANTES (OBSOLETO)
+import { useI18n } from '@/lib/i18n-context';
+const { t } = useI18n();
+t('nav.dashboard')
+
+// AHORA (next-intl)
+import { useTranslations } from 'next-intl';
+const t = useTranslations('Navigation');
+t('dashboard')
+```
 
 ---
 
-## Patrones Identificados
+## Fallos / Rechazos
 
-### Errores 404 (Frontend → Backend path mismatch)
-
-```
-Frontend llama: /api/v1/accounting/cuentas-contables
-Backend espera: /api/v1/accounting/cuentas-contables ✅ (existe)
-```
-
-**Causa:** Probablemente:
-- Token expirado (401 → 404 en algunos casos)
-- company_id no pasado como query param
-- Caché del navegador
-
-### Errores 422 (Validación Pydantic)
-
-```
-Error: "Field required"
-Causa: Campos obligatorios no enviados
-Solución: ✅ Aplicada en CRM - frontend ahora envía todos los fields
-```
-
-### Errores 500 (Internal Server Error)
-
-```
-POST /api/v1/products → 201 creado
-GET /api/v1/products → 500 error
-```
-
-**Causa probable:**
-- Error en serialización de respuesta (algun campo del modelo)
-- company_id filtering fallando
-- Relación con otras tablas (join) fallando
-
-**Acción:** Revisar logs con:
-```bash
-journalctl -u contaec-backend -f
-```
+1. **Instalación local rechazada** - El usuario indicó explícitamente NO instalar nada en su computador local
+2. **Archivos .md eliminados** - El usuario indicó que no creara archivos .md adicionales, solo configurara los archivos y agregara al README.md
 
 ---
 
 ## Próximos Pasos (Plan)
 
-### Inmediato (Si yo continuara)
+### Inmediato (Producción)
 
-1. **Encontrar archivo HR frontend**
+1. **Copiar archivos al servidor:**
    ```bash
-   Glob: src/components/*hr*
-   Glob: src/components/*payroll*
-   Glob: src/components/*empleado*
+   # Archivos nuevos a copiar:
+   messages/es.json
+   messages/en.json
+   messages/pt.json
+   next-intl.config.ts
+   src/i18n.ts
+   src/i18n-config.ts
+   src/middleware.ts
+   src/lib/i18n-provider.tsx
    ```
 
-2. **Revisar products.py endpoint**
-   ```python
-   # Verificar el GET /products
-   # Posible problema en serialización
-   ```
-
-3. **Revisar clients.py endpoint**
-   ```python
-   # Mismo patrón que products
-   ```
-
-4. **Verificar schema de POS sessions**
-   ```python
-   # POST /pos/sessions schema
-   ```
-
-### Requerido (Acceso especial)
-
-1. **SSH al servidor** para:
+2. **Instalar en producción:**
    ```bash
-   journalctl -u contaec-backend -f --since "10 minutes ago"
-   # Reproducir error en frontend
-   # Ver traceback completo
+   cd /opt/contaec
+   bun install              # Instala next-intl
+   bun run build            # Build Next.js
+   systemctl restart contaec-frontend
    ```
 
-2. **Database check**:
-   ```sql
-   -- Verificar si hay datos corruptos
-   SELECT * FROM products WHERE company_id = 'xxx';
-   ```
-
-3. **Test de endpoints con curl**:
+3. **Verificar funcionamiento:**
    ```bash
-   curl -X POST https://conta.tymtechnology.shop/api/v1/crm/leads \
-     -H "Authorization: Bearer $TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"company_id":"...","first_name":"Test","last_name":"User","source":"website"}'
+   curl https://conta.tymtechnology.shop
+   bun list next-intl       # Confirmar instalación
+   ```
+
+### Migración Gradual de Componentes
+
+1. **Identificar componentes a migrar:**
+   ```bash
+   grep -r "useI18n" src/components/ --include="*.tsx"
+   ```
+
+2. **Actualizar componente por componente:**
+   - `contaec-dashboard.tsx`
+   - `contaec-login.tsx`
+   - `contaec-settings.tsx`
+   - (todos los que usen useI18n)
+
+3. **Eliminar archivos obsoletos (después de migrar todo):**
+   ```bash
+   rm src/lib/i18n.ts
+   rm src/lib/i18n-context.tsx
    ```
 
 ---
 
 ## Notas Técnicas
 
-### Backend Stack
-- **FastAPI** (Python 3.12)
-- **SQLAlchemy 2.0** async
-- **Pydantic 2.x** schemas
-- **PostgreSQL** producción / **SQLite** desarrollo
+### next-intl vs i18n Customizado
 
-### Frontend Stack
-- **Next.js 16** (React 19)
-- **TypeScript** strict
-- **shadcn/ui** componentes
-- **Zustand** state management
+| Característica | i18n Custom | next-intl |
+|----------------|-------------|-----------|
+| Carga de traducciones | Client-side | SSR + Client |
+| Bundle size | Todas las keys | Solo locale actual |
+| SEO | Limitado | Óptimo (html lang dinámico) |
+| Routing | Manual | Automático con middleware |
+| Formateo fechas/números | Manual | Integrado |
+| TypeScript | Manual | Tipado completo |
 
-### ERPs Ecuatorianos - SRI
-- **IVA:** 15% (vigente junio 2026)
-- **IESS:** ~20.60% empleador, ~9.35% empleado (verificar)
-- **RUC:** 13 dígitos + módulo 11
-- **Comprobantes:** Factura, Nota Crédito, Nota Débito, Guía Remisión, Liquidación, Retención
+### Estructura de Claves
 
-### Estructura de Endpoints
+```json
+// messages/es.json (namespaced/nested)
+{
+  "Navigation": {
+    "dashboard": "Panel Principal"
+  },
+  "Common": {
+    "save": "Guardar"
+  }
+}
 
+// Uso en componentes
+t('Navigation.dashboard')  // o useTranslations('Navigation') + t('dashboard')
 ```
-backend/app/api/v1/endpoints/
-├── accounting.py      # Plan cuentas, asientos, CxC, Pagos, Períodos
-├── auth.py            # Login, registro, refresh
-├── clients.py         # Clientes CRUD
-├── companies.py       # Multi-tenant
-├── crm.py             # Leads, Opportunities, Activities, Segments, Automations
-├── employees.py       # Empleados RRHH
-├── integrations.py    # Bank accounts, E-commerce
-├── ml_ai.py           # Predicciones, Fraude, Chatbot, Categorización
-├── payroll.py         # Nómina, IESS, Décimos, Liquidaciones
-├── pos.py             # Punto de venta, Sesiones, Arqueo
-├── products.py        # Productos CRUD
-├── proformas.py       # Proformas
-├── purchases.py       # Órdenes compra, Proveedores
-├── suppliers.py       # Proveedores CRUD
-├── budgets.py         # Presupuestos
-└── warehouses.py      # Almacenes, Transferencias, Kardex
+
+### Compatibilidad Legacy
+
+El sistema soporta conversión entre códigos:
+- Legacy: `es_EC`, `en_US`, `pt_BR`
+- next-intl: `es`, `en`, `pt`
+
+Usar helpers en `src/i18n-config.ts`:
+```typescript
+legacyToNextIntl('es_EC')     // → 'es'
+nextIntlToLegacy('es')        // → 'es_EC'
 ```
 
 ---
 
 ## Decisiones de Diseño
 
-### Por qué CRM fue prioritario
+### Por qué next-intl
 
-1. **Errores claros y específicos** - Mensajes "Field required", "Fuente inválida" dan pista directa
-2. **Frontend accesible** - Un solo archivo `contaec-crm.tsx` contiene toda la lógica
-3. **Patrones repetitivos** - Mismo patrón de validación aplica a múltiples dialogs
-4. **Impacto visible** - Usuario puede probar inmediatamente después de deploy
+1. **Oficial para Next.js App Router** - Mantenido por el equipo de Next.js
+2. **SSR nativo** - Traducciones cargan en servidor (mejor SEO, performance)
+3. **Tree-shaking automático** - Solo carga el locale actual
+4. **Middleware integrado** - Routing automático por locale
+5. **Formateo integrado** - Fechas, números, monedas, tiempo relativo
 
-### Por qué otros errores requieren logs
+### Por qué archivos namespaced
 
-1. **500 Internal Server Error** - El error ocurre en backend, frontend solo recibe el código
-2. **Sin traceback visible** - production mode oculta detalles por seguridad
-3. **Posibles causas múltiples:**
-   - Error de serialización (modelo → schema)
-   - Relación con otra tabla (join fail)
-   - company_id filtering incorrecto
-   - Datos corruptos en DB
+1. **Mejor organización** - Keys agrupadas por dominio (Navigation, Common, Dashboard)
+2. **Easier mantenimiento** - 350+ keys en un solo archivo plano eran difíciles de navegar
+3. **Soporte para splitting** - next-intl permite cargar namespaces por ruta/componente
+
+### Por qué Documentation en README.md
+
+1. **Single source of truth** - El usuario pidió no crear archivos .md adicionales
+2. **Fácil acceso** - README.md es el primer archivo que se consulta
+3. **Versionado con el código** - Cambios en migración quedan en el mismo commit
 
 ---
 
 ## Riesgos / Advertencias
 
-1. **No hacer destructive changes** sin backup
-   - No correr migraciones en producción sin testing
-   - No borrar datos de productos/clientes
+1. **No eliminar i18n.ts hasta migrar todos los componentes** - El sistema fallará si hay componentes usando useI18n()
 
-2. **Tokens expirados** pueden causar 404 falsos
-   - Verificar que el token es válido antes de debuggear
+2. **Build required después de cambiar JSON** - En producción, editar messages/*.json requiere `bun run build` para aplicar cambios
 
-3. **Caché del navegador**
-   - Hard refresh (Ctrl+Shift+R) después de deploy frontend
+3. **Middleware intercepta rutas** - Las rutas sin locale (`/dashboard`) redirigen a `/es/dashboard`
 
-4. **SQLite vs PostgreSQL**
-   - Desarrollo usa SQLite, producción usa PostgreSQL
-   - Algunos bugs pueden ser específicos de DB
+4. **Cookie NEXT_LOCALE** - El locale se guarda en cookie, no en localStorage (cambio de comportamiento)
 
 ---
 
@@ -305,9 +254,9 @@ backend/app/api/v1/endpoints/
 - **Usuario:** Steve2109 (git user)
 - **Empresa:** TyM - Sistema Contable ContaECv4
 - **Producción:** https://conta.tymtechnology.shop
-- **Documento original:** `errores.md` (715 líneas)
-- **Documento de estado:** `ESTADO_ERRORES.md` (creado en esta sesión)
+- **Sesión anterior:** erro.md (715 líneas), ESTADO_ERRORES.md, handoff.md (CRM fixes)
 
 ---
 
-*Última actualización: 2026-06-19*
+*Última actualización: 2026-06-20*
+*Configuración next-intl: ✅ Completa, lista para instalar en producción*
