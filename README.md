@@ -355,6 +355,7 @@ EOF
 systemctl daemon-reload
 systemctl enable contaec-backend
 systemctl start contaec-backend
+systemctl status contaec-backend
 
 # Verificar que el backend responde
 sleep 10
@@ -400,6 +401,7 @@ EOF
 systemctl daemon-reload
 systemctl enable contaec-frontend
 systemctl start contaec-frontend
+systemctl status contaec-frontend
 
 # Ver logs del frontend
 sudo journalctl -u contaec-frontend -n 100 --no-pager | tail -50
