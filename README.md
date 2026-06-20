@@ -129,10 +129,8 @@ sleep 15
 ```bash
 # Actualizar el sistema
 apt update && apt upgrade -y
-
 # Instalar herramientas esenciales
 apt install -y curl wget git unzip htop nano sudo gnupg2 lsb-release net-tools
-
 # Instalar certificados CA
 apt install -y ca-certificates
 ```
@@ -142,7 +140,6 @@ apt install -y ca-certificates
 ```bash
 # Create Key Directory
 sudo install -d /usr/share/postgresql-common/pgdg
-
 # Agregar repositorio oficial de PostgreSQL
 sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
 
@@ -153,51 +150,55 @@ sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresq
 # Instalar PostgreSQL 17
 apt update
 apt install -y postgresql-17 postgresql-contrib-17
-
 # Crear el cluster
 sudo pg_createcluster 17 main
-
 # Habilitar y arrancar el servicio
 sudo systemctl enable postgresql@17-main
 sudo systemctl start postgresql@17-main
-
 # Verifica que arrancó
 sudo systemctl status postgresql@17-main
 sudo ss -tlnp | grep 5432
 pg_isready -h localhost -p 5432
 
-# Configurar permanentemente en /etc/environment
-sudo nano /etc/environment
-# Agregar estas lineas
-LANG=C.UTF-8
-LC_ALL=C.UTF-8
-LANGUAGE=C.UTF-8
-
-# Aplicar
-source /etc/environment
-export LANG=C.UTF-8
-export LC_ALL=C.UTF-8
-locale
-
-# Verifica que ya no aparezca el error
-perl -v
-
-# Generar el locale
-sudo locale-gen es_EC.UTF-8
-# Reconfigurar locales
-sudo dpkg-reconfigure locales
-# Selecciona es_EC.UTF-8 como default
-locale -a | grep es_EC
-
-# Comando para instalar es_EC.UTF-8 
+### Locale del sistema (o configuración de locales)
 # 1. Instalar el paquete locales
 sudo apt-get install locales
 # 2. Generar el locale es_EC.UTF-8
 sudo locale-gen es_EC.UTF-8
 # 3. Reconfigurar locales
 sudo dpkg-reconfigure locales
-# 4. Verificar que se instaló
+# 4. Selecciona es_EC.UTF-8 como default
+sudo locale-gen es_EC.UTF-8
+# 5. Verificar que se instaló
 locale -a | grep es_EC
+# 6. Verificar el locale disponible
+locale -a | grep UTF-8
+# 7. Configurar permanentemente en /etc/environment
+sudo nano /etc/environment
+# 8. Agregar estas líneas (en el editor nano)
+LANG=es_EC.UTF-8
+LC_ALL=es_EC.UTF-8
+LANGUAGE=es_EC.UTF-8
+# 9. Aplicar (opcional, para el shell actual)
+source /etc/environment
+# 10. Persistir permanentemente en /etc/environment (alternativa sin nano)
+echo 'LANG=es_EC.UTF-8' > /etc/environment
+echo 'LC_ALL=es_EC.UTF-8' >> /etc/environment
+echo 'LANGUAGE=es_EC.UTF-8' >> /etc/environment
+# 11. Exportar para el shell actual
+export LANGUAGE=es_EC.UTF-8
+export LANG=es_EC.UTF-8
+export LC_ALL=es_EC.UTF-8
+# 12. Opcional: agregar también a /etc/profile para persistencia en todas las sesiones
+echo 'export LANG=es_EC.UTF-8' >> /etc/profile
+echo 'export LC_ALL=es_EC.UTF-8' >> /etc/profile
+echo 'export LANGUAGE=es_EC.UTF-8' >> /etc/profile
+# 13. Reinicia el shell o ejecuta:
+bash
+# 14. Luego verifica:
+locale
+# 15. Verifica que ya no aparezca el error
+perl -v
 ```
 
 ### 4.3 Configuración de la Base de Datos
@@ -268,10 +269,8 @@ pg_isready -h localhost -p 5432
 
 # Verificar conexión
 psql -U contaec_user -d contaec_db -h localhost -c "SELECT version();"
-
 # Test adicional por IP explícita
 psql -U contaec_user -d contaec_db -h 127.0.0.1 -c "SELECT version();"
-
 # Verificar extensión UUID
 psql -U contaec_user -d contaec_db -c "\dx"
 ```
