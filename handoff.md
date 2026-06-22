@@ -2,16 +2,15 @@
 
 **Fecha:** 2026-06-20  
 **Autor:** Claude Code  
-**Sesión:** Continuación - Migración a next-intl
+**Sesión:** Fix errores build backend + frontend
 
 ---
 
 ## Objetivo Principal
 
-Completar la migración del sistema i18n customizado a **next-intl v3**, configurando todos los archivos necesarios para instalación en producción SIN instalar dependencias localmente.
-
-El usuario especificó explícitamente:
-> "acaba la migracion a next-intl en lugar de i18n, pero no instales nada en este computador solo configura los archivos para que se pueda instalar en produccion"
+Resolver errores críticos que impiden el build y despliegue en producción:
+1. **Backend:** `NameError: ContribuyenteTipo is not defined`
+2. **Frontend:** JSX en archivos `.ts` (deben ser `.tsx`)
 
 ---
 
@@ -19,34 +18,25 @@ El usuario especificó explícitamente:
 
 ### ✅ Completado
 
-1. **Archivos de traducción creados:**
-   - `messages/es.json` - 350+ keys en español
-   - `messages/en.json` - Traducciones en inglés
-   - `messages/pt.json` - Traducciones en portugués
+1. **Backend (`backend/app/schemas/sri.py`):**
+   - Movidas las clases `ContribuyenteTipo` y `RegimenTipo` a líneas 27-91 (antes de las funciones que las usan)
+   - Eliminadas definiciones duplicadas que estaban en líneas 554-591
+   - **Estado local:** ✅ Corregido
+   - **Estado servidor:** ⏳ Pendiente copiar y reiniciar servicio
 
-2. **Configuración next-intl implementada:**
-   - `next-intl.config.ts` - Plugin configuration
-   - `src/i18n.ts` - getRequestConfig setup
-   - `src/i18n-config.ts` - Locales, helpers, conversión legacy
-   - `src/middleware.ts` - Detección de idioma (URL, cookie, header)
-   - `src/app/layout.tsx` - NextIntlClientProvider con getLocale/getMessages
-   - `src/lib/i18n-provider.tsx` - Proveedor opcional
-   - `next.config.ts` - Integrado con withNextIntl
-   - `package.json` - next-intl@^3.26.0 agregado
-
-3. **Documentación:**
-   - `README.md` - Sección completa "Migración a next-intl" agregada
-   - Archivos `.md` temporales eliminados (MIGRACION_NEXT_INTL.md, INSTALL_NEXT_INTL.md)
+2. **Frontend (identificado):**
+   - `src/hooks/useLicense.ts` tiene JSX en línea 280 → debe renombrarse a `.tsx`
+   - Resto de archivos `.ts` en `src/hooks/` también deben convertirse a `.tsx`
 
 ### 📋 Pendiente (Para producción)
 
 | Tarea | Comando/Acción | Prioridad |
 |-------|----------------|-----------|
-| Instalar dependencias | `cd /opt/contaec && bun install` | 🔥 Alta |
-| Build producción | `bun run build` | 🔥 Alta |
-| Reiniciar frontend | `systemctl restart contaec-frontend` | 🔥 Alta |
-| Migrar componentes | Actualizar `useI18n()` → `useTranslations()` | Media |
-| Eliminar archivos obsoletos | `rm src/lib/i18n.ts`, `rm src/lib/i18n-context.tsx` | Baja |
+| Copiar `sri.py` al servidor | `scp backend/app/schemas/sri.py root@10.0.1.20:/opt/contaec/backend/app/schemas/sri.py` | 🔥 Alta |
+| Renombrar hooks a `.tsx` | `cd /opt/contaec/src/hooks && for f in *.ts; do mv "$f" "${f%.ts}.tsx"; done` | 🔥 Alta |
+| Build frontend | `bun run build` | 🔥 Alta |
+| Reiniciar backend | `systemctl restart contaec-backend` | 🔥 Alta |
+| Verificar health | `curl http://localhost:8000/api/health` | 🔥 Alta |
 
 ---
 
@@ -54,28 +44,13 @@ El usuario especificó explícitamente:
 
 ### Modificados
 
-| Archivo | Cambios | Líneas ~ |
-|---------|---------|----------|
-| `src/app/layout.tsx` | NextIntlClientProvider + getLocale/getMessages | +15 líneas |
-| `next.config.ts` | withNextIntl integration | +4 líneas |
-| `package.json` | next-intl@^3.26.0 dependency | +1 línea |
-| `README.md` | Sección next-intl completa | +200 líneas |
+| Archivo | Cambios | Estado |
+|---------|---------|--------|
+| `backend/app/schemas/sri.py` | Clases `ContribuyenteTipo`/`RegimenTipo` movidas arriba (líneas 27-91), duplicados eliminados | ✅ Local |
+| `src/hooks/useLicense.ts` | Identificado: tiene JSX en línea 280, requiere renombrar a `.tsx` | ⏳ Pendiente |
+| `src/hooks/*.ts` (todos) | Pendiente rename a `.tsx` | ⏳ Pendiente |
 
-### Creados
-
-| Archivo | Propósito | Líneas ~ |
-|---------|-----------|----------|
-| `messages/es.json` | Traducciones español (350+ keys) | 364 |
-| `messages/en.json` | Traducciones inglés | 364 |
-| `messages/pt.json` | Traducciones portugués | 364 |
-| `next-intl.config.ts` | Plugin configuration | 8 |
-| `src/i18n.ts` | getRequestConfig + timeZone + formats | 35 |
-| `src/i18n-config.ts` | Locales, helpers legacy↔next-intl | 45 |
-| `src/middleware.ts` | Locale detection middleware | 35 |
-| `src/lib/i18n-provider.tsx` | I18nProvider opcional | 50 |
-| `handoff.md` | Este documento | - |
-
-### Eliminados
+### Eliminados (sesiones anteriores)
 
 | Archivo | Razón |
 |---------|-------|
@@ -88,32 +63,51 @@ El usuario especificó explícitamente:
 
 ### Exitoso
 
-1. **Migración completa de configuración** - Todos los archivos next-intl configurados
-2. **Traducciones migradas** - 350+ keys de i18n.ts convertidas a formato namespaced JSON
-3. **Layout actualizado** - async Server Component con NextIntlClientProvider
-4. **Middleware configurado** - Detección automática de locale (URL, cookie, Accept-Language)
-5. **Documentación consolidada** - Todo en README.md como solicitó el usuario
+1. **Diagnosticar error backend** - `journalctl -u contaec-backend` mostró `NameError: ContribuyenteTipo`
+2. **Identificar causa raíz** - Clases definidas después de funciones que las usan como type hints
+3. **Reestructurar `sri.py`** - Clases movidas antes que funciones, duplicados eliminados
+4. **Identificar error frontend** - JSX en archivo `.ts` no es válido para webpack/Next.js
 
-### Patrón de Migración Documentado
+### Patrón de Fix Documentado
 
-```typescript
-// ANTES (OBSOLETO)
-import { useI18n } from '@/lib/i18n-context';
-const { t } = useI18n();
-t('nav.dashboard')
+**Backend (Python):**
+```python
+# ANTES (ERROR)
+def get_contribuyente_by_codigo(codigo: str) -> ContribuyenteTipo | None:  # ContribuyenteTipo no definido aún
+    ...
 
-// AHORA (next-intl)
-import { useTranslations } from 'next-intl';
-const t = useTranslations('Navigation');
-t('dashboard')
+class ContribuyenteTipo(BaseModel):  # Definido después
+    ...
+
+# AHORA (CORRECTO)
+class ContribuyenteTipo(BaseModel):  # Definido primero
+    ...
+
+def get_contribuyente_by_codigo(codigo: str) -> ContribuyenteTipo | None:  # Ahora funciona
+    ...
+```
+
+**Frontend (TypeScript):**
+```bash
+# ANTES (ERROR)
+src/hooks/useLicense.ts  # Contiene JSX como <div className=...>
+
+# AHORA (CORRECTO)
+src/hooks/useLicense.tsx  # Extensión correcta para JSX
 ```
 
 ---
 
-## Fallos / Rechazos
+## Fallos / Errores
 
-1. **Instalación local rechazada** - El usuario indicó explícitamente NO instalar nada en su computador local
-2. **Archivos .md eliminados** - El usuario indicó que no creara archivos .md adicionales, solo configurara los archivos y agregara al README.md
+1. **Backend no levanta** - `sri.py` tenía error de orden de definiciones (Python no permite forward references en type hints sin comillas)
+2. **Frontend build falla** - webpack rechaza JSX en archivos `.ts`:
+   ```
+   Expected '>', got 'className'
+   ./src/hooks/useLicense.ts:280:1
+   <div className="flex items-center justify-center p-8">
+   ```
+3. **No se pudo ejecutar comandos en servidor** - Sesión actual no tiene conexión SSH directa al servidor
 
 ---
 
@@ -121,131 +115,83 @@ t('dashboard')
 
 ### Inmediato (Producción)
 
-1. **Copiar archivos al servidor:**
-   ```bash
-   # Archivos nuevos a copiar:
-   messages/es.json
-   messages/en.json
-   messages/pt.json
-   next-intl.config.ts
-   src/i18n.ts
-   src/i18n-config.ts
-   src/middleware.ts
-   src/lib/i18n-provider.tsx
-   ```
+```bash
+# ============================================
+# 1. COPIAR ARCHIVO SRI.PY CORREGIDO
+# ============================================
+scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\backend\app\schemas\sri.py" \
+  root@10.0.1.20:/opt/contaec/backend/app/schemas/sri.py
 
-2. **Instalar en producción:**
-   ```bash
-   cd /opt/contaec
-   bun install              # Instala next-intl
-   bun run build            # Build Next.js
-   systemctl restart contaec-frontend
-   ```
+# ============================================
+# 2. RENOMBRAR HOOKS DE .TS A .TSX
+# ============================================
+cd /opt/contaec/src/hooks
+for f in *.ts; do mv "$f" "${f%.ts}.tsx"; done
 
-3. **Verificar funcionamiento:**
-   ```bash
-   curl https://conta.tymtechnology.shop
-   bun list next-intl       # Confirmar instalación
-   ```
+# Verificar qué archivos fueron renombrados
+ls -la
 
-### Migración Gradual de Componentes
+# Si hay más errores de JSX en otros archivos .ts:
+grep -rn "className\|<div\|<span\|<button" src/ --include="*.ts"
 
-1. **Identificar componentes a migrar:**
-   ```bash
-   grep -r "useI18n" src/components/ --include="*.tsx"
-   ```
+# ============================================
+# 3. BUILD FRONTEND
+# ============================================
+cd /opt/contaec
+bun run build
 
-2. **Actualizar componente por componente:**
-   - `contaec-dashboard.tsx`
-   - `contaec-login.tsx`
-   - `contaec-settings.tsx`
-   - (todos los que usen useI18n)
+# ============================================
+# 4. REINICIAR BACKEND
+# ============================================
+sudo systemctl restart contaec-backend
 
-3. **Eliminar archivos obsoletos (después de migrar todo):**
-   ```bash
-   rm src/lib/i18n.ts
-   rm src/lib/i18n-context.tsx
-   ```
+# ============================================
+# 5. VERIFICAR SALUD
+# ============================================
+sleep 10
+sudo systemctl status contaec-backend
+curl http://localhost:8000/api/health
+curl http://localhost:3000
+```
 
 ---
 
 ## Notas Técnicas
 
-### next-intl vs i18n Customizado
+### Error Backend: Forward Reference en Type Hints
 
-| Característica | i18n Custom | next-intl |
-|----------------|-------------|-----------|
-| Carga de traducciones | Client-side | SSR + Client |
-| Bundle size | Todas las keys | Solo locale actual |
-| SEO | Limitado | Óptimo (html lang dinámico) |
-| Routing | Manual | Automático con middleware |
-| Formateo fechas/números | Manual | Integrado |
-| TypeScript | Manual | Tipado completo |
+Python no permite usar una clase en un type hint antes de que esté definida (a menos que uses comillas):
 
-### Estructura de Claves
+```python
+# ❌ ESTO FALLA
+def foo() -> MiClase: ...  # MiClase no existe aún
+class MiClase: ...
 
-```json
-// messages/es.json (namespaced/nested)
-{
-  "Navigation": {
-    "dashboard": "Panel Principal"
-  },
-  "Common": {
-    "save": "Guardar"
-  }
-}
+# ✅ ESTO FUNCIONA
+class MiClase: ...
+def foo() -> MiClase: ...
 
-// Uso en componentes
-t('Navigation.dashboard')  // o useTranslations('Navigation') + t('dashboard')
+# ✅ O CON COMILLAS (forward reference)
+def foo() -> "MiClase": ...  # string, no evalúa aún
+class MiClase: ...
 ```
 
-### Compatibilidad Legacy
+### Error Frontend: .ts vs .tsx
 
-El sistema soporta conversión entre códigos:
-- Legacy: `es_EC`, `en_US`, `pt_BR`
-- next-intl: `es`, `en`, `pt`
+| Extensión | Uso |
+|-----------|-----|
+| `.ts` | TypeScript puro, sin JSX |
+| `.tsx` | TypeScript + JSX (componentes React) |
 
-Usar helpers en `src/i18n-config.ts`:
-```typescript
-legacyToNextIntl('es_EC')     // → 'es'
-nextIntlToLegacy('es')        // → 'es_EC'
-```
-
----
-
-## Decisiones de Diseño
-
-### Por qué next-intl
-
-1. **Oficial para Next.js App Router** - Mantenido por el equipo de Next.js
-2. **SSR nativo** - Traducciones cargan en servidor (mejor SEO, performance)
-3. **Tree-shaking automático** - Solo carga el locale actual
-4. **Middleware integrado** - Routing automático por locale
-5. **Formateo integrado** - Fechas, números, monedas, tiempo relativo
-
-### Por qué archivos namespaced
-
-1. **Mejor organización** - Keys agrupadas por dominio (Navigation, Common, Dashboard)
-2. **Easier mantenimiento** - 350+ keys en un solo archivo plano eran difíciles de navegar
-3. **Soporte para splitting** - next-intl permite cargar namespaces por ruta/componente
-
-### Por qué Documentation en README.md
-
-1. **Single source of truth** - El usuario pidió no crear archivos .md adicionales
-2. **Fácil acceso** - README.md es el primer archivo que se consulta
-3. **Versionado con el código** - Cambios en migración quedan en el mismo commit
+Next.js/webpack requiere `.tsx` para cualquier archivo con JSX (`<div>`, `<Component />`, etc.)
 
 ---
 
 ## Riesgos / Advertencias
 
-1. **No eliminar i18n.ts hasta migrar todos los componentes** - El sistema fallará si hay componentes usando useI18n()
-
-2. **Build required después de cambiar JSON** - En producción, editar messages/*.json requiere `bun run build` para aplicar cambios
-
-3. **Middleware intercepta rutas** - Las rutas sin locale (`/dashboard`) redirigen a `/es/dashboard`
-
-4. **Cookie NEXT_LOCALE** - El locale se guarda en cookie, no en localStorage (cambio de comportamiento)
+1. **No reiniciar backend sin copiar `sri.py`** - Seguirá fallando con `NameError`
+2. **Build puede fallar si hay más `.ts` con JSX** - Revisar output de webpack para identificar archivos pendientes
+3. **Hooks renombrados pueden requerir actualizar imports** - TypeScript usualmente lo resuelve solo, pero verificar
 
 ---
 
@@ -254,9 +200,10 @@ nextIntlToLegacy('es')        // → 'es_EC'
 - **Usuario:** Steve2109 (git user)
 - **Empresa:** TyM - Sistema Contable ContaECv4
 - **Producción:** https://conta.tymtechnology.shop
-- **Sesión anterior:** erro.md (715 líneas), ESTADO_ERRORES.md, handoff.md (CRM fixes)
+- **Servidor:** 10.0.1.20:80 (LXC Proxmox)
 
 ---
 
-*Última actualización: 2026-06-20*
-*Configuración next-intl: ✅ Completa, lista para instalar en producción*
+*Última actualización: 2026-06-20*  
+*Backend sri.py: ✅ Corregido local, ⏳ Pendiente deploy*  
+*Frontend hooks: ⏳ Pendiente renombrar .ts → .tsx*
