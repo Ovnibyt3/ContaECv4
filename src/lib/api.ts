@@ -456,12 +456,14 @@ interface AdminUser {
   full_name: string;
   is_active: boolean;
   is_admin: boolean;
+  is_trial: boolean;
   phone: string | null;
   language: string;
   theme: string;
   license_type: string;
   license_start_date: string | null;
   license_end_date: string | null;
+  trial_end_date: string | null;
   created_at: string;
   updated_at: string;
 }
