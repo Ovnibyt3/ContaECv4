@@ -390,7 +390,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
     projects: 'projects',
     integrations: 'ecommerce_integration',
     mlai: 'ml_predictions',
-  };
+  } as const;
 
   // Check if current view requires feature access
   const currentFeature = activeNav in featureMap ? featureMap[activeNav] : null;
@@ -463,7 +463,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
                     projects: 'projects',
                     integrations: 'ecommerce_integration',
                     mlai: 'ml_predictions',
-                  };
+                  } as const;
                   const feature = featureMap[item.id];
                   if (feature) {
                     showUpgradePrompt(feature as keyof typeof FEATURE_LABELS);
