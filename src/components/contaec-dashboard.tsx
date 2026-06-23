@@ -85,7 +85,7 @@ import {
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { getCurrentLocale, setCurrentLocale, getLocaleLabel, LOCALES, t, type Locale } from '@/lib/i18n';
-import { useLicense, FEATURE_LABELS } from '@/hooks/useLicense';
+import { useLicense, FEATURE_LABELS, type FeatureKey } from '@/hooks/useLicense';
 import { ContaECSettings } from '@/components/contaec-settings';
 import { ContaECInvoices } from '@/components/contaec-invoices';
 import { ContaECInventory } from '@/components/contaec-inventory';
@@ -201,7 +201,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
 
       if (results[0].status === 'fulfilled') {
         const lic = results[0].value;
-        setLicenseData(lic);
+        setLicense(lic);
         // Check if license expires within 30 days
         if (lic.days_remaining !== null) {
           setLicenseExpiring(lic.days_remaining <= 30 && lic.days_remaining > 0);
@@ -381,15 +381,15 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
   const navItems = user.is_admin ? adminNavItems : filteredNavItems;
 
   // Feature mapping for access control
-  const featureMap: Record<string, keyof typeof FEATURE_LABELS> = {
-    pos: 'pos',
-    hr: 'payroll',
-    warehouses: 'multi_warehouse',
-    budgets: 'budgets',
-    crm: 'crm',
-    projects: 'projects',
-    integrations: 'ecommerce_integration',
-    mlai: 'ml_predictions',
+  const featureMap: Record<string, FeatureKey> = {
+    pos: 'POS',
+    hr: 'PAYROLL',
+    warehouses: 'MULTI_WAREHOUSE',
+    budgets: 'BUDGETS',
+    crm: 'CRM',
+    projects: 'PROJECTS',
+    integrations: 'ECOMMERCE_INTEGRATION',
+    mlai: 'ML_PREDICTIONS',
   };
 
   // Check if current view requires feature access
@@ -454,19 +454,19 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
               key={item.id}
               onClick={() => {
                 if (item.locked && !user.is_admin) {
-                  const featureMap: Record<string, string> = {
-                    pos: 'pos',
-                    hr: 'payroll',
-                    warehouses: 'multi_warehouse',
-                    budgets: 'budgets',
-                    crm: 'crm',
-                    projects: 'projects',
-                    integrations: 'ecommerce_integration',
-                    mlai: 'ml_predictions',
+                  const featureMap: Record<string, FeatureKey> = {
+                    pos: 'POS',
+                    hr: 'PAYROLL',
+                    warehouses: 'MULTI_WAREHOUSE',
+                    budgets: 'BUDGETS',
+                    crm: 'CRM',
+                    projects: 'PROJECTS',
+                    integrations: 'ECOMMERCE_INTEGRATION',
+                    mlai: 'ML_PREDICTIONS',
                   };
                   const feature = featureMap[item.id];
                   if (feature) {
-                    showUpgradePrompt(feature as keyof typeof FEATURE_LABELS);
+                    showUpgradePrompt(feature);
                     return;
                   }
                 }

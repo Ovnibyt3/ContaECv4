@@ -1,16 +1,17 @@
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals.js";
-import nextTypescript from "eslint-config-next/typescript.js";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// eslint-config-next with ESM exports the config array directly
-const coreWebVitalsConfig = nextCoreWebVitals;
-const typescriptConfig = nextTypescript;
-
-const eslintConfig = [...coreWebVitalsConfig, ...typescriptConfig, {
+const eslintConfig = [{
+  files: ["**/*.{ts,tsx}"],
+  languageOptions: {
+    parserOptions: {
+      project: ["./tsconfig.json"],
+      tsconfigRootDir: __dirname,
+    },
+  },
   rules: {
     // TypeScript rules - core enabled, permissive on edge cases
     "@typescript-eslint/no-explicit-any": "warn",
