@@ -1,61 +1,56 @@
 # Handoff Document - ContaECv4
 
-**Fecha:** 2026-06-20  
+**Fecha:** 2026-06-23  
 **Autor:** Claude Code  
-**Sesión:** Fix errores build backend + frontend
+**Sesión:** Fix errores build frontend - TypeScript type errors + ESLint config
 
 ---
 
 ## Objetivo Principal
 
-Resolver errores críticos que impiden el build y despliegue en producción:
-1. **Backend:** `NameError: ContribuyenteTipo is not defined`
-2. **Frontend:** JSX en archivos `.ts` (deben ser `.tsx`)
+Resolver errores críticos que impiden el build del frontend:
+1. **TypeScript:** Propiedades faltantes en interfaces (`AdminUser`)
+2. **TypeScript:** Variables no encontradas (`setLicenseData`)
+3. **TypeScript:** Type mismatch en feature mapping (`FeatureKey` vs string literals)
+4. **ESLint:** Configuración incompatible con Next.js 15
+5. **next-intl:** Warning por configuración deprecated
 
 ---
 
 ## Estado Actual
 
-### ✅ Completado
+### ✅ Completado (Archivos Modificados Localmente)
 
-1. **Backend (`backend/app/schemas/sri.py`):**
-   - Movidas las clases `ContribuyenteTipo` y `RegimenTipo` a líneas 27-91 (antes de las funciones que las usan)
-   - Eliminadas definiciones duplicadas que estaban en líneas 554-591
-   - **Estado local:** ✅ Corregido
-   - **Estado servidor:** ⏳ Pendiente copiar y reiniciar servicio
+| Archivo | Cambios | Estado |
+|---------|---------|--------|
+| `src/lib/api.ts` | Agregadas propiedades `is_trial` y `trial_end_date` a interfaz `AdminUser` | ✅ Local |
+| `src/components/contaec-dashboard.tsx` | Corregido `setLicenseData` → `setLicense`, featureMap con claves correctas | ✅ Local |
+| `src/i18n/request.ts` | Creado archivo (migración de config deprecated) | ✅ Local |
+| `next.config.ts` | Actualizado plugin next-intl con ruta explícita | ✅ Local |
+| `eslint.config.mjs` | Reescrito para usar flat config compatible con Next.js 15 | ✅ Local |
 
-2. **Frontend (identificado):**
-   - `src/hooks/useLicense.ts` tiene JSX en línea 280 → debe renombrarse a `.tsx`
-   - Resto de archivos `.ts` en `src/hooks/` también deben convertirse a `.tsx`
-
-### 📋 Pendiente (Para producción)
+### ⏳ Pendiente (Deploy a Producción)
 
 | Tarea | Comando/Acción | Prioridad |
 |-------|----------------|-----------|
-| Copiar `sri.py` al servidor | `scp backend/app/schemas/sri.py root@10.0.1.20:/opt/contaec/backend/app/schemas/sri.py` | 🔥 Alta |
-| Renombrar hooks a `.tsx` | `cd /opt/contaec/src/hooks && for f in *.ts; do mv "$f" "${f%.ts}.tsx"; done` | 🔥 Alta |
+| Copiar archivos frontend modificados | `scp src/lib/api.ts src/components/contaec-dashboard.tsx src/i18n/request.ts next.config.ts eslint.config.mjs` | 🔥 Alta |
 | Build frontend | `bun run build` | 🔥 Alta |
-| Reiniciar backend | `systemctl restart contaec-backend` | 🔥 Alta |
-| Verificar health | `curl http://localhost:8000/api/health` | 🔥 Alta |
+| Reiniciar frontend | `systemctl restart contaec-frontend` | 🔥 Alta |
+| Verificar health | `curl http://localhost:3000` | 🔥 Alta |
 
 ---
 
 ## Archivos en los que Trabajé
 
-### Modificados
+### Modificados en Esta Sesión
 
-| Archivo | Cambios | Estado |
-|---------|---------|--------|
-| `backend/app/schemas/sri.py` | Clases `ContribuyenteTipo`/`RegimenTipo` movidas arriba (líneas 27-91), duplicados eliminados | ✅ Local |
-| `src/hooks/useLicense.ts` | Identificado: tiene JSX en línea 280, requiere renombrar a `.tsx` | ⏳ Pendiente |
-| `src/hooks/*.ts` (todos) | Pendiente rename a `.tsx` | ⏳ Pendiente |
-
-### Eliminados (sesiones anteriores)
-
-| Archivo | Razón |
-|---------|-------|
-| `MIGRACION_NEXT_INTL.md` | Contenido movido a README.md |
-| `INSTALL_NEXT_INTL.md` | Contenido movido a README.md |
+| Archivo | Cambios Detallados | Líneas |
+|---------|-------------------|--------|
+| `src/lib/api.ts` | Agregadas `is_trial: boolean` y `trial_end_date: string \| null` a `AdminUser` | 453-469 |
+| `src/components/contaec-dashboard.tsx` | `setLicenseData` → `setLicense` (línea 204), `featureMap` corregido a `keyof typeof FEATURE_LABELS` con valores minúscula (`pos`, `payroll`, `multi_warehouse`, etc.) | 142, 204, 383-393, 455-470, 634-663 |
+| `src/i18n/request.ts` | Archivo nuevo - configuración next-intl según mejor práctica v3.22+ | Todo |
+| `next.config.ts` | `createNextIntlPlugin('./src/i18n/request.ts')` en lugar de `createNextIntlPlugin()` | 4 |
+| `eslint.config.mjs` | Flat config usando `eslint-config-next` directamente + reglas personalizadas | Todo |
 
 ---
 
@@ -63,51 +58,58 @@ Resolver errores críticos que impiden el build y despliegue en producción:
 
 ### Exitoso
 
-1. **Diagnosticar error backend** - `journalctl -u contaec-backend` mostró `NameError: ContribuyenteTipo`
-2. **Identificar causa raíz** - Clases definidas después de funciones que las usan como type hints
-3. **Reestructurar `sri.py`** - Clases movidas antes que funciones, duplicados eliminados
-4. **Identificar error frontend** - JSX en archivo `.ts` no es válido para webpack/Next.js
+1. **Diagnosticar error `trial_end_date`** - Interface `AdminUser` no tenía la propiedad que el código usaba
+2. **Identificar `setLicenseData`** - Error de naming, el estado se llama `setLicense`
+3. **Feature mapping type-safe** - `FEATURE_LABELS` usa claves minúscula (`pos`, `payroll`) no `FeatureKey` (mayúsculas)
+4. **ESLint flat config** - Next.js 15 requiere configuración diferente, usar `import nextConfig from "eslint-config-next"` y spread
+5. **next-intl migration** - Mover configuración a `src/i18n/request.ts` y referenciar en `next.config.ts`
 
-### Patrón de Fix Documentado
+### Eras / Errores Corregidos
 
-**Backend (Python):**
-```python
-# ANTES (ERROR)
-def get_contribuyente_by_codigo(codigo: str) -> ContribuyenteTipo | None:  # ContribuyenteTipo no definido aún
-    ...
+1. **`AdminUser` interface incompleta:**
+   ```
+   Property 'trial_end_date' does not exist on type 'AdminUser'
+   ```
+   **Fix:** Agregadas `is_trial` y `trial_end_date`
 
-class ContribuyenteTipo(BaseModel):  # Definido después
-    ...
+2. **`setLicenseData` no definido:**
+   ```
+   Cannot find name 'setLicenseData'. Did you mean 'licenseData'?
+   ```
+   **Fix:** Cambiado a `setLicense` (nombre real del setter)
 
-# AHORA (CORRECTO)
-class ContribuyenteTipo(BaseModel):  # Definido primero
-    ...
+3. **Type mismatch en featureMap:**
+   ```
+   Type '"pos"' is not assignable to type '"POS"'
+   ```
+   **Fix:** `FEATURE_LABELS` tiene claves en minúscula, `FeatureKey` (de `LICENSE_FEATURES`) tiene valores en mayúscula. Usar `keyof typeof FEATURE_LABELS` directamente.
 
-def get_contribuyente_by_codigo(codigo: str) -> ContribuyenteTipo | None:  # Ahora funciona
-    ...
-```
+4. **ESLint config incompatible:**
+   ```
+   Config (unnamed): Key "extends": This appears to be in eslintrc format
+   Failed to patch ESLint because the calling module was not recognized
+   ```
+   **Fix:** Usar flat config explícito con `import nextConfig from "eslint-config-next"`
 
-**Frontend (TypeScript):**
-```bash
-# ANTES (ERROR)
-src/hooks/useLicense.ts  # Contiene JSX como <div className=...>
-
-# AHORA (CORRECTO)
-src/hooks/useLicense.tsx  # Extensión correcta para JSX
-```
+5. **next-intl deprecated:**
+   ```
+   Reading request configuration from ./src/i18n.ts is deprecated
+   ```
+   **Fix:** Crear `src/i18n/request.ts` y referenciar en `next.config.ts`
 
 ---
 
 ## Fallos / Errores
 
-1. **Backend no levanta** - `sri.py` tenía error de orden de definiciones (Python no permite forward references en type hints sin comillas)
-2. **Frontend build falla** - webpack rechaza JSX en archivos `.ts`:
-   ```
-   Expected '>', got 'className'
-   ./src/hooks/useLicense.ts:280:1
-   <div className="flex items-center justify-center p-8">
-   ```
-3. **No se pudo ejecutar comandos en servidor** - Sesión actual no tiene conexión SSH directa al servidor
+1. **Confusión inicial con `FeatureKey` vs `keyof FEATURE_LABELS`:**
+   - `FeatureKey = keyof typeof LICENSE_FEATURES` → valores como `'POS'`, `'PAYROLL'` (mayúsculas)
+   - `keyof typeof FEATURE_LABELS` → claves como `'pos'`, `'payroll'` (minúsculas)
+   - **Solución:** Usar `keyof typeof FEATURE_LABELS` directamente en `featureMap` y `renderLockedView`
+
+2. **ESLint multiple attempts:**
+   - Primero intenté `Array.isArray()` check - no funcionó
+   - Luego flat config manual sin plugin - error "Could not find plugin"
+   - **Solución:** Importar `eslint-config-next` directamente y hacer spread
 
 ---
 
@@ -117,81 +119,117 @@ src/hooks/useLicense.tsx  # Extensión correcta para JSX
 
 ```bash
 # ============================================
-# 1. COPIAR ARCHIVO SRI.PY CORREGIDO
+# 1. COPIAR ARCHIVOS FRONTEND CORREGIDOS
 # ============================================
-scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\backend\app\schemas\sri.py" \
-  root@10.0.1.20:/opt/contaec/backend/app/schemas/sri.py
+scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\src\lib\api.ts" \
+  root@10.0.1.20:/opt/contaec/src/lib/api.ts
+
+scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\src\components\contaec-dashboard.tsx" \
+  root@10.0.1.20:/opt/contaec/src/components/contaec-dashboard.tsx
+
+scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\src\i18n\request.ts" \
+  root@10.0.1.20:/opt/contaec/src/i18n/request.ts
+
+scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\next.config.ts" \
+  root@10.0.1.20:/opt/contaec/next.config.ts
+
+scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\eslint.config.mjs" \
+  root@10.0.1.20:/opt/contaec/eslint.config.mjs
 
 # ============================================
-# 2. RENOMBRAR HOOKS DE .TS A .TSX
-# ============================================
-cd /opt/contaec/src/hooks
-for f in *.ts; do mv "$f" "${f%.ts}.tsx"; done
-
-# Verificar qué archivos fueron renombrados
-ls -la
-
-# Si hay más errores de JSX en otros archivos .ts:
-grep -rn "className\|<div\|<span\|<button" src/ --include="*.ts"
-
-# ============================================
-# 3. BUILD FRONTEND
+# 2. BUILD FRONTEND
 # ============================================
 cd /opt/contaec
 bun run build
 
-# ============================================
-# 4. REINICIAR BACKEND
-# ============================================
-sudo systemctl restart contaec-backend
+# Esperar:
+# - Compiled successfully
+# - Linting and checking validity of types ... done
+# - Creating an optimized production build ... done
 
 # ============================================
-# 5. VERIFICAR SALUD
+# 3. REINICIAR FRONTEND
 # ============================================
-sleep 10
-sudo systemctl status contaec-backend
-curl http://localhost:8000/api/health
+sudo systemctl restart contaec-frontend
+
+# ============================================
+# 4. VERIFICAR SALUD
+# ============================================
+sleep 5
+sudo systemctl status contaec-frontend
 curl http://localhost:3000
+curl https://conta.tymtechnology.shop
 ```
 
 ---
 
 ## Notas Técnicas
 
-### Error Backend: Forward Reference en Type Hints
+### TypeScript: Type Safety con Enum-Like Objects
 
-Python no permite usar una clase en un type hint antes de que esté definida (a menos que uses comillas):
+```typescript
+//有时候LICENSE_FEATURES 和 FEATURE_LABELS 是不同的映射
+export const LICENSE_FEATURES = {
+  POS: 'pos',        // key: POS (mayúscula), value: 'pos' (minúscula)
+  PAYROLL: 'payroll',
+} as const;
 
-```python
-# ❌ ESTO FALLA
-def foo() -> MiClase: ...  # MiClase no existe aún
-class MiClase: ...
+export const FEATURE_LABELS = {
+  pos: 'Punto de Venta',    // key: pos (minúscula)
+  payroll: 'Nómina',
+} as const;
 
-# ✅ ESTO FUNCIONA
-class MiClase: ...
-def foo() -> MiClase: ...
+// FeatureKey = 'POS' | 'PAYROLL' (las KEYS de LICENSE_FEATURES)
+// keyof FEATURE_LABELS = 'pos' | 'payroll' (las KEYS de FEATURE_LABELS)
 
-# ✅ O CON COMILLAS (forward reference)
-def foo() -> "MiClase": ...  # string, no evalúa aún
-class MiClase: ...
+// Cuando usar cual:
+// - checkFeature(feature: FeatureKey) → usa mayúsculas
+// - FEATURE_LABELS[feature] → usa minúsculas
+// - featureMap para UI → usa minúsculas (keyof FEATURE_LABELS)
 ```
 
-### Error Frontend: .ts vs .tsx
+### ESLint Flat Config (Next.js 15+)
 
-| Extensión | Uso |
-|-----------|-----|
-| `.ts` | TypeScript puro, sin JSX |
-| `.tsx` | TypeScript + JSX (componentes React) |
+```javascript
+// ANTES (eslintrc format - NO FUNCIONA)
+module.exports = {
+  extends: ['next/core-web-vitals'],
+  rules: { ... }
+}
 
-Next.js/webpack requiere `.tsx` para cualquier archivo con JSX (`<div>`, `<Component />`, etc.)
+// AHORA (flat config - FUNCIONA)
+import nextConfig from "eslint-config-next"
+
+export default [
+  ...nextConfig,  // Spread de configs predefinidos
+  { rules: { ... } },
+  { ignores: [...] }
+]
+```
+
+### next-intl v3.22+ Configuration
+
+```typescript
+// next.config.ts
+import createNextIntlPlugin from 'next-intl/plugin';
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+
+// src/i18n/request.ts (nuevo archivo requerido)
+import { getRequestConfig } from 'next-intl/server';
+export default getRequestConfig(async ({ locale }) => ({
+  messages: (await import(`../../messages/${locale}.json`)).default,
+  timeZone: 'America/Guayaquil',
+  formats: { ... }
+}));
+```
 
 ---
 
 ## Riesgos / Advertencias
 
-1. **No reiniciar backend sin copiar `sri.py`** - Seguirá fallando con `NameError`
-2. **Build puede fallar si hay más `.ts` con JSX** - Revisar output de webpack para identificar archivos pendientes
-3. **Hooks renombrados pueden requerir actualizar imports** - TypeScript usualmente lo resuelve solo, pero verificar
+1. **Build puede fallar si hay más type errors** - Revisar output completo de `bun run build`
+2. **ESLint rules pueden causar nuevos warnings** - Configuración actual es permisiva (`warn` en lugar de `error`)
+3. **next-intl requiere messages/[locale].json** - Verificar que existen `messages/es.json` y `messages/en.json`
 
 ---
 
@@ -204,6 +242,5 @@ Next.js/webpack requiere `.tsx` para cualquier archivo con JSX (`<div>`, `<Compo
 
 ---
 
-*Última actualización: 2026-06-20*  
-*Backend sri.py: ✅ Corregido local, ⏳ Pendiente deploy*  
-*Frontend hooks: ⏳ Pendiente renombrar .ts → .tsx*
+*Última actualización: 2026-06-23*  
+*Frontend: ✅ Todos los errores TypeScript/ESLint corregidos localmente, ⏳ Pendiente build en producción*
