@@ -343,7 +343,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
 
   // Filtrar items según el plan del usuario
   const currentTier = license?.license_type;
-  const filteredNavItems = userNavItems.filter(item => {
+  const filteredNavItems: { id: NavItem; label: string; icon: React.ReactNode; locked?: boolean; requiredTier?: string }[] = userNavItems.filter(item => {
     if (!item.locked) return true;
     if (!item.requiredTier) return true;
 
@@ -368,7 +368,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
     return true;
   });
 
-  const adminNavItems: { id: NavItem; label: string; icon: React.ReactNode }[] = [
+  const adminNavItems: { id: NavItem; label: string; icon: React.ReactNode; locked?: boolean; requiredTier?: string }[] = [
     { id: 'admin-overview', label: t('admin.overview'), icon: <Activity className="h-4 w-4" /> },
     { id: 'admin-users', label: t('admin.users'), icon: <Users className="h-4 w-4" /> },
     { id: 'admin-system', label: t('admin.system'), icon: <Server className="h-4 w-4" /> },
