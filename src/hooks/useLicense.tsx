@@ -71,8 +71,12 @@ export const LICENSE_FEATURES = {
 
 export type FeatureKey = keyof typeof LICENSE_FEATURES;
 
+// Tipo para los valores de feature (minúsculas, usados como claves en FEATURE_LABELS)
+export type FeatureValue = typeof LICENSE_FEATURES[keyof typeof LICENSE_FEATURES];
+
 // Mapeo de características a nombres legibles
-export const FEATURE_LABELS: Record<FeatureKey, string> = {
+// Las claves son los valores de LICENSE_FEATURES (minúsculas): 'pos', 'payroll', etc.
+export const FEATURE_LABELS = {
   electronic_invoicing: 'Facturación Electrónica',
   basic_accounting: 'Contabilidad Básica',
   inventory: 'Inventario',
@@ -89,7 +93,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   custom_reports: 'Reportes Personalizados',
   api_access: 'API Access',
   priority_support: 'Soporte Prioritario',
-};
+} as const satisfies Record<FeatureValue, string>;
 
 export function useLicense(): UseLicenseReturn {
   const [license, setLicense] = useState<LicenseStatusType | null>(null);
