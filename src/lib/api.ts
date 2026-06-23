@@ -534,6 +534,9 @@ interface LicenseStatus {
   trial_start_date: string | null;
   trial_end_date: string | null;
   trial_days_remaining: number | null;
+  // Trial/License active flags
+  trial_active: boolean;
+  license_active: boolean;
 }
 
 interface LicenseOptions {
