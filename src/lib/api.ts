@@ -527,6 +527,7 @@ interface LicenseStatus {
   license_start_date: string | null;
   license_end_date: string | null;
   is_expired: boolean;
+  license_expired: boolean;
   days_remaining: number | null;
   is_active: boolean;
   // Trial info
@@ -1893,6 +1894,10 @@ async function deleteEmailTemplate(id: string): Promise<{ message: string }> {
 
 async function previewEmailTemplate(id: string, data: { comprobante_id?: string }): Promise<unknown> {
   return apiPost(`/v1/email-templates/${id}/preview`, data);
+}
+
+async function previewEmailTemplateCustom(data: { cuerpo_html: string; asunto: string; sample_data?: Record<string, unknown> }): Promise<{ rendered_html?: string; cuerpo_html?: string }> {
+  return apiPost('/v1/email-templates/preview', data);
 }
 
 async function sendEmailWithTemplate(data: { template_id: string; comprobante_id: string; to_email?: string }): Promise<{ message: string }> {

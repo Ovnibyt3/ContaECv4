@@ -51,6 +51,7 @@ import {
   updateEmailTemplate,
   deleteEmailTemplate,
   previewEmailTemplate,
+  previewEmailTemplateCustom,
   sendEmailWithTemplate,
   type EmailTemplate,
 } from '@/lib/api';
@@ -191,7 +192,7 @@ export function EmailTemplateEditor({ companyId }: EmailTemplateEditorProps) {
         numero_autorizacion: '1234567890123456789012345678901234567890',
       };
 
-      const result = await previewEmailTemplate({
+      const result = await previewEmailTemplateCustom({
         cuerpo_html: formData.cuerpo_html,
         asunto: formData.asunto,
         sample_data: sampleData,
