@@ -371,6 +371,7 @@ cd /opt/contaec
 bun install
 bun add socket.io-client
 bun add socket.io
+bun install @eslint/eslintrc
 
 # Construir el frontend para producción
 bun run build

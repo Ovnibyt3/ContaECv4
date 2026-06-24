@@ -1,13 +1,18 @@
-import nextConfig from "eslint-config-next";
+import { FlatCompat } from "@eslint/eslintrc";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// eslint-config-next exports a pre-configured flat config
+// ponytail: FlatCompat is required by Next.js 15 + ESLint 9 to bypass
+// @rushstack/eslint-patch's "calling module not recognized" error
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
 const eslintConfig = [
-  ...nextConfig,
+  ...compat.extends("next/core-web-vitals"),
   {
     rules: {
       // TypeScript rules - core enabled, permissive on edge cases
@@ -47,8 +52,8 @@ const eslintConfig = [
     },
   },
   {
-    ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
-  }
+    ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"],
+  },
 ];
 
 export default eslintConfig;

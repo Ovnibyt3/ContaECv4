@@ -4803,6 +4803,7 @@ export {
   updateEmailTemplate,
   deleteEmailTemplate,
   previewEmailTemplate,
+  previewEmailTemplateCustom,
   sendEmailWithTemplate,
   // Import/Export functions
   importProductsExcel,
