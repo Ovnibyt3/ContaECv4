@@ -312,7 +312,7 @@ export function EmailTemplateEditor({ companyId }: EmailTemplateEditorProps) {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Click para insertar • También disponíveis: {{}}fecha_autorizacion, {{}}establecimiento, {{}}direccion, {{}}email, {{}}telefono
+                  {`Click para insertar • También disponíveis: {{}}fecha_autorizacion, {{}}establecimiento, {{}}direccion, {{}}email, {{}}telefono`}
                 </p>
               </div>
 
