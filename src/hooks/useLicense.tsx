@@ -226,7 +226,7 @@ export function useLicense(): UseLicenseReturn {
   }, [license?.license_type]);
 
   const showUpgradePrompt = useCallback((featureName?: string) => {
-    const featureLabel = featureName ? FEATURE_LABELS[featureName as FeatureKey] || featureName : '';
+    const featureLabel = featureName ? FEATURE_LABELS[featureName as FeatureValue] || featureName : '';
 
     toast.error(
       featureName
