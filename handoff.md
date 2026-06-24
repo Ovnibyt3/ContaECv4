@@ -9,9 +9,9 @@
 ## Objetivo Principal
 
 Resolver errores críticos que impiden el build del frontend:
-1. **TypeScript:** Propiedades faltantes en interfaces (`AdminUser`)
-2. **TypeScript:** Variables no encontradas (`setLicenseData`)
-3. **TypeScript:** Type mismatch en feature mapping (`FeatureKey` vs string literals)
+1. **TypeScript:** Propiedades faltantes en interfaces (`LicenseStatus`)
+2. **TypeScript:** Type mismatch en feature mapping (`FeatureKey` vs valores minúsculas)
+3. **TypeScript:** Tipos incorrectos en `FEATURE_LABELS` declaration
 4. **ESLint:** Configuración incompatible con Next.js 15
 5. **next-intl:** Warning por configuración deprecated
 
@@ -23,8 +23,9 @@ Resolver errores críticos que impiden el build del frontend:
 
 | Archivo | Cambios | Estado |
 |---------|---------|--------|
-| `src/lib/api.ts` | Agregadas propiedades `is_trial` y `trial_end_date` a interfaz `AdminUser` | ✅ Local |
-| `src/components/contaec-dashboard.tsx` | Corregido `setLicenseData` → `setLicense`, featureMap con claves correctas | ✅ Local |
+| `src/lib/api.ts` | Agregadas propiedades `trial_active`, `license_active`, `license_days_remaining` a `LicenseStatus` | ✅ Local |
+| `src/hooks/useLicense.tsx` | Corregido tipo de `FEATURE_LABELS` de `Record<FeatureKey, string>` a `as const satisfies Record<FeatureValue, string>` | ✅ Local |
+| `src/components/contaec-dashboard.tsx` | FeatureMap con `as const`, tipos corregidos | ✅ Local |
 | `src/i18n/request.ts` | Creado archivo (migración de config deprecated) | ✅ Local |
 | `next.config.ts` | Actualizado plugin next-intl con ruta explícita | ✅ Local |
 | `eslint.config.mjs` | Reescrito para usar flat config compatible con Next.js 15 | ✅ Local |
@@ -33,7 +34,7 @@ Resolver errores críticos que impiden el build del frontend:
 
 | Tarea | Comando/Acción | Prioridad |
 |-------|----------------|-----------|
-| Copiar archivos frontend modificados | `scp src/lib/api.ts src/components/contaec-dashboard.tsx src/i18n/request.ts next.config.ts eslint.config.mjs` | 🔥 Alta |
+| Copiar archivos frontend modificados | `scp src/lib/api.ts src/hooks/useLicense.tsx src/components/contaec-dashboard.tsx src/i18n/request.ts next.config.ts eslint.config.mjs` | 🔥 Alta |
 | Build frontend | `bun run build` | 🔥 Alta |
 | Reiniciar frontend | `systemctl restart contaec-frontend` | 🔥 Alta |
 | Verificar health | `curl http://localhost:3000` | 🔥 Alta |
@@ -46,11 +47,12 @@ Resolver errores críticos que impiden el build del frontend:
 
 | Archivo | Cambios Detallados | Líneas |
 |---------|-------------------|--------|
-| `src/lib/api.ts` | Agregadas `is_trial: boolean` y `trial_end_date: string \| null` a `AdminUser` | 453-469 |
-| `src/components/contaec-dashboard.tsx` | `setLicenseData` → `setLicense` (línea 204), `featureMap` corregido a `keyof typeof FEATURE_LABELS` con valores minúscula (`pos`, `payroll`, `multi_warehouse`, etc.) | 142, 204, 383-393, 455-470, 634-663 |
+| `src/lib/api.ts` | Agregadas `trial_active: boolean`, `license_active: boolean`, `license_days_remaining: number \| null` a `LicenseStatus` | 525-541 |
+| `src/hooks/useLicense.tsx` | Agregado `FeatureValue` type, cambiado `FEATURE_LABELS` a `as const satisfies Record<FeatureValue, string>` | 72-92 |
+| `src/components/contaec-dashboard.tsx` | featureMap con `as const` en ambas declaraciones (líneas 384 y 457) | 384, 457 |
 | `src/i18n/request.ts` | Archivo nuevo - configuración next-intl según mejor práctica v3.22+ | Todo |
 | `next.config.ts` | `createNextIntlPlugin('./src/i18n/request.ts')` en lugar de `createNextIntlPlugin()` | 4 |
-| `eslint.config.mjs` | Flat config usando `eslint-config-next` directamente + reglas personalizadas | Todo |
+| `eslint.config.mjs` | Flat config usando `import nextConfig from "eslint-config-next"` directamente + reglas personalizadas | Todo |
 
 ---
 
@@ -58,31 +60,53 @@ Resolver errores críticos que impiden el build del frontend:
 
 ### Exitoso
 
-1. **Diagnosticar error `trial_end_date`** - Interface `AdminUser` no tenía la propiedad que el código usaba
-2. **Identificar `setLicenseData`** - Error de naming, el estado se llama `setLicense`
-3. **Feature mapping type-safe** - `FEATURE_LABELS` usa claves minúscula (`pos`, `payroll`) no `FeatureKey` (mayúsculas)
-4. **ESLint flat config** - Next.js 15 requiere configuración diferente, usar `import nextConfig from "eslint-config-next"` y spread
-5. **next-intl migration** - Mover configuración a `src/i18n/request.ts` y referenciar en `next.config.ts`
+1. **Diagnosticar error `trial_active`** - Interface `LicenseStatus` no tenía las propiedades que el código usaba
+2. **Identificar type mismatch en FEATURE_LABELS** - El tipo era `Record<FeatureKey, string>` pero las claves reales son los valores de `LICENSE_FEATURES` (minúsculas)
+3. **Crear tipo `FeatureValue`** - `typeof LICENSE_FEATURES[keyof typeof LICENSE_FEATURES]` para obtener los valores reales ('pos', 'payroll', etc.)
+4. **Usar `satisfies` pattern** - `as const satisfies Record<FeatureValue, string>` para type safety con inferencia correcta
+5. **ESLint flat config** - Next.js 15 requiere configuración diferente, usar `import nextConfig from "eslint-config-next"` y spread
+6. **next-intl migration** - Mover configuración a `src/i18n/request.ts` y referenciar en `next.config.ts`
 
-### Eras / Errores Corregidos
+### Fallos / Errores
 
-1. **`AdminUser` interface incompleta:**
+1. **Confusión inicial entre `FeatureKey` y `FeatureValue`:**
+   - `FeatureKey = keyof typeof LICENSE_FEATURES` → `'POS'`, `'PAYROLL'` (claves en mayúsculas)
+   - `FeatureValue = typeof LICENSE_FEATURES[keyof typeof LICENSE_FEATURES]` → `'pos'`, `'payroll'` (valores en minúsculas)
+   - `FEATURE_LABELS` usa minúsculas como claves, no mayúsculas
+   - **Solución:** Crear `FeatureValue` type y usar `as const satisfies Record<FeatureValue, string>`
+
+2. **ESLint multiple attempts:**
+   - Primero intenté `Array.isArray()` check - no funcionó
+   - Luego flat config manual sin plugin - error "Could not find plugin"
+   - **Solución:** Importar `eslint-config-next` directamente y hacer spread
+
+3. **Intento de usar `as const` solo en featureMap:**
+   - Error persistía porque el problema estaba en el tipo base de `FEATURE_LABELS`
+   - **Solución:** Corregir el tipo de `FEATURE_LABELS` en `useLicense.tsx`
+
+---
+
+## Errores Corregidos
+
+1. **`LicenseStatus` interface incompleta:**
    ```
-   Property 'trial_end_date' does not exist on type 'AdminUser'
+   Property 'trial_active' does not exist on type 'LicenseStatus'
+   Property 'license_active' does not exist on type 'LicenseStatus'
+   Property 'license_days_remaining' does not exist on type 'LicenseStatus'
    ```
-   **Fix:** Agregadas `is_trial` y `trial_end_date`
+   **Fix:** Agregadas `trial_active`, `license_active`, `license_days_remaining`
 
-2. **`setLicenseData` no definido:**
+2. **`FEATURE_LABELS` type incorrecto:**
+   ```
+   Type '"pos"' is not assignable to type '"POS"'
+   ```
+   **Fix:** Cambiar de `Record<FeatureKey, string>` a `as const satisfies Record<FeatureValue, string>`
+
+3. **`setLicenseData` no definido:**
    ```
    Cannot find name 'setLicenseData'. Did you mean 'licenseData'?
    ```
    **Fix:** Cambiado a `setLicense` (nombre real del setter)
-
-3. **Type mismatch en featureMap:**
-   ```
-   Type '"pos"' is not assignable to type '"POS"'
-   ```
-   **Fix:** `FEATURE_LABELS` tiene claves en minúscula, `FeatureKey` (de `LICENSE_FEATURES`) tiene valores en mayúscula. Usar `keyof typeof FEATURE_LABELS` directamente.
 
 4. **ESLint config incompatible:**
    ```
@@ -99,17 +123,24 @@ Resolver errores críticos que impiden el build del frontend:
 
 ---
 
-## Fallos / Errores
+## Notas Importantes del Entorno
 
-1. **Confusión inicial con `FeatureKey` vs `keyof FEATURE_LABELS`:**
-   - `FeatureKey = keyof typeof LICENSE_FEATURES` → valores como `'POS'`, `'PAYROLL'` (mayúsculas)
-   - `keyof typeof FEATURE_LABELS` → claves como `'pos'`, `'payroll'` (minúsculas)
-   - **Solución:** Usar `keyof typeof FEATURE_LABELS` directamente en `featureMap` y `renderLockedView`
+**⚠️ ESTE EQUIPO ES SOLO CÓDIGO FUENTE**
 
-2. **ESLint multiple attempts:**
-   - Primero intenté `Array.isArray()` check - no funcionó
-   - Luego flat config manual sin plugin - error "Could not find plugin"
-   - **Solución:** Importar `eslint-config-next` directamente y hacer spread
+- **No ejecutar comandos de build localmente** - Este equipo solo almacena el código
+- **Producción:** 10.0.1.20 (LXC Proxmox)
+- **Build real:** Se ejecuta en el servidor de producción con `bun run build`
+- **Deploy:** Via SCP desde esta máquina al servidor
+- **Validación:** Los errores de tipo/ESLint vienen del build en producción
+
+Flujo de trabajo:
+```
+1. Modificar archivos aquí (Windows local)
+2. Copiar a producción con SCP
+3. Ejecutar build en servidor Linux
+4. Recibir errores del build en producción
+5. Corregir aquí, repetir
+```
 
 ---
 
@@ -124,6 +155,9 @@ Resolver errores críticos que impiden el build del frontend:
 scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\src\lib\api.ts" \
   root@10.0.1.20:/opt/contaec/src/lib/api.ts
 
+scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\src\hooks\useLicense.tsx" \
+  root@10.0.1.20:/opt/contaec/src/hooks/useLicense.tsx
+
 scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4\src\components\contaec-dashboard.tsx" \
   root@10.0.1.20:/opt/contaec/src/components/contaec-dashboard.tsx
 
@@ -137,8 +171,9 @@ scp "C:\Users\steve\Documentos\Empresas\TyM\Sistema Contable\ContaECv4\ContaECv4
   root@10.0.1.20:/opt/contaec/eslint.config.mjs
 
 # ============================================
-# 2. BUILD FRONTEND
+# 2. BUILD FRONTEND (EN PRODUCCIÓN)
 # ============================================
+ssh root@10.0.1.20
 cd /opt/contaec
 bun run build
 
@@ -168,24 +203,25 @@ curl https://conta.tymtechnology.shop
 ### TypeScript: Type Safety con Enum-Like Objects
 
 ```typescript
-//有时候LICENSE_FEATURES 和 FEATURE_LABELS 是不同的映射
+// LICENSE_FEATURES usa patrón clave:valor (mayúscula: minúscula)
 export const LICENSE_FEATURES = {
   POS: 'pos',        // key: POS (mayúscula), value: 'pos' (minúscula)
   PAYROLL: 'payroll',
 } as const;
 
+export type FeatureKey = keyof typeof LICENSE_FEATURES;  // 'POS' | 'PAYROLL'
+export type FeatureValue = typeof LICENSE_FEATURES[keyof typeof LICENSE_FEATURES]; // 'pos' | 'payroll'
+
+// FEATURE_LABELS usa los VALORES (minúsculas) como claves
 export const FEATURE_LABELS = {
   pos: 'Punto de Venta',    // key: pos (minúscula)
   payroll: 'Nómina',
-} as const;
-
-// FeatureKey = 'POS' | 'PAYROLL' (las KEYS de LICENSE_FEATURES)
-// keyof FEATURE_LABELS = 'pos' | 'payroll' (las KEYS de FEATURE_LABELS)
+} as const satisfies Record<FeatureValue, string>;
 
 // Cuando usar cual:
 // - checkFeature(feature: FeatureKey) → usa mayúsculas
-// - FEATURE_LABELS[feature] → usa minúsculas
-// - featureMap para UI → usa minúsculas (keyof FEATURE_LABELS)
+// - FEATURE_LABELS[feature] → usa minúsculas (FeatureValue)
+// - featureMap para UI → usa minúsculas (keyof typeof FEATURE_LABELS)
 ```
 
 ### ESLint Flat Config (Next.js 15+)
@@ -230,6 +266,7 @@ export default getRequestConfig(async ({ locale }) => ({
 1. **Build puede fallar si hay más type errors** - Revisar output completo de `bun run build`
 2. **ESLint rules pueden causar nuevos warnings** - Configuración actual es permisiva (`warn` en lugar de `error`)
 3. **next-intl requiere messages/[locale].json** - Verificar que existen `messages/es.json` y `messages/en.json`
+4. **SCP puede fallar por路径 con espacios** - Usar comillas o escape en paths de Windows
 
 ---
 
@@ -239,6 +276,7 @@ export default getRequestConfig(async ({ locale }) => ({
 - **Empresa:** TyM - Sistema Contable ContaECv4
 - **Producción:** https://conta.tymtechnology.shop
 - **Servidor:** 10.0.1.20:80 (LXC Proxmox)
+- **Equipo local:** Solo código fuente, NO ejecutar builds
 
 ---
 
