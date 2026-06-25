@@ -1,7 +1,6 @@
 'use client';
 
 import { NextIntlClientProvider, useMessages } from 'next-intl';
-import { timeZone } from 'next-intl/server';
 
 interface I18nProviderProps {
   children: React.ReactNode;
