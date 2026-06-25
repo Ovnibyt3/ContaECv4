@@ -248,7 +248,7 @@ export function useLicense(): UseLicenseReturn {
     // Verificación real usando la API
     try {
       const result = await checkLicenseLimit(limitType, companyId);
-      return !result.isAtLimit;
+      return !result.is_at_limit;
     } catch (error) {
       console.error('Error checking limit:', error);
       return false;
@@ -292,7 +292,7 @@ export function withFeature<P extends object>(
         <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-lg">
           <span className="text-4xl mb-4">🔒</span>
           <h3 className="text-lg font-semibold mb-2">
-            {featureLabel || FEATURE_LABELS[featureName]} no disponible
+            {featureLabel} no disponible
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
             Esta funcionalidad no está incluida en tu plan actual
