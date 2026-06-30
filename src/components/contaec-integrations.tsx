@@ -37,7 +37,6 @@ import {
   ShoppingCart,
   Plus,
   Trash2,
-  RefreshCw,
   Loader2,
   Eye,
   CheckCircle2,
@@ -47,11 +46,9 @@ import {
   Calendar,
   ArrowUpCircle,
   ArrowDownCircle,
-  Plug,
   Play,
   AlertTriangle,
   Wifi,
-  WifiOff,
   Clock,
   BarChart3,
   Package,
@@ -123,7 +120,7 @@ const BANCOS_EC: Record<string, { swift_bic: string; manual: boolean }> = {
   'Otro': { swift_bic: '', manual: true },
 };
 
-export function ContaECIntegrations({ user, companies }: ContaECIntegrationsProps) {
+export function ContaECIntegrations({ _user, companies }: ContaECIntegrationsProps) {
   const selectedCompany = companies[0];
   const companyId = selectedCompany?.id || '';
 

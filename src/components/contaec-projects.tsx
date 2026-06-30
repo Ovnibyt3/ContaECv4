@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -73,8 +73,7 @@ import {
   deleteProyectoRecurso,
   getProyectoTimesheets,
   createProyectoTimesheet,
-  getProyectoCostos,
-  createProyectoCosto,
+  deleteProyectoTimesheet,
   getClients,
   type ProyectoResponse,
   type ProyectoTareaResponse,
@@ -152,7 +151,7 @@ interface ContaECProjectsProps {
   companies: Company[];
 }
 
-export function ContaECProjects({ user, companies }: ContaECProjectsProps) {
+export function ContaECProjects({ _user, companies }: ContaECProjectsProps) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() =>
     companies.length > 0 ? companies[0].id : ''
   );
@@ -372,7 +371,7 @@ function DashboardTab({ companyId }: { companyId: string }) {
 
 // ─── Proyectos Tab ───────────────────────────────────
 
-function ProyectosTab({ companyId, companies }: { companyId: string; companies: Company[] }) {
+function ProyectosTab({ companyId, _companies }: { companyId: string; companies: Company[] }) {
   const [proyectos, setProyectos] = useState<ProyectoResponse[]>([]);
   const [clients, setClients] = useState<ClientResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -974,19 +973,21 @@ function TareasTab({ companyId }: { companyId: string }) {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarea, setEditTarea] = useState<ProyectoTareaResponse | null>(null);
   const [operating, setOperating] = useState(false);
+  const isInitialLoadRef = useRef(true);
 
   const loadProyectos = useCallback(async () => {
     if (!companyId) return;
     try {
       const proys = await getProyectos({ company_id: companyId });
       setProyectos(proys);
-      if (proys.length > 0 && !selectedProyectoId) {
+      if (isInitialLoadRef.current && proys.length > 0 && !selectedProyectoId) {
         setSelectedProyectoId(proys[0].id);
+        isInitialLoadRef.current = false;
       }
     } catch {
       toast.error('Error al cargar proyectos');
     }
-  }, [companyId]);
+  }, [companyId, selectedProyectoId]);
 
   const loadTareas = useCallback(async () => {
     if (!selectedProyectoId) { setLoading(false); return; }
@@ -1350,19 +1351,21 @@ function RecursosTab({ companyId }: { companyId: string }) {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [operating, setOperating] = useState(false);
+  const isInitialLoadRef = useRef(true);
 
   const loadProyectos = useCallback(async () => {
     if (!companyId) return;
     try {
       const proys = await getProyectos({ company_id: companyId });
       setProyectos(proys);
-      if (proys.length > 0 && !selectedProyectoId) {
+      if (isInitialLoadRef.current && proys.length > 0 && !selectedProyectoId) {
         setSelectedProyectoId(proys[0].id);
+        isInitialLoadRef.current = false;
       }
     } catch {
       toast.error('Error al cargar proyectos');
     }
-  }, [companyId]);
+  }, [companyId, selectedProyectoId]);
 
   const loadRecursos = useCallback(async () => {
     if (!selectedProyectoId) { setLoading(false); return; }
@@ -1609,19 +1612,21 @@ function TimesheetTab({ companyId }: { companyId: string }) {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [operating, setOperating] = useState(false);
+  const isInitialLoadRef = useRef(true);
 
   const loadProyectos = useCallback(async () => {
     if (!companyId) return;
     try {
       const proys = await getProyectos({ company_id: companyId });
       setProyectos(proys);
-      if (proys.length > 0 && !selectedProyectoId) {
+      if (isInitialLoadRef.current && proys.length > 0 && !selectedProyectoId) {
         setSelectedProyectoId(proys[0].id);
+        isInitialLoadRef.current = false;
       }
     } catch {
       toast.error('Error al cargar proyectos');
     }
-  }, [companyId]);
+  }, [companyId, selectedProyectoId]);
 
   const loadTimesheets = useCallback(async () => {
     if (!selectedProyectoId) { setLoading(false); return; }

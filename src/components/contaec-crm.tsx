@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,7 +50,6 @@ import {
   Trash2,
   ArrowRight,
   CheckCircle2,
-  Clock,
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -63,7 +62,6 @@ import {
   deleteCRMOpportunity,
   getCRMActivities,
   createCRMActivity,
-  updateCRMActivity,
   completeCRMActivity,
   getCRMSegments,
   createCRMSegment,
@@ -170,7 +168,7 @@ interface ContaECCRMProps {
   companies: Company[];
 }
 
-export function ContaECCRM({ user, companies }: ContaECCRMProps) {
+export function ContaECCRM({ _user, companies }: ContaECCRMProps) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() =>
     companies.length > 0 ? companies[0].id : ''
   );
@@ -1322,7 +1320,7 @@ function CreateOpportunityDialog({ open, onOpenChange, companyId, clients, pipel
         setStageId(sorted[0].id);
       }
     }
-  }, [pipelineId]);
+  }, [pipelineId, pipelines, stageId]);
 
   async function handleCreate() {
     if (!name || !pipelineId || !stageId) {
@@ -1560,7 +1558,7 @@ function CreateSegmentDialog({ open, onOpenChange, companyId, onCreated }: {
     if (rules && rules.trim()) {
       try {
         parsedRules = JSON.parse(rules);
-      } catch (e) {
+      } catch (_e) {
         toast.error('Reglas JSON inválidas. Use formato: {"campo": "valor"}');
         return;
       }
@@ -1652,7 +1650,7 @@ function CreateAutomationDialog({ open, onOpenChange, companyId, onCreated }: {
     if (triggerConditions && triggerConditions.trim()) {
       try {
         parsedConditions = JSON.parse(triggerConditions);
-      } catch (e) {
+      } catch (_e) {
         toast.error('Condiciones JSON inválidas. Ejemplo: {"campo": "stage", "valor": "propuesta"}');
         return;
       }
@@ -1662,7 +1660,7 @@ function CreateAutomationDialog({ open, onOpenChange, companyId, onCreated }: {
     if (actions && actions.trim()) {
       try {
         parsedActions = JSON.parse(actions);
-      } catch (e) {
+      } catch (_e) {
         toast.error('Acciones JSON inválidas. Ejemplo: {"tipo": "email", "destinatario": "lead"}');
         return;
       }

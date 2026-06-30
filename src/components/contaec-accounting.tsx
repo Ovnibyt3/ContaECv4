@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +18,7 @@ import {
   getPeriodosFiscales, createPeriodoFiscal, cerrarPeriodoFiscal, reabrirPeriodoFiscal,
   getBalanceComprobacion,
   type CuentaContable, type CuentaContableCreate,
-  type AsientoContable, type AsientoContableCreate, type AsientoDetalleCreate,
+  type AsientoContable, type AsientoContableCreate,
   type CuentaPorCobrar, type CuentaPorCobrarCreate,
   type Pago, type PagoCreate,
   type PeriodoFiscal, type PeriodoFiscalCreate,

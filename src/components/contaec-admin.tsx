@@ -28,7 +28,6 @@ import {
 import {
   ArrowLeft,
   AlertTriangle,
-  CheckCircle2,
   Clock,
   Database,
   Heart,
