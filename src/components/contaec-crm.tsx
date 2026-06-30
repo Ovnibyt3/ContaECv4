@@ -51,7 +51,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
-  Filter,
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';

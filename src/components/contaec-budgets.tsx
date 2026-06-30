@@ -61,19 +61,15 @@ import {
   recalcularPresupuesto,
   registerEjecucionMensual,
   getComparativoPresupuestario,
-  getPresupuestoComparativo,
   getPresupuestoAlertas,
   markAlertaRead,
   markAlertaResolved,
   getAlertaSummary,
   type PresupuestoAnual,
-  type PresupuestoCuenta,
   type PresupuestoStats,
   type ComparativoGeneral,
-  type ComparativoCuenta,
   type PresupuestoAlerta,
   type AlertaSummary,
-  type PresupuestoAnualCreate,
   type PresupuestoCuentaCreate,
   type Company,
   type User,
@@ -105,7 +101,7 @@ function getAlertaTipoBadge(tipo: string) {
   }
 }
 
-function getEjecucionColor(porcentaje: number) {
+function _getEjecucionColor(porcentaje: number) {
   if (porcentaje > 100) return 'bg-red-800';
   if (porcentaje > 90) return 'bg-red-500';
   if (porcentaje > 75) return 'bg-orange-500';
@@ -126,7 +122,7 @@ interface ContaECBudgetsProps {
   companies: Company[];
 }
 
-export function ContaECBudgets({ user, companies }: ContaECBudgetsProps) {
+export function ContaECBudgets({ user: _user, companies }: ContaECBudgetsProps) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() =>
     companies.length > 0 ? companies[0].id : ''
   );
@@ -226,7 +222,7 @@ function PresupuestosTab({ companyId, companies }: { companyId: string; companie
     try {
       const p = await getPresupuesto(id);
       setViewPresupuesto(p);
-    } catch (err) {
+    } catch {
       toast.error('Error al cargar presupuesto');
     }
   }
@@ -498,6 +494,7 @@ function EjecucionTab({ companyId }: { companyId: string }) {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
   useEffect(() => { loadPresupuestos(); }, [loadPresupuestos]);
@@ -763,7 +760,7 @@ function AlertasTab({ companyId }: { companyId: string }) {
       await markAlertaRead(id);
       toast.success('Alerta marcada como leída');
       loadData();
-    } catch (err) {
+    } catch {
       toast.error('Error al marcar alerta');
     }
   }
@@ -773,7 +770,7 @@ function AlertasTab({ companyId }: { companyId: string }) {
       await markAlertaResolved(id);
       toast.success('Alerta resuelta');
       loadData();
-    } catch (err) {
+    } catch {
       toast.error('Error al resolver alerta');
     }
   }
@@ -873,7 +870,7 @@ function AlertasTab({ companyId }: { companyId: string }) {
 // ─── Cuadro de Mando Tab ───────────────────────────────────
 
 function CuadroMandoTab({ companyId }: { companyId: string }) {
-  const [stats, setStats] = useState<PresupuestoStats | null>(null);
+  const [_stats, setStats] = useState<PresupuestoStats | null>(null);
   const [comparativo, setComparativo] = useState<ComparativoGeneral | null>(null);
   const [loading, setLoading] = useState(true);
   const [anio, setAnio] = useState(new Date().getFullYear().toString());

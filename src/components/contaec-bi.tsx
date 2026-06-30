@@ -17,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   ChartContainer,
   ChartTooltip,
@@ -62,7 +62,6 @@ import {
   CreditCard,
   Calculator,
   Target,
-  Zap,
   Bell,
   FileDown,
 } from 'lucide-react';
@@ -94,7 +93,7 @@ interface ContaECBIProps {
   companies: CompanyType[];
 }
 
-const COLORS = [
+const _COLORS = [
   'hsl(var(--chart-1))',
   'hsl(var(--chart-2))',
   'hsl(var(--chart-3))',
@@ -117,9 +116,9 @@ function formatPercent(value: number): string {
 }
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const MESES_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const _MESES_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-export function ContaECBI({ user, companies }: ContaECBIProps) {
+export function ContaECBI({ user: _user, companies }: ContaECBIProps) {
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('kpis');
@@ -726,7 +725,7 @@ export function ContaECBI({ user, companies }: ContaECBIProps) {
 
 function KPIDashboard({ kpis }: { kpis: BIKPIs }) {
   const variacionVentas = kpis.variacion_ventas;
-  const variacionPositive = variacionVentas >= 0;
+  const _variacionPositive = variacionVentas >= 0;
 
   return (
     <div className="space-y-6">

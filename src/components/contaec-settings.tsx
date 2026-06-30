@@ -518,10 +518,12 @@ function ProfileTab({
           <CardContent className="flex flex-col items-center gap-4">
             <div className="w-32 h-32 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted/50">
               {config.company_logo_path ? (
-                <img
+                <Image
                   src={config.company_logo_path}
                   alt="Logo de empresa"
-                  className="w-full h-full object-contain rounded-lg"
+                  width={128}
+                  height={128}
+                  className="object-contain rounded-lg"
                 />
               ) : (
                 <Upload className="h-8 w-8 text-muted-foreground" />

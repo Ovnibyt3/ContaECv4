@@ -98,7 +98,7 @@ export const FEATURE_LABELS = {
 export function useLicense(): UseLicenseReturn {
   const [license, setLicense] = useState<LicenseStatusType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [featureCache, setFeatureCache] = useState<Record<string, boolean>>({});
+  const [_featureCache, _setFeatureCache] = useState<Record<string, boolean>>({});
 
   const loadLicense = useCallback(async () => {
     try {
@@ -190,7 +190,7 @@ export function useLicense(): UseLicenseReturn {
     return false;
   }, [license?.license_type]);
 
-  const isAtLimit = useCallback((limitType: string, companyId?: string): boolean => {
+  const isAtLimit = useCallback((_limitType: string, _companyId?: string): boolean => {
     // Para trial, usar límites del plan mensual como referencia
     const tier = license?.license_type || 'monthly';
 

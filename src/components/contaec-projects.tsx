@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,7 +49,6 @@ import {
   DollarSign,
   Calendar,
   CheckCircle2,
-  AlertTriangle,
   BarChart3,
   UserCheck,
   Wrench,
@@ -74,26 +73,13 @@ import {
   deleteProyectoRecurso,
   getProyectoTimesheets,
   createProyectoTimesheet,
-  updateProyectoTimesheet,
-  deleteProyectoTimesheet,
   getProyectoCostos,
   createProyectoCosto,
-  deleteProyectoCosto,
   getClients,
   type ProyectoResponse,
-  type ProyectoCreate,
-  type ProyectoUpdate,
   type ProyectoTareaResponse,
-  type ProyectoTareaCreate,
-  type ProyectoTareaUpdate,
   type ProyectoRecursoResponse,
-  type ProyectoRecursoCreate,
-  type ProyectoRecursoUpdate,
   type ProyectoTimesheetResponse,
-  type ProyectoTimesheetCreate,
-  type ProyectoTimesheetUpdate,
-  type ProyectoCostoResponse,
-  type ProyectoCostoCreate,
   type ProyectoStats,
   type Company,
   type User,

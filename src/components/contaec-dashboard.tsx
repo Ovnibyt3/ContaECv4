@@ -16,7 +16,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -46,8 +45,6 @@ import {
   Menu,
   Moon,
   Plus,
-  RefreshCw,
-  Settings,
   Shield,
   ShieldAlert,
   Sun,
@@ -60,10 +57,8 @@ import {
   DollarSign,
   Receipt,
   Server,
-  TrendingUp,
   Users,
   Briefcase,
-  X,
   Loader2,
   Trash2,
   Pencil,
@@ -136,7 +131,7 @@ type NavItem = 'dashboard' | 'companies' | 'sri' | 'license' | 'invoices' | 'pro
 
 export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
   const { theme, setTheme } = useTheme();
-  const { license, loading: licenseLoading, checkLimit, showUpgradePrompt, hasFeature } = useLicense();
+  const { license, checkLimit, showUpgradePrompt, hasFeature } = useLicense();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeNav, setActiveNav] = useState<NavItem>('dashboard');
   const [licenseData, setLicense] = useState<LicenseStatusType | null>(null);
@@ -242,7 +237,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
         try {
           const logoResult = await uploadCompanyFile('logo', logoFile);
           logoPath = logoResult.file_path;
-        } catch (e) {
+        } catch {
           toast.warning('Error subiendo logo, se creara la empresa sin logo');
         }
       }
@@ -253,7 +248,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
         try {
           const firmaResult = await uploadCompanyFile('firma', firmaFile);
           firmaPath = firmaResult.file_path;
-        } catch (e) {
+        } catch {
           toast.warning('Error subiendo firma electronica, se creara la empresa sin firma');
         }
       }
@@ -1754,7 +1749,7 @@ function LicenseView({
   const isLicenseActive = license?.license_active ?? false;
   const effectiveActive = isTrialActive || isLicenseActive;
   const effectiveExpired = !effectiveActive && (license?.license_expired ?? false);
-  const effectiveDaysRemaining = license?.days_remaining ?? license?.trial_days_remaining ?? null;
+  const _effectiveDaysRemaining = license?.days_remaining ?? license?.trial_days_remaining ?? null;
 
   // Handler para WhatsApp
   const handleWhatsAppClick = (planType: string, price: number, months: number) => {
@@ -2157,7 +2152,7 @@ function LicenseView({
   );
 }
 
-function InvoicesView({ invoiceStats }: { invoiceStats: InvoiceStatsType | null }) {
+function _InvoicesView({ invoiceStats }: { invoiceStats: InvoiceStatsType | null }) {
   return (
     <div className="space-y-6">
       <div>

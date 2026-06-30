@@ -2601,7 +2601,7 @@ interface AlertaSummary {
 }
 
 // Backward compatibility alias
-type InvoiceStats = ComprobanteStatsResponse;
+type _InvoiceStats = ComprobanteStatsResponse;
 
 // ============ BUDGET API FUNCTIONS ============
 
@@ -4122,7 +4122,7 @@ async function getContabilidadStats(companyId?: string): Promise<ContabilidadSta
 }
 
 async function getCuentasContables(companyId?: string, tipo?: string, search?: string): Promise<CuentaContable[]> {
-  let params: string[] = [];
+  const params: string[] = [];
   if (companyId) params.push(`company_id=${companyId}`);
   if (tipo) params.push(`tipo=${tipo}`);
   if (search) params.push(`search=${encodeURIComponent(search)}`);
@@ -4148,7 +4148,7 @@ async function seedPlanCuentasDefault(companyId: string): Promise<{ detail: stri
 }
 
 async function getAsientosContables(companyId?: string, estado?: string, skip?: number, limit?: number): Promise<AsientoContable[]> {
-  let params: string[] = [];
+  const params: string[] = [];
   if (companyId) params.push(`company_id=${companyId}`);
   if (estado) params.push(`estado=${estado}`);
   if (skip) params.push(`skip=${skip}`);
@@ -4171,7 +4171,7 @@ async function anularAsiento(id: string): Promise<{ detail: string }> {
 }
 
 async function getCuentasPorCobrar(companyId?: string, estado?: string): Promise<CuentaPorCobrar[]> {
-  let params: string[] = [];
+  const params: string[] = [];
   if (companyId) params.push(`company_id=${companyId}`);
   if (estado) params.push(`estado=${estado}`);
   const qs = params.length ? `?${params.join('&')}` : '';
@@ -4189,7 +4189,7 @@ async function getEnvejecimientoCartera(companyId?: string): Promise<Envejecimie
 }
 
 async function getPagos(companyId?: string, tipo?: string): Promise<Pago[]> {
-  let params: string[] = [];
+  const params: string[] = [];
   if (companyId) params.push(`company_id=${companyId}`);
   if (tipo) params.push(`tipo=${tipo}`);
   const qs = params.length ? `?${params.join('&')}` : '';
@@ -4210,7 +4210,7 @@ async function anularPago(id: string): Promise<{ detail: string }> {
 }
 
 async function getPeriodosFiscales(companyId?: string, estado?: string): Promise<PeriodoFiscal[]> {
-  let params: string[] = [];
+  const params: string[] = [];
   if (companyId) params.push(`company_id=${companyId}`);
   if (estado) params.push(`estado=${estado}`);
   const qs = params.length ? `?${params.join('&')}` : '';
@@ -4231,7 +4231,7 @@ async function reabrirPeriodoFiscal(id: string): Promise<{ detail: string }> {
 }
 
 async function getBalanceComprobacion(companyId?: string, anio?: number): Promise<BalanceComprobacionResponse> {
-  let params: string[] = [];
+  const params: string[] = [];
   if (companyId) params.push(`company_id=${companyId}`);
   if (anio) params.push(`anio=${anio}`);
   const qs = params.length ? `?${params.join('&')}` : '';

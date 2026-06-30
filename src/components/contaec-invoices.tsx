@@ -56,21 +56,18 @@ import {
   FileText,
   CheckCircle2,
   XCircle,
-  Clock,
   Send,
   Eye,
   FileDown,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  DollarSign,
   Shield,
   X,
   Info,
   Mail,
   Zap,
   Download,
-  Calendar,
   ArrowRightLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -212,7 +209,7 @@ interface ContaECInvoicesProps {
 
 type InvoiceTab = 'listado' | 'nueva' | 'proformas' | 'nueva-proforma' | 'productos' | 'clientes';
 
-export function ContaECInvoices({ user, companies, initialTab }: ContaECInvoicesProps) {
+export function ContaECInvoices({ user: _user, companies, initialTab }: ContaECInvoicesProps) {
   const [activeTab, setActiveTab] = useState<InvoiceTab>(initialTab || 'listado');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() =>
     companies.length > 0 ? companies[0].id : ''

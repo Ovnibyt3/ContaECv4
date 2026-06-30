@@ -86,7 +86,6 @@ import {
   type MLChatbotSesion,
   type MLChatbotMensaje,
   type MLChatRequest,
-  type MLChatResponse,
   type MLRecomendacion,
   type MLRecomendacionUpdate,
   type MLCategoriaRegla,
@@ -141,7 +140,7 @@ const ESTADO_RECOMENDACION_COLORS: Record<string, string> = {
   descartada: 'bg-gray-100 text-gray-800',
 };
 
-export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
+export function ContaECMLAI({ user: _user, companies }: ContaECMLAIProps) {
   const selectedCompany = companies[0];
   const companyId = selectedCompany?.id || '';
 
@@ -229,7 +228,7 @@ export function ContaECMLAI({ user, companies }: ContaECMLAIProps) {
       setSesiones(sesionesData);
       setRecomendaciones(recsData);
       setReglas(reglasData);
-    } catch (err) {
+    } catch {
       toast.error('Error al cargar datos de ML/IA');
     } finally {
       setLoading(false);
