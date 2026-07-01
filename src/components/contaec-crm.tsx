@@ -164,7 +164,7 @@ function getActividadTipoBadge(tipo: string | undefined) {
 }
 
 interface ContaECCRMProps {
-  user: User;
+  _user: User;
   companies: Company[];
 }
 
