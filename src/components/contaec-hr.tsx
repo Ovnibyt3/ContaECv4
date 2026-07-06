@@ -93,7 +93,7 @@ interface ContaECHRProps {
   companies: Company[];
 }
 
-export function ContaECHR({ _user, companies }: ContaECHRProps) {
+export function ContaECHR({ user, companies }: ContaECHRProps) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() =>
     companies.length > 0 ? companies[0].id : ''
   );
@@ -157,7 +157,7 @@ export function ContaECHR({ _user, companies }: ContaECHRProps) {
         <TabsContent value="asistencia"><AsistenciaTab companyId={selectedCompanyId} /></TabsContent>
         <TabsContent value="liquidaciones"><LiquidacionesTab companyId={selectedCompanyId} /></TabsContent>
         <TabsContent value="utilidades"><UtilidadesTab companyId={selectedCompanyId} /></TabsContent>
-        <TabsContent value="ir"><IRTab companyId={selectedCompanyId} /></TabsContent>
+        <TabsContent value="ir"><IRTab _companyId={selectedCompanyId} /></TabsContent>
       </Tabs>
     </div>
   );
@@ -1248,7 +1248,7 @@ function UtilidadesTab({ companyId }: { companyId: string }) {
 
 // ─── IR Tab (Impuesto a la Renta) ────────────────────────────
 
-function IRTab({ _companyId }: { companyId: string }) {
+function IRTab({ _companyId }: { _companyId: string }) {
   const [ingresosGravados, setIngresosGravados] = useState('');
   const [result, setResult] = useState<IRCalculation | null>(null);
   const [calculating, setCalculating] = useState(false);

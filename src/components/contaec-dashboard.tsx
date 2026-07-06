@@ -645,7 +645,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
                 canAccessCurrentView ? <ContaECBudgets user={user} companies={companies} /> : renderLockedView('budgets')
               )}
               {activeNav === 'crm' && (
-                canAccessCurrentView ? <ContaECCRM user={user} companies={companies} /> : renderLockedView('crm')
+                canAccessCurrentView ? <ContaECCRM _user={user} companies={companies} /> : renderLockedView('crm')
               )}
               {activeNav === 'projects' && (
                 canAccessCurrentView ? <ContaECProjects user={user} companies={companies} /> : renderLockedView('projects')
