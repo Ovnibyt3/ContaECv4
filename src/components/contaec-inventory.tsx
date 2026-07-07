@@ -63,7 +63,7 @@ function formatCurrency(amount: number): string {
 }
 
 interface ContaECInventoryProps {
-  user: User;
+  _user: User;
   companies: Company[];
 }
 

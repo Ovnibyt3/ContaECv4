@@ -92,7 +92,7 @@ import {
 } from '@/lib/api';
 
 interface ContaECIntegrationsProps {
-  user: UserType;
+  _user: UserType;
   companies: CompanyType[];
 }
 

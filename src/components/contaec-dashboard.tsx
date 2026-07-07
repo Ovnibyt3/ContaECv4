@@ -624,7 +624,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
                 <ContaECInvoices user={user} companies={companies} initialTab="productos" />
               )}
               {activeNav === 'inventory' && (
-                <ContaECInventory user={user} companies={companies} />
+                <ContaECInventory _user={user} companies={companies} />
               )}
               {activeNav === 'warehouses' && (
                 canAccessCurrentView ? <ContaECWarehouses user={user} companies={companies} /> : renderLockedView('multi_warehouse')
@@ -651,7 +651,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
                 canAccessCurrentView ? <ContaECProjects user={user} companies={companies} /> : renderLockedView('projects')
               )}
               {activeNav === 'integrations' && (
-                canAccessCurrentView ? <ContaECIntegrations user={user} companies={companies} /> : renderLockedView('ecommerce_integration')
+                canAccessCurrentView ? <ContaECIntegrations _user={user} companies={companies} /> : renderLockedView('ecommerce_integration')
               )}
               {activeNav === 'mlai' && (
                 canAccessCurrentView ? <ContaECMLAI user={user} companies={companies} /> : renderLockedView('ml_predictions')
