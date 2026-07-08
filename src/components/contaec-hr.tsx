@@ -89,11 +89,11 @@ function formatCurrency(amount: number): string {
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 interface ContaECHRProps {
-  user: User;
+  _user: User;
   companies: Company[];
 }
 
-export function ContaECHR({ user, companies }: ContaECHRProps) {
+export function ContaECHR({ _user, companies }: ContaECHRProps) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() =>
     companies.length > 0 ? companies[0].id : ''
   );

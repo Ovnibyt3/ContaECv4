@@ -38,11 +38,11 @@ import {
   Edit,
   Trash2,
   Eye,
-  Copy,
+  //Copy,
   CheckCircle,
-  Send,
-  FileText,
-  Code,
+  //Send,
+  //FileText,
+  //Code,
   RefreshCw,
 } from 'lucide-react';
 import {
@@ -50,9 +50,9 @@ import {
   createEmailTemplate,
   updateEmailTemplate,
   deleteEmailTemplate,
-  previewEmailTemplate,
+  //previewEmailTemplate,
   previewEmailTemplateCustom,
-  sendEmailWithTemplate,
+  //sendEmailWithTemplate,
   type EmailTemplate,
 } from '@/lib/api';
 
@@ -89,7 +89,7 @@ export function EmailTemplateEditor({ companyId }: EmailTemplateEditorProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [selectedTemplateForSend, setSelectedTemplateForSend] = useState<string | null>(null);
+  //const [selectedTemplateForSend, setSelectedTemplateForSend] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({

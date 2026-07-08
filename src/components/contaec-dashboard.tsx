@@ -633,7 +633,7 @@ export function ContaECDashboard({ user, onLogout }: ContaECDashboardProps) {
                 canAccessCurrentView ? <ContaECPOS user={user} companies={companies} /> : renderLockedView('pos')
               )}
               {activeNav === 'hr' && (
-                canAccessCurrentView ? <ContaECHR user={user} companies={companies} /> : renderLockedView('payroll')
+                canAccessCurrentView ? <ContaECHR _user={user} companies={companies} /> : renderLockedView('payroll')
               )}
               {activeNav === 'suppliers' && (
                 <ContaECSuppliers user={user} companies={companies} />
